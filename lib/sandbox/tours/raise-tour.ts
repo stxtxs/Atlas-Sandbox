@@ -1,5 +1,5 @@
 /**
- * The Atlas Raise tour: one chapter per page or flow, played as Alex Morgan,
+ * The Atlas Raise tour: one chapter per page or flow, played as Robin Keller,
  * co-founder of Fanloop (raise-routes.ts builds that workspace; every company
  * and investor comes from fixtures/world.ts).
  *
@@ -27,7 +27,7 @@ export const raiseTour: Tour = {
 	product: 'raise',
 	intro: {
 		title: 'Welcome to Atlas Raise',
-		body: 'You’re Alex Morgan, co-founder of Fanloop, a Munich start-up that builds match-day apps for football clubs. Your seed round is already set up, so you can see Raise at work straight away:',
+		body: 'You’re Robin Keller, co-founder of Fanloop, a Munich start-up that builds match-day apps for football clubs. Your seed round is already set up, so you can see Raise at work straight away:',
 		points: [
 			{ label: 'Round', text: '€1.5m seed, €300k committed' },
 			{ label: 'Investors', text: 'Eight already in your watchlist' },
@@ -41,7 +41,7 @@ export const raiseTour: Tour = {
 					body: 'Home opens on your round: days to your target close and how much is committed so far.', advance: { kind: 'next' } },
 				{ id: 'home-attention', path: '/home', target: 'raise-home-attention', title: 'What needs you today',
 					body: 'Atlas sorts what needs your attention: overdue follow-ups, new investor matches, the next thing to set up. Each card links straight to it.', advance: { kind: 'next' } },
-				{ id: 'home-ask', path: '/home', target: 'raise-home-composer', title: 'Ask the co-pilot',
+				{ id: 'home-ask', path: '/home', target: 'raise-home-composer', only: '[data-tour="raise-home-composer"] .atlas-composer-box', title: 'Ask the co-pilot',
 					body: 'The bar at the top is the Atlas co-pilot. Click into it and type the question below.', advance: { kind: 'type', value: 'Find seed investors' } },
 				{ id: 'home-send', path: '/home', target: 'raise-home-composer', continues: true,
 					title: 'Send it', body: 'Press {{Enter}} or click the send arrow.', advance: { kind: 'path', pattern: '/chat' } },
@@ -51,11 +51,11 @@ export const raiseTour: Tour = {
 			id: 'chat', title: 'Co-pilot chat', steps: [
 				{ id: 'chat-answer', path: '/chat', target: 'chat-thread', title: 'Answers from SportsTechX data',
 					body: 'The co-pilot answers from Atlas data (sample data here) and knows your raise, so its answers are about Fanloop, not founders in general.', advance: { kind: 'next' } },
-				{ id: 'chat-follow-up', path: '/chat', target: 'chat-composer', title: 'Ask a follow-up',
+				{ id: 'chat-follow-up', path: '/chat/:id', target: 'chat-composer', title: 'Ask a follow-up',
 					body: 'Keep the conversation going. Type the follow-up below.', advance: { kind: 'type', value: 'Draft an intro email' } },
-				{ id: 'chat-send', path: '/chat', target: 'chat-composer', continues: true,
+				{ id: 'chat-send', path: '/chat/:id', target: 'chat-composer', continues: true,
 					title: 'Send it', body: 'Press {{Enter}} or click the send arrow.', advance: { kind: 'request', method: 'POST', pattern: '/api/chat' }, pause: 1500 },
-				{ id: 'chat-history', path: '/chat', target: 'chat-history', title: 'Every conversation, kept',
+				{ id: 'chat-history', path: '/chat/:id', target: 'chat-history', title: 'Every conversation, kept',
 					body: 'Past conversations stay on the right, so you can pick one up later. New chat starts a fresh one.', advance: { kind: 'next' } },
 			],
 		},
@@ -89,7 +89,7 @@ export const raiseTour: Tour = {
 		{
 			id: 'investor-profile', title: 'Investor profile', steps: [
 				{ id: 'profile-facts', path: `/investors/${KESTREL}`, target: 'investor-kpis', title: 'Check the fit',
-					body: 'Kestrel Field Ventures: the stages they back, their typical cheque and where they invest, with their recent deals below.', advance: { kind: 'next' } },
+					body: 'Kestrel Field Ventures: the stages they back and where they invest, with their recent deals below.', advance: { kind: 'next' } },
 				{ id: 'profile-add', path: `/investors/${KESTREL}`, target: 'investor-save', allow: [WATCHLIST_MENU],
 					title: 'Add Kestrel to your watchlist', body: 'They led Kitroom’s seed and back fan engagement. Click Add to watchlist, then choose Main watchlist.',
 					advance: { kind: 'request', method: 'POST', pattern: '/api/raise/pipeline' }, pause: 900 },
@@ -146,7 +146,7 @@ export const raiseTour: Tour = {
 		{
 			id: 'watchlists', title: 'Watchlists', steps: [
 				{ id: 'watchlists-list', path: '/watchlists', target: 'watchlists-list', title: 'All your lists in one place',
-					body: 'Your Main investor watchlist sits alongside company lists, for competitors, partners or companies you follow.', advance: { kind: 'next' } },
+					body: 'Company lists for competitors, partners or companies you follow. Your investor watchlists live on the Pipeline.', advance: { kind: 'next' } },
 				{ id: 'watchlists-create', path: '/watchlists', target: 'watchlists-create', title: 'Start a new list',
 					body: 'Name a list here to create it. From any investor, Add to watchlist → New watchlist files them in a list of their own.', advance: { kind: 'next' } },
 			],
@@ -229,7 +229,7 @@ export const raiseTour: Tour = {
 			id: 'analysis', title: 'Market analysis', steps: [
 				{ id: 'analysis-kpis', path: '/analytics', target: 'analysis-kpis', title: 'The whole market in numbers',
 					body: 'Funding, deal counts and M&A across sports tech.', advance: { kind: 'next' } },
-				{ id: 'analysis-series', path: '/analytics', target: 'analysis-series', title: 'Funding or M&A',
+				{ id: 'analysis-series', path: '/analytics', target: 'analysis-series', only: '[data-tour="analysis-series"], [data-tour="analysis-range"]', title: 'Funding or M&A',
 					body: 'Switch between funding and M&A, and change the period with the range next to it.', advance: { kind: 'next' } },
 				{ id: 'analysis-sectors', path: '/analytics', target: 'analysis-sectors', title: 'Where the money goes',
 					body: 'Which sectors attract the most capital: useful context for your market slide.', advance: { kind: 'next' } },
@@ -237,7 +237,7 @@ export const raiseTour: Tour = {
 		},
 		{
 			id: 'roundup', title: 'Monthly Roundup', steps: [
-				{ id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', title: 'One month at a time',
+				{ id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', only: '[data-tour="roundup-pickers"]', title: 'One month at a time',
 					body: 'Pick a month and see what happened: every round and acquisition, summed up.', advance: { kind: 'next' } },
 				{ id: 'roundup-kpis', path: '/roundup', target: 'roundup-kpis', title: 'The month in numbers',
 					body: 'Total raised, number of deals and the biggest rounds, with breakdowns by sector and country below.', advance: { kind: 'next' } },
@@ -258,10 +258,10 @@ export const raiseTour: Tour = {
 		{
 			id: 'more', title: 'Framework, reports, events and newsletter', steps: [
 				{ id: 'more-framework', path: '/framework', target: 'framework-grid', title: 'The sports tech framework',
-					body: 'How SportsTechX maps the industry. Open a category to see the companies in it.', advance: { kind: 'next' } },
+					body: 'How SportsTechX maps the industry: three pillars, each split into categories with the companies in them.', advance: { kind: 'next' } },
 				{ id: 'more-reports', path: '/reports', target: 'resources-grid', title: 'Reports',
 					body: 'SportsTechX research on funding, sectors and markets. Read online or download the PDF.', advance: { kind: 'next' } },
-				{ id: 'more-events', path: '/events', target: 'events-calendar', title: 'Events',
+				{ id: 'more-events', path: '/events', target: 'events-table', title: 'Events',
 					body: 'Sports tech conferences, meetups and pitch nights: a good place to meet the investors in your watchlist.', advance: { kind: 'next' } },
 				{ id: 'more-newsletter', path: '/newsletter', target: 'resources-grid', title: 'Newsletter',
 					body: 'The SportsTechX briefing on funding, deals and what matters, every two weeks.', cta: 'Finish the tour', advance: { kind: 'next' } },

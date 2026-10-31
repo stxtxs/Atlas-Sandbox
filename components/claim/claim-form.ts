@@ -158,7 +158,7 @@ export const CM_ROLES: Record<ClaimRole, RoleConfig> = {
   founder: {
     id: 'founder', label: 'Founder', icon: 'building', free: true,
     chooserDesc: 'Claim a company you work at or run.',
-    noun: 'company', searchPlaceholder: 'e.g. Teamworks, Hoopers, your startup…',
+    noun: 'company', searchPlaceholder: 'e.g. Kitroom, Courtline, your startup…',
     railLead: (name) => `Verify ${name || 'your company'} so the funding, stage and contact details investors see are the ones you control — not a guess.`,
     bonusTag: 'Free bonus when verified',
     bonus: ['A free Locker Room Report on your competitive set', '30 days of Growth access — investors, programs & events', 'A verified badge investors can trust'],

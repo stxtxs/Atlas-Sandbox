@@ -1,5 +1,5 @@
 /**
- * Atlas Scout's sample data: the visitor is Alex Morgan, partner at Kestrel
+ * Atlas Scout's sample data: the visitor is Robin Keller, partner at Kestrel
  * Field Ventures (fixtures/world.ts), with a finished, verified Scout workspace
  * and thesis, so Home, Recommended and Deal Flow work from the first request.
  *
@@ -15,7 +15,7 @@ import type { DealRow, MyDealRow } from '@/components/scout/deal-types';
 import type { ScoutProfile, ServerThesis, TaxonomyRef } from '@/components/scout/thesis-codec';
 import { mockJson } from './mock-api';
 import {
-	COMPANIES, DEALS, ROUND_TYPES, SECTORS, SPORTS, companyByName, countryByCode, sectorByName,
+	COMPANIES, DEALS, ROUND_TYPES, SECTORS, SPORTS, companyByName, countryByCode, roundByName, sectorByName,
 	type WCompany,
 } from './fixtures/world';
 import { daysFromNow, json, type SandboxCtx, type SandboxRoute } from './types';
@@ -76,7 +76,7 @@ const EMPTY_THESIS: ServerThesis = {
 // ─── The sample investor: Kestrel Field Ventures ─────────────────────────────
 
 const ref = (r: { id: string; name: string }): TaxonomyRef => ({ id: r.id, name: r.name });
-const roundRef = (name: string) => ref(ROUND_TYPES.find((r) => r.name === name)!);
+const roundRef = (name: string) => ref(roundByName(name));
 
 const SAMPLE_THESIS: ServerThesis = {
 	sectors: ['Fan Engagement', 'Recovery & Injury Prevention', 'Tracking & Analytics'].map((n) => ref(sectorByName(n))),
@@ -97,7 +97,7 @@ function sampleState(): ScoutState {
 		id: '5c0e7a10-3f4b-4d2a-9b6e-1a2b3c4d5e01', profile_id: 'demo-user', claim_id: null,
 		// Set = verified (`verification` on /home reads it), so sharing a deal is open.
 		investor_id: '0000001a-0000-4000-8000-000000000001',
-		full_name: 'Alex Morgan', role_title: 'Partner', linkedin_url: null, photo_url: null,
+		full_name: 'Robin Keller', role_title: 'Partner', linkedin_url: null, photo_url: null,
 		fund_name: 'Kestrel Field Ventures', investor_type: 'venture_capital', investor_type_label: 'Venture capital',
 		fund_website: 'https://kestrelfieldventures.example', location_id: null, hq_country: 'United Kingdom', hq_city: 'London', aum: '180000000',
 		setup_completed_at: daysFromNow(-21), created_at: daysFromNow(-21), updated_at: daysFromNow(-2),

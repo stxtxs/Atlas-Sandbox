@@ -31,7 +31,7 @@ type MenuState = null | { at: 'add' | 'sort' | string; view: 'root' | string };
 /** Show an in-menu search when an option list is longer than this. */
 const SEARCHABLE_OPTIONS = 10;
 
-export function FilterBar({ search, groups, sort, canClear, onClear, count, actions }: {
+export function FilterBar({ search, groups: allGroups, sort, canClear, onClear, count, actions }: {
 	search: { value: string; onChange: (v: string) => void; placeholder: string };
 	groups: FilterGroup[];
 	sort?: { value: string; options: [string, string][]; onChange: (v: string) => void };
@@ -54,7 +54,9 @@ export function FilterBar({ search, groups, sort, canClear, onClear, count, acti
 	const closeMenu = useCallback(() => setMenu(null), []);
 	useDismiss(rootRef, !!menu, closeMenu);
 
-	const allFilters = useMemo(() => groups.filter((g) => !g.locked).flatMap((g) => g.filters), [groups]);
+	// The tutorial never shows a locked group (it would be an upgrade teaser).
+	const groups = useMemo(() => allGroups.filter((g) => !g.locked), [allGroups]);
+	const allFilters = useMemo(() => groups.flatMap((g) => g.filters), [groups]);
 	const applied = allFilters.filter((f) => (f.kind === 'select' ? !!f.value : f.value));
 	const byKey = (k: string) => allFilters.find((f) => f.key === k);
 	const toggleMenu = (at: string, view = 'root') => setMenu((m) => (m && m.at === at ? null : { at, view }));

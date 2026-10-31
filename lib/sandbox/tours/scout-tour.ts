@@ -1,7 +1,7 @@
 /**
  * The Atlas Scout tour: every Scout page and flow, one chapter each.
  *
- * The visitor is Alex Morgan, partner at Kestrel Field Ventures (fixtures/
+ * The visitor is Robin Keller, partner at Kestrel Field Ventures (fixtures/
  * world.ts), with a finished thesis (scout-routes.ts). Steps are pinned to the
  * same sample objects — Kitroom (the top thesis match), the Shortlist
  * watchlist (Stridewise waiting in "Identified"), the featured Matchday Loop
@@ -11,6 +11,9 @@
 import type { Tour } from '../tour-types';
 import { SCOUT_FEATURED_DEAL_ID } from '../scout-routes';
 import { SHORTLIST_ID } from '../watchlist-routes';
+import { companyByName } from '../fixtures/world';
+
+const STRIDEWISE = companyByName('Stridewise').id;
 
 const KITROOM = '/companies/kitroom';
 const SHORTLIST = `/watchlists/${SHORTLIST_ID}`;
@@ -21,7 +24,7 @@ export const scoutTour: Tour = {
 	product: 'scout',
 	intro: {
 		title: 'Welcome to Atlas Scout',
-		body: 'You’re Alex Morgan, partner at Kestrel Field Ventures, a made-up fund. Your investment thesis is already set, so Atlas can match companies and deals to it:',
+		body: 'You’re Robin Keller, partner at Kestrel Field Ventures, a made-up fund. Your investment thesis is already set, so Atlas can match companies and deals to it:',
 		points: [
 			{ label: 'Sectors', text: 'Fan Engagement, Tracking & Analytics, Recovery & Injury Prevention' },
 			{ label: 'Stage', text: 'Seed and Series A' },
@@ -57,25 +60,25 @@ export const scoutTour: Tour = {
 			id: 'chat', title: 'Co-pilot chat',
 			steps: [
 				{
-					id: 'chat-type', path: '/home', target: 'scout-home-composer',
+					id: 'chat-type', path: '/home', target: 'scout-home-composer', only: '[data-tour="scout-home-composer"] textarea',
 					title: 'Ask the co-pilot',
 					body: 'Ask Atlas anything about companies, deals or your thesis. Type the question into the box.',
 					advance: { kind: 'type', value: 'Which seed rounds fit my thesis?' },
 				},
 				{
-					id: 'chat-send', path: '/home', target: 'scout-home-composer', continues: true,
+					id: 'chat-send', path: '/home', target: 'scout-home-composer', only: '[data-tour="scout-home-composer"] textarea', continues: true,
 					title: 'Ask the co-pilot',
 					body: 'Now press {{Enter}} to send it.',
 					advance: { kind: 'path', pattern: '/chat' },
 				},
 				{
-					id: 'chat-answer', path: '/chat', target: 'chat-thread',
+					id: 'chat-answer', path: '/chat/:id', target: 'chat-thread',
 					title: 'An answer on your thesis',
 					body: 'The co-pilot answers from Atlas data, with the companies that fit. In the real product it can also open lists and add to watchlists.',
 					advance: { kind: 'next' },
 				},
 				{
-					id: 'chat-follow-up', path: '/chat', target: 'chat-composer',
+					id: 'chat-follow-up', path: '/chat/:id', target: 'chat-composer',
 					title: 'Keep the conversation going',
 					body: 'Follow-up questions go here, and past conversations stay in your history.',
 					highlights: ['chat-history'],
@@ -89,7 +92,7 @@ export const scoutTour: Tour = {
 				{
 					id: 'companies-search', path: '/companies', target: 'filters-search',
 					title: 'Search the database',
-					body: 'Every sports tech company Atlas tracks is searchable here. Search for Kitroom, the top match for your thesis.',
+					body: 'Every sports tech company Atlas tracks is searchable here. Search for Kitroom, a fan loyalty start-up that fits your thesis.',
 					advance: { kind: 'type', value: 'Kitroom' },
 				},
 				{
@@ -122,7 +125,7 @@ export const scoutTour: Tour = {
 					allow: ['.atlas-wl-menu .atlas-menu__item'],
 					title: 'Add to a watchlist',
 					body: 'Open Add to watchlist and pick Shortlist to keep track of Kitroom.',
-					advance: { kind: 'request', method: 'POST', pattern: '/api/user-watchlists/:id/companies/:companyId' },
+					advance: { kind: 'request', method: 'POST', pattern: `/api/user-watchlists/${SHORTLIST_ID}/companies/:companyId` },
 					pause: 900,
 				},
 			],
@@ -191,16 +194,16 @@ export const scoutTour: Tour = {
 					id: 'watchlist-stage', path: SHORTLIST, continues: true,
 					// Two ways, both landing in Reviewing: drag the card onto that column
 					// only, or pick it in the card's stage menu.
-					target: 'board-card',
-					only: '[data-tour="board-card"] .scout-board__select',
-					dragFrom: '[data-tour="board-card"]',
+					target: 'board-card-stridewise',
+					only: '[data-tour="board-card-stridewise"] .scout-board__select',
+					dragFrom: '[data-tour="board-card-stridewise"]',
 					highlights: ['board-reviewing'],
 					dropOn: '[data-tour="board-reviewing"]',
 					allow: ['[role="option"][data-value="Reviewing"]'],
 					pointerOnly: true,
 					title: 'Move a deal forward',
 					body: 'Stridewise is waiting in Identified. Drag its card to Reviewing, or set Reviewing in its stage menu.',
-					advance: { kind: 'request', method: 'PATCH', pattern: '/api/scout/watchlists/:id/companies/:companyId/stage', body: { stage: 'reviewing' } },
+					advance: { kind: 'request', method: 'PATCH', pattern: `/api/scout/watchlists/:id/companies/${STRIDEWISE}/stage`, body: { stage: 'reviewing' } },
 					pause: 1200,
 				},
 			],
@@ -217,7 +220,7 @@ export const scoutTour: Tour = {
 				{
 					id: 'investors-results', path: '/investors', target: 'investors-results',
 					title: 'Their portfolio and focus',
-					body: 'Each investor shows its focus, cheque size and deals, so you can see who to syndicate with.',
+					body: 'Each investor shows its type, location and number of deals, so you can see who to syndicate with.',
 					advance: { kind: 'next' },
 				},
 			],
@@ -254,7 +257,7 @@ export const scoutTour: Tour = {
 			id: 'roundup', title: 'Monthly Roundup',
 			steps: [
 				{
-					id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers',
+					id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', only: '[data-tour="roundup-pickers"]',
 					title: 'Last month at a glance',
 					body: 'Pick a month to see its funding rounds, deals and news in one page.',
 					advance: { kind: 'next' },
@@ -538,7 +541,8 @@ export const scoutTour: Tour = {
 					id: 'thesis-save', path: '/thesis', target: 'thesis-next',
 					title: 'Save your thesis',
 					body: 'Click Save changes. Recommendations, signals and Deal Flow re-rank straight away.',
-					advance: { kind: 'request', method: 'PUT', pattern: '/api/scout/thesis' },
+					// Only the wizard's final save marks setup complete; the per-step saves don't.
+					advance: { kind: 'request', method: 'PATCH', pattern: '/api/scout', body: { setup_completed: true } },
 					pause: 900,
 				},
 				{

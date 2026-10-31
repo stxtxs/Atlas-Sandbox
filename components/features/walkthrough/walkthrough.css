@@ -131,7 +131,9 @@ body.wt-coach-open--right .atlas-shell { margin-right: var(--wt-panel-w); }
 @media (max-width: 1024px) {
 	:root { --wt-panel-w: auto; }
 	body.wt-coach-open--right .atlas-shell { margin: 0; }
+	/* Above the app's own overlays (drawers, export, wizards — z ≤ 1100), so the sheet is never covered. */
 	.atlas .wt-coach {
+		z-index: 1150;
 		inset: auto 0 0 0; height: auto; max-height: 60vh;
 		border-radius: var(--a-radius) var(--a-radius) 0 0; padding: 18px 18px 14px;
 	}
@@ -170,6 +172,7 @@ body.wt-coach-open--right .atlas-shell { margin-right: var(--wt-panel-w); }
 @media (min-width: 1025px) {
 	body.wt-coach-open--right .co-drawer-overlay,
 	body.wt-coach-open--right .export-overlay { right: var(--wt-panel-w); }
+	body.wt-coach-open--right .pipe-drawer { right: var(--wt-panel-w) !important; }
 	body.wt-coach-open--right .ma-panel { right: var(--wt-panel-w) !important; }
 	body.wt-coach-open--right .ma-scrim { right: var(--wt-panel-w) !important; }
 }

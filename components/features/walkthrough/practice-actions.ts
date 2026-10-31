@@ -8,10 +8,11 @@ import type { SandboxProduct } from '@/lib/sandbox/types';
  * SWR cache and every tier reader start fresh on the new tier's sample data.
  */
 
-/** Start a tier's tour on its home page. */
-export function enterPractice(product: SandboxProduct) {
+/** Start a tier's tour on its home page. `replace` for a deep link, so Back doesn't land on it and restart the tour. */
+export function enterPractice(product: SandboxProduct, { replace = false } = {}) {
 	startWalkthrough(product);
-	window.location.assign('/home');
+	if (replace) window.location.replace('/home');
+	else window.location.assign('/home');
 }
 
 /** Run the current tour again from the start, on a fresh sample workspace. */

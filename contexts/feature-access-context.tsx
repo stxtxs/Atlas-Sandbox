@@ -37,14 +37,21 @@ interface FeatureAccessContextType {
 const FeatureAccessContext = createContext<FeatureAccessContextType | null>(null);
 
 /**
- * The tutorial has no paywall: every feature is open to the tier being toured.
+ * The tutorial has no paywall: every feature is open to the tier being toured,
+ * except the few Raise/Scout features Explore hides (EXPLORE_HIDDEN).
  * Same context shape as the app, so the product components stay untouched.
  */
+/** Raise/Scout features the Explore tour must not show. Locked UI renders nothing here (no upgrade teaser). */
+const EXPLORE_HIDDEN = new Set(['advanced_filters', 'company_contacts']);
+
 export function FeatureAccessProvider({ children }: { children: React.ReactNode }) {
   const { data: profile } = useUserProfile();
   const userType = getUserType(profile);
   const checkAccess = useCallback(
-    (): FeatureAccessResult => ({ hasAccess: true, isLocked: false, userType, requiredTier: null, isLoading: false, error: false }),
+    (slug: string): FeatureAccessResult => {
+      const locked = userType === 'explore' && EXPLORE_HIDDEN.has(slug);
+      return { hasAccess: !locked, isLocked: locked, userType, requiredTier: locked ? 'raise' : null, isLoading: false, error: false };
+    },
     [userType],
   );
   const value = useMemo(() => ({ checkAccess, isLoading: false, features: [] as Feature[], reload: () => {} }), [checkAccess]);

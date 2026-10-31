@@ -11,7 +11,7 @@ const PRODUCTS: SandboxProduct[] = ['explore', 'raise', 'scout'];
 export default function Page() {
 	const { product } = useParams<{ product: string }>();
 	useEffect(() => {
-		if (PRODUCTS.includes(product as SandboxProduct)) enterPractice(product as SandboxProduct);
+		if (PRODUCTS.includes(product as SandboxProduct)) enterPractice(product as SandboxProduct, { replace: true });
 		else window.location.replace('/');
 	}, [product]);
 	return null;

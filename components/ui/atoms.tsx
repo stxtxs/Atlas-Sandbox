@@ -147,8 +147,6 @@ export function Logo({ co, size = 32 }: LogoProps) {
 	// Build the ordered list of remote candidates for this company.
 	const sources: string[] = [];
 	if (co.custom_logo_url) sources.push(co.custom_logo_url);
-	const domain = extractDomain(co.website);
-	if (domain) sources.push(`https://www.google.com/s2/favicons?sz=128&domain=${domain}`);
 
 	const [srcIdx, setSrcIdx] = useState(0);
 	const src = sources[srcIdx];
@@ -186,17 +184,6 @@ export function Logo({ co, size = 32 }: LogoProps) {
 			{co.logo ?? co.name?.slice(0, 2).toUpperCase() ?? '—'}
 		</div>
 	);
-}
-
-/** Pull a bare hostname from a website URL (drops protocol, path, www). */
-function extractDomain(website: string | null | undefined): string | null {
-	if (!website) return null;
-	let s = website.trim();
-	if (!s) return null;
-	s = s.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
-	const host = s.split(/[/?#]/)[0]?.trim();
-	if (!host || !host.includes('.')) return null;
-	return host.toLowerCase();
 }
 
 // ============================================================================

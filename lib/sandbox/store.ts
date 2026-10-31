@@ -32,13 +32,13 @@ function parse(raw: string | null): PracticeState {
 
 function rawState(): string | null {
 	if (typeof window === 'undefined') return null;
-	try { return localStorage.getItem(KEY); } catch { return null; }
+	try { return sessionStorage.getItem(KEY); } catch { return null; }
 }
 
 const read = (): PracticeState => parse(rawState());
 
 function write(next: PracticeState) {
-	try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+	try { sessionStorage.setItem(KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
 	window.dispatchEvent(new Event(EVENT));
 }
 
@@ -49,7 +49,7 @@ export function activeSandbox(): SandboxProduct | null {
 
 /** Start a tier's tour at its first step, on a fresh sample workspace. */
 export function startWalkthrough(product: SandboxProduct) {
-	try { localStorage.removeItem(DATA_KEY(product)); } catch { /* storage unavailable */ }
+	try { sessionStorage.removeItem(DATA_KEY(product)); } catch { /* storage unavailable */ }
 	clearStepSnapshots(product);
 	write({ active: product, step: 0 });
 }
@@ -79,10 +79,10 @@ export function usePractice(): PracticeState {
 /** Per-tier sample workspace for the mock API's write handlers. */
 const DATA_KEY = (p: SandboxProduct) => `stx:tutorial:data:${p}`;
 export function readSandboxData(p: SandboxProduct): Record<string, unknown> {
-	try { return JSON.parse(localStorage.getItem(DATA_KEY(p)) ?? '{}') as Record<string, unknown>; } catch { return {}; }
+	try { return JSON.parse(sessionStorage.getItem(DATA_KEY(p)) ?? '{}') as Record<string, unknown>; } catch { return {}; }
 }
 export function writeSandboxData(p: SandboxProduct, data: Record<string, unknown>) {
-	try { localStorage.setItem(DATA_KEY(p), JSON.stringify(data)); } catch { /* storage unavailable */ }
+	try { sessionStorage.setItem(DATA_KEY(p), JSON.stringify(data)); } catch { /* storage unavailable */ }
 }
 
 /*
@@ -103,7 +103,7 @@ function clearStepSnapshots(p: SandboxProduct) {
 export function saveStepSnapshot(p: SandboxProduct, step: number) {
 	const all = readSnapshots(p);
 	if (step in all) return;
-	try { sessionStorage.setItem(SNAP_KEY(p), JSON.stringify({ ...all, [step]: localStorage.getItem(DATA_KEY(p)) })); } catch { /* storage unavailable */ }
+	try { sessionStorage.setItem(SNAP_KEY(p), JSON.stringify({ ...all, [step]: sessionStorage.getItem(DATA_KEY(p)) })); } catch { /* storage unavailable */ }
 }
 
 /** Put the workspace back to how it was when step `step` opened. False when there is no snapshot. */
@@ -112,8 +112,8 @@ export function restoreStepSnapshot(p: SandboxProduct, step: number): boolean {
 	if (!(step in all)) return false;
 	try {
 		const data = all[step];
-		if (data === null) localStorage.removeItem(DATA_KEY(p));
-		else localStorage.setItem(DATA_KEY(p), data);
+		if (data === null) sessionStorage.removeItem(DATA_KEY(p));
+		else sessionStorage.setItem(DATA_KEY(p), data);
 		// Later snapshots describe a future that no longer happened.
 		sessionStorage.setItem(SNAP_KEY(p), JSON.stringify(Object.fromEntries(Object.entries(all).filter(([k]) => Number(k) <= step))));
 	} catch { return false; }

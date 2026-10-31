@@ -3,11 +3,10 @@
 import { useEffect } from 'react';
 
 /**
- * Always usable during the tour: the coach panel, the practice bar (Exit), the
- * simulated confirmation card and anything marked `.wt-allow` (the preview's
- * "Get Atlas X" link).
+ * Always usable during the tour: the tour panel, the tutorial bar (Get Atlas X,
+ * theme, Exit) and the simulated confirmation card.
  */
-const ALWAYS = ['.wt-coach', '.wt-bar', '.wt-confirm', '.wt-allow'];
+const ALWAYS = ['.wt-coach', '.wt-bar', '.wt-confirm'];
 
 // Not touchstart: cancelling it would stop touch scrolling, and the tap's click is caught anyway.
 const POINTER_EVENTS = ['pointerdown', 'mousedown', 'mouseup', 'click', 'dblclick', 'auxclick', 'contextmenu', 'dragstart'] as const;
@@ -21,7 +20,7 @@ function within(el: EventTarget | null, selectors: string[]): boolean {
 }
 
 /**
- * The Warm-Up is a guided demo, not a sandbox: while it runs, only the current
+ * The tutorial is a guided demo, not a sandbox: while it runs, only the current
  * step's own elements (`allowed` — its target and whatever popover option it
  * permits) and the coach's controls react. Every other click, tap, key press
  * and form submit is swallowed before the app sees it — capture phase on
@@ -57,7 +56,12 @@ export function useTourGuard(allowed: string[], pointerOnly: boolean, dropOn?: s
 			if (FREE_KEYS.has(e.key) || e.target === document.body || e.target === document.documentElement) return;
 			if (!within(e.target, keysOk)) swallow(e);
 		};
-		const onSubmit = (e: Event) => { if (!within(e.target, ALWAYS)) swallow(e); };
+		// A form submits when the step allows its button (or the form itself);
+		// any other submit — Enter in some other field — is swallowed.
+		const onSubmit = (e: Event) => {
+			const submitter = (e as SubmitEvent).submitter ?? null;
+			if (!within(submitter, pointerOk) && !within(e.target, pointerOk)) swallow(e);
+		};
 		// A refused drop zone must not even look droppable: stopping its dragover
 		// (without preventDefault) leaves the browser's "no drop" default in place.
 		const onDragOver = (e: Event) => { if (!within(e.target, dropOk)) e.stopImmediatePropagation(); };

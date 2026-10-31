@@ -66,13 +66,15 @@ export const SPORTS: WNamed[] = [
 ];
 const round = named(0x40d);
 export const ROUND_TYPES: WNamed[] = [
-	round(1, 'Pre-Seed'), round(2, 'Seed'), round(3, 'Series A'), round(4, 'Series B'), round(5, 'Series C'), round(6, 'Grant'),
+	// Atlas's own round-type names (the Scout thesis chips and claim forms match on them).
+	round(1, 'Pre Seed Round'), round(2, 'Seed Round'), round(3, 'Series A'), round(4, 'Series B'), round(5, 'Series C'), round(6, 'Grant'),
 ];
 const tag = named(0x7a6);
 export const TECH_TAGS: WNamed[] = [
 	tag(1, 'AI / Machine Learning'), tag(2, 'Computer Vision'), tag(3, 'Wearable Sensors'), tag(4, 'SaaS'), tag(5, 'Marketplace'), tag(6, 'Mobile App'),
 ];
-export const roundByName = (name: string) => ROUND_TYPES.find((r) => r.name === name)!;
+/** Short labels ('Seed', 'Pre-Seed') used in DEALS resolve to the full names. */
+export const roundByName = (name: string) => ROUND_TYPES.find((r) => r.name === name || r.name === `${name.replace('-', ' ')} Round`)!;
 
 export interface WCountry { code: string; name: string; region: string; continent: string }
 export const COUNTRIES: WCountry[] = [
@@ -164,6 +166,8 @@ export const COMPANIES: WCompany[] = [
 		description: 'Clubvault runs season tickets and resale for mid-size rugby and football clubs, with fraud checks built in.' }),
 	company(24, 'Respawn Arena', { sector: 'Competitive Gaming', sport: 'Multi-sport', country: 'SE', city: 'Malmö', founded: 2020, model: 'b2c', tags: ['Marketplace'],
 		description: 'Respawn Arena hosts amateur eSports tournaments for football and racing games, with club-branded leagues.' }),
+	company(25, 'Shirtfront Metrics', { sector: 'Sponsorship & Advertising', sport: 'Football / Soccer', country: 'NL', city: 'Rotterdam', founded: 2021, model: 'b2b', tags: ['Computer Vision', 'SaaS'],
+		description: 'Shirtfront Metrics measures the exposure sponsors get from broadcasts and social clips, so clubs can price sponsorship on evidence.' }),
 ];
 export const companyBy = (idOrSlug: string) => COMPANIES.find((c) => c.id === idOrSlug || c.slug === idOrSlug);
 export const companyByName = (name: string) => COMPANIES.find((c) => c.name === name)!;
@@ -191,7 +195,7 @@ export const INVESTORS: WInvestor[] = [
 		description: 'Growth-stage investor in B2B software for clubs, leagues and venues. Follows on through Series B.' }),
 	investor(4, 'Halfway Line Partners', { category: 'venture_capital', country: 'ES', city: 'Madrid', launched: 2019, cheque: [300_000, 1_500_000], stages: ['Seed', 'Series A'], focus: ['Venue & Facility Management', 'Booking & Community'], aum_usd: 60_000_000,
 		description: 'Iberian seed fund for sports software and marketplaces, close to the padel and football ecosystems.' }),
-	investor(5, 'Overtime Angels', { category: 'angel', country: 'IE', city: 'Dublin', launched: 2020, cheque: [50_000, 300_000], stages: ['Pre-Seed', 'Seed'], focus: ['Fan Engagement', 'Health & Fitness'],
+	investor(5, 'Extra Time Angels', { category: 'angel', country: 'IE', city: 'Dublin', launched: 2020, cheque: [50_000, 300_000], stages: ['Pre-Seed', 'Seed'], focus: ['Fan Engagement', 'Health & Fitness'],
 		description: 'Network of former athletes and sports executives writing first cheques into sports tech founders.' }),
 	investor(6, 'Brightpost Ventures', { category: 'venture_capital', country: 'FR', city: 'Paris', launched: 2015, cheque: [1_000_000, 5_000_000], stages: ['Seed', 'Series A'], focus: ['Media & Broadcasting', 'Competitive Gaming'], aum_usd: 210_000_000,
 		description: 'Media and entertainment fund investing in sports content, streaming and gaming.' }),
@@ -227,9 +231,9 @@ const deal = (company: string, round: string, amount_usd: number | null, daysAgo
 	({ id: uuid(0xd1, ++dealN), company, round, amount_usd, daysAgo, investors });
 
 export const DEALS: WDeal[] = [
-	deal('Kitroom', 'Pre-Seed', 400_000, 620, ['Overtime Angels']),
+	deal('Kitroom', 'Pre-Seed', 400_000, 620, ['Extra Time Angels']),
 	deal('Kitroom', 'Seed', 2_000_000, 160, ['Kestrel Field Ventures', 'Corner Flag Ventures']),
-	deal('Fanloop', 'Pre-Seed', 350_000, 410, ['Overtime Angels', 'Corner Flag Ventures']),
+	deal('Fanloop', 'Pre-Seed', 350_000, 410, ['Extra Time Angels', 'Corner Flag Ventures']),
 	deal('Matchday Loop', 'Seed', 1_800_000, 700, ['Kestrel Field Ventures']),
 	deal('Matchday Loop', 'Series A', 5_100_000, 45, ['Brightpost Ventures', 'Kestrel Field Ventures']),
 	deal('Courtline', 'Seed', 1_800_000, 300, ['Halfway Line Partners', 'Sideline Family Office']),
@@ -239,7 +243,7 @@ export const DEALS: WDeal[] = [
 	deal('Pitchmark Analytics', 'Series B', 14_000_000, 30, ['Podium Capital', 'Fieldhouse Capital']),
 	deal('Velodata', 'Seed', 900_000, 380, ['Halfway Line Partners']),
 	deal('Replaykit', 'Series A', 4_000_000, 260, ['Brightpost Ventures']),
-	deal('Huddle Health', 'Seed', 1_100_000, 200, ['Breakaway Fund', 'Overtime Angels']),
+	deal('Huddle Health', 'Seed', 1_100_000, 200, ['Breakaway Fund', 'Extra Time Angels']),
 	deal('Arenaflow', 'Series A', 7_000_000, 900, ['Northline Capital']),
 	deal('Arenaflow', 'Series B', 18_000_000, 120, ['Northline Capital', 'Fieldhouse Capital']),
 	deal('Oddsmith', 'Seed', 1_500_000, 330, ['Brightpost Ventures']),
@@ -257,6 +261,7 @@ export const DEALS: WDeal[] = [
 	deal('Clubvault', 'Series A', 3_800_000, 360, ['Northline Capital']),
 	deal('Respawn Arena', 'Seed', 1_000_000, 90, ['Brightpost Ventures']),
 	deal('Courtline', 'Grant', 150_000, 12, []),
+	deal('Shirtfront Metrics', 'Seed', 1_200_000, 210, ['Brightpost Ventures']),
 ];
 
 // ─── Acquisitions ────────────────────────────────────────────────────────────

@@ -5,8 +5,8 @@
  * session and the Investor Circle opt-in — answered from a workspace kept in
  * this browser (store.ts).
  *
- * The visitor plays Alex Morgan, co-founder of Fanloop (fixtures/world.ts): a
- * Munich second-screen start-up that raised a pre-seed from Overtime Angels and
+ * The visitor plays Robin Keller, co-founder of Fanloop (fixtures/world.ts): a
+ * Munich second-screen start-up that raised a pre-seed from Extra Time Angels and
  * Corner Flag Ventures and is now raising a €1.5m seed with €300k committed.
  * The first request builds that workspace — raise set up, criteria filled,
  * eight investors in the watchlist — so the tour (tours/raise-tour.ts) opens on
@@ -132,9 +132,9 @@ interface SeedTemplate {
 const SEED: SeedTemplate[] = [
 	{ investor: 'Corner Flag Ventures', stage: 'committed', contact: 'Giulia Conti', amount: COMMITTED, lastContact: -3, nextStep: 'Return signed SHA and send wire details', due: 5, notes: 'Following on from the pre-seed; wants a board observer seat.', addedDay: -58, lastMoveDay: -2 },
 	{ investor: 'Sideline Family Office', stage: 'due_diligence', contact: 'Thomas Weber', amount: roundTo(TARGET * 0.33, 25_000), lastContact: -1, nextStep: 'Share data room and cohort retention', due: 3, notes: 'Could co-lead. Asked for churn by cohort and unit economics.', addedDay: -51, lastMoveDay: -4 },
-	{ investor: 'Overtime Angels', stage: 'in_conversation', contact: 'Ciara Byrne', amount: 100_000, lastContact: -11, nextStep: 'Follow up on the syndicate call', due: -4, notes: 'Pre-seed investors; three angels keen to follow on.', addedDay: -44, lastMoveDay: -6 },
+	{ investor: 'Extra Time Angels', stage: 'in_conversation', contact: 'Ciara Byrne', amount: 100_000, lastContact: -11, nextStep: 'Follow up on the syndicate call', due: -4, notes: 'Pre-seed investors; three angels keen to follow on.', addedDay: -44, lastMoveDay: -6 },
 	{ investor: 'Halfway Line Partners', stage: 'in_conversation', contact: 'Lucía Romero', amount: null, lastContact: -5, nextStep: 'Intro call with a portfolio founder', due: 8, notes: null, addedDay: -36, lastMoveDay: -9 },
-	{ investor: 'Tidepool Sport', stage: 'contacted', contact: 'Daan de Vries', amount: null, lastContact: -9, nextStep: null, due: null, notes: 'Sent deck via a warm intro from Overtime Angels.', addedDay: -30, lastMoveDay: -9 },
+	{ investor: 'Tidepool Sport', stage: 'contacted', contact: 'Daan de Vries', amount: null, lastContact: -9, nextStep: null, due: null, notes: 'Sent deck via a warm intro from Extra Time Angels.', addedDay: -30, lastMoveDay: -9 },
 	{ investor: 'Breakaway Fund', stage: 'contacted', contact: null, amount: null, lastContact: -12, nextStep: 'Send updated deck after the warm intro', due: -2, notes: null, addedDay: -25, lastMoveDay: -12 },
 	{ investor: 'Podium Capital', stage: 'target', contact: null, amount: null, lastContact: null, nextStep: 'Ask Giulia for a warm intro', due: 10, notes: 'Also in Munich — worth a coffee.', addedDay: -14, lastMoveDay: -14 },
 	{ investor: 'Grandstand Growth', stage: 'target', contact: null, amount: null, lastContact: null, nextStep: null, due: null, notes: 'Too late-stage for this round; keep warm for the Series A.', addedDay: -8, lastMoveDay: -8 },

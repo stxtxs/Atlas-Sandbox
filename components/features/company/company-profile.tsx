@@ -58,7 +58,7 @@ const fmtDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString(undef
  */
 function ContactCard({ companyId }: { companyId: string }) {
 	const { access, contact, isLoading } = usePrimaryContact(companyId);
-	if (access.isLoading) return null;
+	if (access.isLoading || access.isLocked) return null;
 	const linkedin = contact?.linkedin_url ? (/^https?:/.test(contact.linkedin_url) ? contact.linkedin_url : `https://${contact.linkedin_url}`) : null;
 	return (
 		<section className="atlas-card atlas-co__side" aria-label="Primary contact">

@@ -1,6 +1,5 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Compass, LogOut, Moon, Sun } from 'lucide-react';
@@ -18,7 +17,8 @@ import '@/components/explore/explore.css';
 import '@/components/scout/scout.css';
 import '@/components/features/walkthrough/walkthrough.css';
 
-const WalkthroughCoach = dynamic(() => import('@/components/features/walkthrough/walkthrough-coach').then((m) => m.WalkthroughCoach), { ssr: false });
+// A static import: the guard must be up the moment the page is, not after a lazy chunk loads.
+import { WalkthroughCoach } from '@/components/features/walkthrough/walkthrough-coach';
 
 const COLOR: Record<SandboxProduct, string | undefined> = { explore: EXPLORE_COLOR, raise: undefined, scout: SCOUT_COLOR };
 

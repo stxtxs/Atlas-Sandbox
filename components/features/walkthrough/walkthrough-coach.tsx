@@ -83,13 +83,18 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 		if (current) saveStepSnapshot(product, step);
 	}, [current, product, step]);
 
-	const usable = current?.only ?? (current?.target ? tourSelector(current.target) : null);
+	// A reading step (`next`) only highlights: its links and buttons stay dead
+	// unless the step names what may be used (`only`).
+	const usable = current?.only ?? (current?.target && current.advance.kind !== 'next' ? tourSelector(current.target) : null);
 	const allowed = current ? [...(usable ? [usable] : []), ...(current.allow ?? [])] : NO_SELECTORS;
 	useTourGuard(allowed, !!current?.pointerOnly, current?.dropOn, current?.dragFrom);
 
 	const highlightSelectors = (current?.highlights ?? []).map(tourSelector);
-	const extra = current ? [...highlightSelectors, ...(current.allow ?? [])] : NO_SELECTORS;
-	const { boxes: found, missing } = useTourTargets(current?.target ? tourSelector(current.target) : undefined, extra, stepKey);
+	// A step with no target is "missing" when its first allowed element is gone
+	// (e.g. Escape closed the drawer it works in), so Next can still appear.
+	const primarySel = current?.target ? tourSelector(current.target) : current?.allow?.[0];
+	const extra = current ? [...highlightSelectors, ...(current.allow ?? []).filter((s) => s !== primarySel)] : NO_SELECTORS;
+	const { boxes: found, missing } = useTourTargets(primarySel, extra, stepKey);
 	const boxes = current?.highlights ? mergeAdjacent(found) : found;
 
 	const goTo = useCallback((to: number) => {
@@ -100,10 +105,17 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 		setTourStep(to);
 	}, [step, product, mutate]);
 
+	// One pending pause at a time, dropped if the step changes first (Back,
+	// Skip chapter, Contents) — otherwise it would advance from a step already left.
+	const pauseTimer = useRef<number | null>(null);
+	useEffect(() => () => {
+		if (pauseTimer.current !== null) window.clearTimeout(pauseTimer.current);
+		pauseTimer.current = null;
+	}, [stepKey]);
 	const advance = useCallback(() => {
-		if (!current) return;
-		if (current.pause) window.setTimeout(() => setTourStep(step + 1), current.pause);
-		else setTourStep(step + 1);
+		if (!current || pauseTimer.current !== null) return;
+		if (!current.pause) { setTourStep(step + 1); return; }
+		pauseTimer.current = window.setTimeout(() => { pauseTimer.current = null; setTourStep(step + 1); }, current.pause);
 	}, [current, step]);
 	useTourAdvance(current, pathname, advance);
 
@@ -125,7 +137,9 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 		else if (canNext) advance();
 	}, [showIntro, canNext, advance]);
 
-	useCoachKeys(back, primaryAction, showIntro || canNext);
+	// With Contents open, Escape closes it and Enter does nothing.
+	const closeContents = useCallback(() => setContents(false), []);
+	useCoachKeys(contents ? closeContents : back, primaryAction, !contents && (showIntro || canNext));
 
 	// The panel takes real screen width on the right — the app gets the rest.
 	useEffect(() => {

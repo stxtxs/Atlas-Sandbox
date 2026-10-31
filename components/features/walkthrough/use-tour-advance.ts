@@ -51,7 +51,10 @@ export function useTourAdvance(step: TourStep | null, pathname: string, onDone: 
 			// A simulated action (e.g. Request introduction) never reaches the app:
 			// no modal, no request — the next step shows what would happen.
 			if (simulate) { e.preventDefault(); e.stopImmediatePropagation(); }
-			done.current();
+			// After the app has handled this click: advancing now (capture phase)
+			// would arm the next step's `request` listener in time to catch the
+			// request this very click sends (e.g. a wizard's per-step save).
+			window.setTimeout(() => done.current(), 0);
 		};
 		document.addEventListener('click', onEvent, true);
 		document.addEventListener('change', onEvent, true);

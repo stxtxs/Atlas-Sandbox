@@ -59,8 +59,8 @@ export const exploreTour: Tour = {
 				{ id: 'companies-sort-funded', path: '/companies', target: 'filters-sort', only: scoped('filters-sort', '[data-value="-total_funding"]'), continues: true, title: 'Biggest first', body: 'Click {{Most funded}}.', advance: { kind: 'click' } },
 				{ id: 'companies-view', path: '/companies', target: 'companies-view', only: scoped('companies-view', 'button[title="Card view"]'), title: 'Switch the view', body: 'Click the grid icon to see companies as cards with their descriptions.', advance: { kind: 'click' } },
 				{ id: 'companies-export-open', path: '/companies', target: 'companies-export', only: '[data-tour="companies-export"] > button', title: 'Export the list', body: 'Click {{Export}}.', advance: { kind: 'click' } },
-				{ id: 'companies-export-columns', path: '/companies', target: 'companies-export', allow: ['.export-modal'], continues: true, title: 'Pick the columns', body: 'Click {{Select all}} at the top right of the column list.', advance: { kind: 'click', on: '.export-modal__all' } },
-				{ id: 'companies-export-download', path: '/companies', target: 'companies-export', allow: ['.export-modal'], continues: true, title: 'Download', body: 'Click {{Download}}. You get a small sample CSV — a real export holds every matching company.', advance: { kind: 'request', method: 'POST', pattern: '/api/exports/:entity' } },
+				{ id: 'companies-export-columns', path: '/companies', target: 'companies-export', only: '.export-modal', allow: ['.export-modal'], continues: true, title: 'Pick the columns', body: 'Click {{Select all}} at the top right of the column list.', advance: { kind: 'click', on: '.export-modal__all' } },
+				{ id: 'companies-export-download', path: '/companies', target: 'companies-export', only: '.export-modal', allow: ['.export-modal'], continues: true, title: 'Download', body: 'Click {{Download}}. You get a small sample CSV — a real export holds every matching company.', advance: { kind: 'request', method: 'POST', pattern: '/api/exports/:entity' } },
 				{ id: 'companies-search', path: '/companies', target: 'filters-search', title: 'Search by name', body: 'Click the search box and type the company name below.', advance: { kind: 'type', value: 'Kitroom' } },
 				{ id: 'companies-open', path: '/companies', target: 'companies-results', only: scoped('companies-results', 'a[href="/companies/kitroom"]'), title: 'Open the profile', body: 'Click {{Kitroom}}.', advance: { kind: 'path', pattern: '/companies/kitroom' } },
 			],
@@ -72,7 +72,7 @@ export const exploreTour: Tour = {
 				{ id: 'company-funding', path: '/companies/kitroom', target: 'company-funding', title: 'Funding history', body: 'Every disclosed round with its date, size and investors. Investor names link to their profiles.', advance: { kind: 'next' } },
 				{ id: 'company-save-open', path: '/companies/kitroom', target: 'company-save', only: scoped('company-save', '.atlas-action--save'), title: 'Save it to a watchlist', body: 'Click {{Add to watchlist}}.', advance: { kind: 'click' } },
 				{ id: 'company-save-new', path: '/companies/kitroom', target: 'company-save', only: scoped('company-save', '.atlas-switcher__foot .atlas-menu__item'), continues: true, title: 'Start a new list', body: 'Click {{New watchlist}}.', advance: { kind: 'click' } },
-				{ id: 'company-save-name', path: '/companies/kitroom', target: 'company-save', continues: true, title: 'Name it', body: 'Type the name below into the box.', advance: { kind: 'type', value: 'Fan engagement watch' } },
+				{ id: 'company-save-name', path: '/companies/kitroom', target: 'company-save', only: scoped('company-save', '.atlas-wl-new input'), continues: true, title: 'Name it', body: 'Click the name box and type the name below.', advance: { kind: 'type', value: 'Fan engagement watch' } },
 				{ id: 'company-save-create', path: '/companies/kitroom', target: 'company-save', only: scoped('company-save', '.atlas-wl-create'), continues: true, title: 'Create and save', body: 'Click {{Create}}. Kitroom goes into your new list.', advance: { kind: 'request', method: 'POST', pattern: '/api/user-watchlists/:id/companies/:companyId' } },
 				{ id: 'company-rail', path: '/companies/kitroom', target: 'company-signals', highlights: ['company-related'], title: 'Signals and related companies', body: 'Recent news about Kitroom on the right, and companies like it underneath — a quick way to map a niche.', advance: { kind: 'next' } },
 				{ id: 'company-ma', path: '/companies/pitchmark-analytics', target: 'company-ma', title: 'M&A activity', body: 'Companies that buy or get bought show it here. Pitchmark Analytics acquired Scrumcap Labs — in Atlas, clicking a row opens the full deal.', advance: { kind: 'next' } },
@@ -80,7 +80,7 @@ export const exploreTour: Tour = {
 		},
 		{
 			id: 'watchlists', title: 'Watchlists', steps: [
-				{ id: 'watchlists-intro', path: '/watchlists', target: 'watchlists-list', title: 'Your watchlists', body: 'Lists of companies you follow. Open, rename or delete them from here.', advance: { kind: 'next' } },
+				{ id: 'watchlists-intro', path: '/watchlists', target: 'watchlists-list', title: 'Your watchlists', body: 'Lists of companies you follow, with how many each holds. Open, rename or delete them from here.', advance: { kind: 'next' } },
 				{ id: 'watchlists-name', path: '/watchlists', target: 'watchlists-create', title: 'Make another one', body: 'Click the name box and type the name below.', advance: { kind: 'type', value: 'Padel picks' } },
 				{ id: 'watchlists-create', path: '/watchlists', target: 'watchlists-create', only: scoped('watchlists-create', 'button[type="submit"]'), title: 'Create it', body: 'Click {{New watchlist}}.', advance: { kind: 'request', method: 'POST', pattern: '/api/user-watchlists' } },
 				{ id: 'watchlists-open', path: '/watchlists', target: 'watchlists-list', only: scoped('watchlists-list', 'a.atlas-wl-title'), title: 'Open a list', body: 'Click any list name to open it.', advance: { kind: 'path', pattern: '/watchlists/:id' } },
@@ -126,11 +126,11 @@ export const exploreTour: Tour = {
 		},
 		{
 			id: 'roundup', title: 'Monthly Roundup', steps: [
-				{ id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', title: 'One month at a glance', body: 'The roundup sums up a month of funding and M&A. Pick any month and year here.', advance: { kind: 'next' } },
+				{ id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', only: '[data-tour="roundup-pickers"]', title: 'One month at a glance', body: 'The roundup sums up a month of funding and M&A. Pick any month and year here.', advance: { kind: 'next' } },
 				{ id: 'roundup-kpis', path: '/roundup', target: 'roundup-kpis', title: 'The headline numbers', body: 'Capital raised, average deal size and deal count — with the change on the month before.', advance: { kind: 'next' } },
 				{ id: 'roundup-count', path: '/roundup', target: 'roundup-metric', only: scoped('roundup-metric', '[data-key="count"]'), title: 'Count instead of amount', body: 'Click {{Count}}. The breakdowns now count deals instead of dollars.', advance: { kind: 'click' } },
 				{ id: 'roundup-donuts', path: '/roundup', target: 'roundup-donuts', title: 'The breakdown', body: 'By sector, business model and country.', advance: { kind: 'next' } },
-				{ id: 'roundup-ma', path: '/roundup', target: 'roundup-mode', only: scoped('roundup-mode', '[data-key="ma"]'), title: 'Switch to M&A', body: 'Click {{M&A}} to see the month’s acquisitions instead.', advance: { kind: 'click' } },
+				{ id: 'roundup-ma', path: '/roundup', target: 'roundup-mode', only: scoped('roundup-mode', '[data-key="ma"]'), title: 'Switch to M&A', body: 'Click {{M&A}}. Atlas jumps to the latest month with acquisitions and sums those up instead.', advance: { kind: 'click' } },
 				{ id: 'roundup-table', path: '/roundup', target: 'roundup-table', title: 'Every deal of the month', body: 'Sorted by value, each company linked to its profile.', advance: { kind: 'next' } },
 				{ id: 'roundup-archive', path: '/roundup', target: 'roundup-archive', only: scoped('roundup-archive', '.mkt-archive-row:nth-child(2) button'), title: 'Go back a month', body: 'Click {{View}} next to the previous month.', advance: { kind: 'click' } },
 			],
@@ -138,10 +138,10 @@ export const exploreTour: Tour = {
 		{
 			id: 'events', title: 'Events', steps: [
 				{ id: 'events-search', path: '/events', target: 'filters-search', title: 'Find an event', body: 'Click the search box and type the name below.', advance: { kind: 'type', value: 'Matchpoint' } },
-				{ id: 'events-open', path: '/events', target: 'events-table', only: scoped('events-table', 'tbody tr'), title: 'Open it', body: 'Click the event.', advance: { kind: 'click' } },
+				{ id: 'events-open', path: '/events', target: 'events-table', only: scoped('events-table', 'tbody tr td:nth-child(2)'), title: 'Open it', body: 'Click the event’s name.', advance: { kind: 'click' } },
 				{ id: 'events-drawer', path: '/events', allow: ['.co-drawer'], title: 'Event details', body: 'Dates, place, format and what it is about. Close it with the cross at the top.', advance: { kind: 'click', on: '.co-drawer-head .icon-btn' } },
 				{ id: 'events-calendar', path: '/events', target: 'events-view', only: scoped('events-view', 'button[title="Calendar"]'), title: 'See the calendar', body: 'Click the calendar icon.', advance: { kind: 'click' } },
-				{ id: 'events-grid', path: '/events', target: 'events-calendar', title: 'Plan your season', body: 'Events land on their dates — click one to open the same details.', advance: { kind: 'next' } },
+				{ id: 'events-grid', path: '/events', target: 'events-calendar', title: 'Plan your season', body: 'The same events on their dates, month by month. Your search still applies, so only the matching events show.', advance: { kind: 'next' } },
 				{ id: 'events-next-month', path: '/events', target: 'events-calendar-nav', only: scoped('events-calendar-nav', '[aria-label="Next month"]'), title: 'Look ahead', body: 'Click the right arrow to move to next month.', advance: { kind: 'click' } },
 			],
 		},
@@ -149,7 +149,7 @@ export const exploreTour: Tour = {
 			id: 'programs', title: 'Programs', steps: [
 				{ id: 'programs-filter-open', path: '/programs', target: 'filters-add', only: '[data-tour="filters-add"] > .atlas-btn', title: 'Accelerators and incubators', body: 'Programs that take sports tech start-ups. Click {{Add filter}}.', advance: { kind: 'click' } },
 				{ id: 'programs-filter-open-entries', path: '/programs', target: 'filters-add', only: scoped('filters-add', '[data-key="entriesOpen"]'), continues: true, title: 'Only open calls', body: 'Click {{Entries open}}.', advance: { kind: 'click' } },
-				{ id: 'programs-open', path: '/programs', target: 'programs-table', only: scoped('programs-table', '.atlas-table__row'), title: 'Open a program', body: 'Click any program.', advance: { kind: 'click' } },
+				{ id: 'programs-open', path: '/programs', target: 'programs-table', only: scoped('programs-table', '.atlas-table__row .atlas-table__name'), title: 'Open a program', body: 'Click any program’s name.', advance: { kind: 'click' } },
 				{ id: 'programs-portfolio', path: '/programs', allow: ['.co-drawer'], title: 'Who took part', body: 'Click the {{Portfolio}} tab to see the start-ups in its cohorts.', advance: { kind: 'click', on: '.co-drawer-tab:nth-child(2)' } },
 				{ id: 'programs-close', path: '/programs', allow: ['.co-drawer'], title: 'Close it', body: 'Click the cross at the top.', advance: { kind: 'click', on: '.co-drawer-head .icon-btn' } },
 			],

@@ -10,7 +10,7 @@ leaves the browser.
 | Piece | Where |
 | --- | --- |
 | Tier chooser | `app/page.tsx` (`/`). `/preview/<tier>` deep-links into a tour. |
-| Product pages | `app/(dashboard)/*`: the client's real pages, unchanged. |
+| Product pages | `app/(dashboard)/*`: the client's real pages, plus `data-tour` anchors. |
 | Frame | `components/shell/tutorial-shell.tsx`: AtlasShell with no sidebar, the tutorial bar and the tour panel. |
 | Tour panel (coach) | `components/features/walkthrough/*`: guard, highlight, advance, contents menu. |
 | Tours | `lib/sandbox/tours/{explore,raise,scout}-tour.ts`: chapters of steps (`tour-types.ts`). |
@@ -54,5 +54,6 @@ jumps straight to it.
   - auth session and feature access → stubs;
   - analytics and realtime → no-ops;
   - Supabase uploads → `demoUpload`;
-  - `entity-logo` → local flags, no favicon lookup;
+  - `entity-logo` and `ui/atoms` → local flags, no favicon lookup;
+  - account tabs → product settings tab only; Explore hides `advanced_filters` and `company_contacts` (feature-access stub);
   - the `data-tour` anchors.

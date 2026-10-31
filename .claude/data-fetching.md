@@ -5,8 +5,8 @@ Everything the client knows about reading or writing data. **Read this before ad
 ## The three pieces
 
 1. **`qk`** ([lib/query-keys.ts](../lib/query-keys.ts)) — typed factory of cache keys. Every key returns a tuple `[path, params?, …]`.
-2. **`fetcher`** ([lib/query-client.ts](../lib/query-client.ts)) — global SWR fetcher. Takes a tuple key, builds a URL via `buildUrl()`, attaches auth headers, handles 401-refresh-retry.
-3. **`apiRequest`** ([lib/query-client.ts](../lib/query-client.ts)) — for non-GET (writes). Same auth + retry semantics, manual call site.
+2. **`fetcher`** ([lib/query-client.ts](../lib/query-client.ts)) — global SWR fetcher. Takes a tuple key, builds a URL via `buildUrl()` and answers it through `mockFetch` (lib/sandbox/mock-api.ts) — the tutorial has no network.
+3. **`apiRequest`** ([lib/query-client.ts](../lib/query-client.ts)) — for non-GET (writes), also through `mockFetch`. Manual call site.
 
 (Historical note: a compat-shim layer mirroring TanStack's `useQuery`/`useMutation`/`useQueryClient` lived here during the migration off `@tanstack/react-query`. It has been removed — all call sites are now native SWR. Don't add it back.)
 
@@ -101,17 +101,6 @@ import { mutate as globalMutate } from 'swr';
 void globalMutate(qk.profile());
 void globalMutate(() => true, undefined, { revalidate: false }); // clear cache
 ```
-
-## The 401-refresh contract
-
-This is the most important part of the file. It works automatically:
-
-1. Any `fetch` via the global fetcher or `apiRequest` includes `Authorization: Bearer <jwt>`.
-2. If the response is 401, the fetcher awaits `sessionRefreshLock.acquireAndRefresh()`. The lock guarantees ONE refresh per N concurrent 401s; other waiters get the new token.
-3. Retry once with the refreshed token.
-4. If retry also 401s: surfaces an error AND the response handler schedules `window.location.href = '/login?reason=session_expired'` after 1.5s.
-
-Do not catch 401 / 403 per-component — the central handler owns the redirect path.
 
 ## URL params
 

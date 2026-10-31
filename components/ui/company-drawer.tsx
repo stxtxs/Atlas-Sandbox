@@ -353,7 +353,7 @@ function ConnectBlock({ company }: { company: Company }) {
 function PrimaryContact({ company }: { company: Company }) {
 	const { access, contact } = usePrimaryContact(company.id);
 
-	if (access.isLoading) return null;
+	if (access.isLoading || access.isLocked) return null;
 
 	if (access.isLocked) {
 		return (

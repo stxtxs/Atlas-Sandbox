@@ -5,7 +5,7 @@
  * scout-routes.ts, which are matched first.
  */
 import type { DeckScorecard } from '@/lib/deck-analysis';
-import { daysFromNow, json, sse, type SandboxRoute } from './types';
+import { daysFromNow, json, sse, type SandboxProduct, type SandboxRoute } from './types';
 import { watchlistSandboxRoutes } from './watchlist-routes';
 import { catalogSandboxRoutes } from './shared/catalog-routes';
 
@@ -39,12 +39,20 @@ const SCORECARD: DeckScorecard = {
 const ANALYSIS_MD = `## Overall\n\n${SCORECARD.verdict}\n\n## Strengths\n\n${SCORECARD.strengths.map((s) => `- ${s}`).join('\n')}\n\n## Main investor concerns\n\n${SCORECARD.risks.map((s) => `- ${s}`).join('\n')}\n`;
 const sampleDeck = () => ({ id: SAMPLE_DECK_ID, filename: 'Sample — Fanloop Seed Deck.pdf', status: 'done', overall_score: SCORECARD.overall_score, created_at: daysFromNow(-3) });
 
-/** The co-pilot's canned answer per tier — sample data, written like a real reply. */
+/** The co-pilot's canned answers — sample data from fixtures/world.ts, written like a real reply. */
 const CHAT_ANSWERS = {
-	explore: 'Here is a quick read on **fan engagement in Europe** (sample data):\n\n- **42 companies** tracked, most of them seed stage\n- Funding is up **18%** on last year, led by Germany and the UK\n- Ones to watch: **Kitroom**, **Matchday Loop** and **Courtline**\n\nWant me to open the list in Companies?',
-	raise: 'Based on your round (sample data), these investors fit best:\n\n1. **Kestrel Field Ventures** — leads seed rounds in fan engagement, cheques of $500k–2M\n2. **Tidepool Sport** — backed two club-tech companies this year\n3. **Northline Capital** — follows on at Series A in Europe\n\nI can add them to your pipeline or draft an intro note.',
-	scout: 'Against your thesis (sample data), three new companies match:\n\n- **Stridewise** — wearables for recovery, raising a $2M seed\n- **Courtline** — padel club software, 3x revenue in a year\n- **Matchday Loop** — fan engagement, verified on Atlas\n\nShall I open their profiles or add them to a watchlist?',
+	explore: 'Here is who is funding **fan engagement** right now (sample data):\n\n- **Kestrel Field Ventures** led Kitroom’s $2M seed and is in Matchday Loop’s Series A\n- **Brightpost Ventures** led Matchday Loop’s $5.1M Series A\n- **Corner Flag Ventures** backs early club tools, including Kitroom and Tifo Studio\n\nWant me to open these investors or the companies they backed?',
+	raise: 'For Fanloop’s seed (sample data), these investors fit best:\n\n1. **Kestrel Field Ventures** — leads seed rounds in fan engagement, cheques of $500k–2M\n2. **Corner Flag Ventures** — pre-seed and seed, built by club executives\n3. **Brightpost Ventures** — media and fan products, Seed to Series A\n\nI can add them to your pipeline or draft an intro email.',
+	scout: 'Against your thesis (sample data), these seed and Series A companies are raising now:\n\n- **Matchday Loop** — fan engagement, verified on Atlas, Series A\n- **Goalsight** — video scouting for academies, seed\n- **Courtline** — padel club software, seed\n\nShall I open their profiles or add them to a watchlist?',
 } as const;
+
+/** The Raise follow-up the tour types ("Draft an intro email"). */
+const RAISE_EMAIL = 'Here is a first draft (sample):\n\n**Subject:** Fanloop — seed round, match-day engagement for clubs\n\nHi Hannah,\n\nKestrel led Kitroom’s seed, so I think Fanloop fits your fan engagement thesis. We run live second-screen apps for 14 clubs and grew revenue 3x last year. We are raising a €1.5M seed with €300k committed.\n\nWould you have 20 minutes next week?\n\nBest,\nRobin';
+
+const chatAnswer = (product: SandboxProduct, message: string): string =>
+	product === 'raise' && /email|intro|draft/i.test(message) ? RAISE_EMAIL : CHAT_ANSWERS[product];
+
+interface SampleChat { at: string; turns: { q: string; a: string }[] }
 
 export const coreSandboxRoutes: SandboxRoute[] = [
 	// Companies, investors, rounds, acquisitions, reference data, signals,
@@ -65,31 +73,35 @@ export const coreSandboxRoutes: SandboxRoute[] = [
 		{ event: 'done', data: { scorecard: SCORECARD } },
 	])],
 
-	// AI chat: a canned, tier-specific answer streamed like the real co-pilot.
-	// The question is kept so the history rail and a reopened conversation show it.
+	// AI chat: canned, tier-specific answers streamed like the real co-pilot.
+	// The conversation is kept so the history rail and a reopened chat show it.
 	['POST', '/api/chat', ({ product, body, state, save }) => {
 		const message = (body as { message?: unknown } | undefined)?.message;
-		state.chat = { question: typeof message === 'string' ? message : 'Your question', at: daysFromNow(0) };
+		const q = typeof message === 'string' && message.trim() ? message.trim() : 'Your question';
+		const answer = chatAnswer(product, q);
+		const chat = state.chat as SampleChat | undefined;
+		state.chat = { at: daysFromNow(0), turns: [...(chat?.turns ?? []), { q, a: answer }] } satisfies SampleChat;
 		save();
 		return sse([
 			{ event: 'conversation', data: { id: 'sample-chat' } },
-			...CHAT_ANSWERS[product].match(/[\s\S]{1,40}/g)!.map((t) => ({ event: 'content_delta', data: { text: t } })),
+			...answer.match(/[\s\S]{1,40}/g)!.map((t) => ({ event: 'content_delta', data: { text: t } })),
 			{ event: 'done', data: {} },
 		]);
 	}],
 	['GET', '/api/chat/conversations', ({ state }) => {
-		const chat = state.chat as { question: string; at: string } | undefined;
-		return chat ? [{ id: 'sample-chat', title: chat.question.slice(0, 60), last_message_at: chat.at }] : [];
+		const chat = state.chat as SampleChat | undefined;
+		return chat?.turns.length ? [{ id: 'sample-chat', title: chat.turns[0].q.slice(0, 60), last_message_at: chat.at }] : [];
 	}],
-	['GET', '/api/chat/conversations/:id', ({ product, state }) => {
-		const chat = state.chat as { question: string } | undefined;
-		if (!chat) return json({ error: { code: 'NOT_FOUND', message: 'Not in the tutorial' } }, 404);
-		return { id: 'sample-chat', messages: [{ role: 'user', content: chat.question }, { role: 'assistant', content: CHAT_ANSWERS[product] }] };
+	['GET', '/api/chat/conversations/:id', ({ state }) => {
+		const chat = state.chat as SampleChat | undefined;
+		if (!chat?.turns.length) return json({ error: { code: 'NOT_FOUND', message: 'Not in the tutorial' } }, 404);
+		return { id: 'sample-chat', messages: chat.turns.flatMap((t) => [{ role: 'user', content: t.q }, { role: 'assistant', content: t.a }]) };
 	}],
-	['GET', '/api/chat/conversations/:id/export', ({ product }) => new Response(`# Atlas co-pilot
-
-${CHAT_ANSWERS[product]}
-`, { headers: { 'Content-Type': 'text/markdown', 'Content-Disposition': 'attachment; filename="atlas-chat.md"' } })],
+	['GET', '/api/chat/conversations/:id/export', ({ state }) => {
+		const chat = state.chat as SampleChat | undefined;
+		const md = ['# Atlas co-pilot', ...(chat?.turns ?? []).flatMap((t) => [`**You:** ${t.q}`, t.a])].join('\n\n');
+		return new Response(`${md}\n`, { headers: { 'Content-Type': 'text/markdown', 'Content-Disposition': 'attachment; filename="atlas-chat.md"' } });
+	}],
 
 	// Exports: a small sample CSV, whatever was asked for.
 	['POST', '/api/exports/:entity', ({ params }) => new Response(SAMPLE_CSV, { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="atlas-${params.entity}-sample.csv"` } })],
@@ -98,7 +110,7 @@ ${CHAT_ANSWERS[product]}
 	// real page that branches on the profile's tier (home, recommended, deck…)
 	// renders that tier's version from this alone.
 	['GET', '/api/profiles/me', ({ product }) => ({
-		id: 'demo-user', email: 'you@example.com', full_name: 'Alex Morgan', display_name: 'Alex',
+		id: 'demo-user', email: 'you@example.com', full_name: 'Robin Keller', display_name: 'Robin',
 		referral_code: null, user_role: 'user', user_type: product, user_type_detail: null, background: null,
 		account_type: product === 'raise' ? 'founder' : product === 'scout' ? 'investor' : 'user',
 		paywall_shown_at: daysFromNow(-30), avatar_url: null,

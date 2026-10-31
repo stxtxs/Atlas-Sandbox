@@ -27,17 +27,11 @@ export function AccountTabs() {
 	const tier = getUserType(profile);
 	const pathname = usePathname();
 
-	const tabs: Tab[] = [{ id: 'account', label: 'Account' }];
-	// The thesis tab is whichever of the two a product actually has: Raise
-	// configures a raise, Scout an investment thesis. Explore has neither.
+	// The tutorial has no account, subscription or credits pages: only the
+	// product's own settings tab — Raise configures a raise, Scout a thesis.
+	const tabs: Tab[] = [];
 	if (tier === 'raise') tabs.push({ id: 'raise-settings', label: 'Raise settings' });
 	if (tier === 'scout') tabs.push({ id: 'thesis', label: 'Thesis settings' });
-	// Explore has no subscription to manage — it is the free tier, and its
-	// upgrade surface is the product-access card on the Account tab.
-	if (tier !== 'explore') tabs.push({ id: 'billing', label: 'Subscription' });
-	// Credits (AI + exports) are a separate purchase from a plan, and every
-	// tier can buy them — including Explore, which has no Subscription tab.
-	tabs.push({ id: 'credits', label: 'Credits' });
 
 	return (
 		<nav className="atlas-acct-tabs" aria-label="Account sections">

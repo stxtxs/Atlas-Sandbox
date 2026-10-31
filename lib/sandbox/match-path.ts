@@ -1,6 +1,6 @@
 /**
- * `:param` path patterns, shared by the sandbox interceptor (routes) and the
- * The Warm-Up coach (`path` / `request` advance conditions).
+ * `:param` path patterns, shared by the mock API (routes) and the
+ * tour coach (`path` / `request` advance conditions).
  *
  * A pattern matches a whole pathname (no query), with an optional trailing
  * slash; each `:name` segment matches one non-empty path segment.
