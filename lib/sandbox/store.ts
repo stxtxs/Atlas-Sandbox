@@ -11,7 +11,7 @@ import type { SandboxProduct } from './types';
 export interface PracticeState {
 	/** Tier being toured, or null before one is picked. */
 	active: SandboxProduct | null;
-	/** Current tour step (index into the tour's flattened steps; === steps.length is the finale). */
+	/** Current position, numbered as in the URL (tutorial-url.ts): 0 welcome, 1…N steps, N+1 finale. */
 	step: number;
 }
 
@@ -52,6 +52,12 @@ export function startWalkthrough(product: SandboxProduct) {
 	try { sessionStorage.removeItem(DATA_KEY(product)); } catch { /* storage unavailable */ }
 	clearStepSnapshots(product);
 	write({ active: product, step: 0 });
+}
+
+/** Open a tour at a position (from the URL): a different tier starts on a fresh sample workspace. */
+export function openTour(product: SandboxProduct, step: number) {
+	if (read().active !== product) startWalkthrough(product);
+	setTourStep(step);
 }
 
 export function setTourStep(step: number) {

@@ -11,6 +11,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { flatIndexOf, readTutorialParams, urlStepOf, withTutorialParams } from '../tutorial-url.ts';
 
 const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true })
 	.flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(d, e.name)] : []));
@@ -40,11 +41,21 @@ for (const tier of ['explore', 'raise', 'scout']) {
 		const first = m?.[1] ?? (m?.[2] ? new RegExp(`const ${m[2]} = ['\`]([^'\`]+)['\`]`).exec(text)?.[1] : undefined);
 		if (!first) fail(`${tier}/${h[1]}: no step path`);
 		else if (/\/:/.test(first)) fail(`${tier}/${h[1]}: first step path ${first} has a :param`);
-		for (const s of chunk.matchAll(/\{\s*id:\s*'([^']+)',/g)) {
+		const stepHeads = [...chunk.matchAll(/\{\s*id:\s*'([^']+)',/g)];
+		stepHeads.forEach((s, j) => {
 			if (ids.has(s[1])) fail(`${tier}: duplicate step id ${s[1]}`);
 			ids.add(s[1]);
 			steps++;
-		}
+			// Panel copy limits: a short headline, one action line, one line of context.
+			const step = chunk.slice(s.index!, stepHeads[j + 1]?.index ?? chunk.length);
+			const field = (name: string) => new RegExp(`\\b${name}:\\s*(?:'((?:[^'\\\\]|\\\\.)*)'|"([^"]*)"|\`([^\`]*)\`)`).exec(step);
+			const words = (m: RegExpExecArray | null) => (m ? (m[1] ?? m[2] ?? m[3] ?? '').split(/\s+/).filter(Boolean).length : 0);
+			const kind = /advance:\s*\{\s*kind:\s*'(\w+)'/.exec(step)?.[1];
+			if (words(field('title')) > 7) fail(`${tier}/${s[1]}: title over 7 words`);
+			if (words(field('do')) > 14) fail(`${tier}/${s[1]}: do over 14 words`);
+			if (words(field('body')) > 22) fail(`${tier}/${s[1]}: body over 22 words`);
+			if (kind && kind !== 'next' && kind !== 'type' && !field('do')) fail(`${tier}/${s[1]}: ${kind} step has no \`do\` line`);
+		});
 		for (const t of chunk.matchAll(/\btarget:\s*'([^']+)'/g)) if (!exists(t[1])) fail(`${tier}/${h[1]}: no data-tour="${t[1]}" in components`);
 		for (const hl of chunk.matchAll(/highlights:\s*\[([^\]]*)\]/g)) {
 			for (const a of hl[1].matchAll(/'([^']+)'/g)) if (!exists(a[1])) fail(`${tier}/${h[1]}: no data-tour="${a[1]}" (highlight)`);
@@ -52,5 +63,17 @@ for (const tier of ['explore', 'raise', 'scout']) {
 	});
 	console.log(`${tier}: ${heads.length} chapters, ${steps} steps`);
 }
+// Progress in the URL (tutorial-url.ts): parse/serialise round-trips and keeps the page's own params.
+{
+	const url = withTutorialParams('/companies?q=kit#top', { tier: 'raise', step: 7 });
+	assert.equal(url, '/companies?q=kit&tour=raise&step=7#top');
+	assert.deepEqual(readTutorialParams(url.slice(url.indexOf('?'), url.indexOf('#'))), { tier: 'raise', step: 7 });
+	assert.equal(withTutorialParams(url, { tier: 'raise', step: 8 }), '/companies?q=kit&tour=raise&step=8#top');
+	assert.equal(readTutorialParams('?tour=nope&step=3'), null);
+	assert.deepEqual(readTutorialParams('?tour=scout'), { tier: 'scout', step: 0 });
+	for (const n of [0, 1, 41, 99]) assert.equal(urlStepOf(flatIndexOf(n)), n);
+	console.log('tutorial-url: ok');
+}
+
 assert.equal(failures, 0, `${failures} tour check failure(s)`);
 console.log('tours.check: ok');

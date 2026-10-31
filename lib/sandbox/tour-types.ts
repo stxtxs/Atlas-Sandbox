@@ -73,10 +73,18 @@ export interface TourStep {
 	dropOn?: string;
 	/** Block keyboard input on the target too (e.g. a select whose arrow keys could pick a stage the step forbids). */
 	pointerOnly?: boolean;
+	/** Short headline, at most 7 words — the biggest text in the panel. */
 	title: string;
-	/** One or two short sentences. `{{Key}}` renders as a keyboard key. */
-	body: string;
-	/** Labelled points under the body (e.g. what each sidebar section is for). */
+	/**
+	 * What to do now: one imperative line, at most 14 words, shown as the
+	 * panel's action. `{{Label}}` renders as a button-like chip (the control to
+	 * click) or keycap (`{{Enter}}`). Optional on `type` steps (the coach shows
+	 * the value to type) and on reading (`next`) steps.
+	 */
+	do?: string;
+	/** Optional context, one sentence of at most 22 words, shown muted under the action. */
+	body?: string;
+	/** Labelled points, collapsed behind "More about this". */
 	points?: { label: string; text: string }[];
 	/** Label for the panel's advance button on `next` steps (default "Next"). */
 	cta?: string;

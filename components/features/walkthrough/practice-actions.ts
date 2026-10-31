@@ -2,6 +2,7 @@
 
 import { activeSandbox, exitPractice, startWalkthrough } from '@/lib/sandbox/store';
 import type { SandboxProduct } from '@/lib/sandbox/types';
+import { withTutorialParams } from '@/lib/sandbox/tutorial-url';
 
 /*
  * Starting, replaying and leaving a tour all end in a full page load, so the
@@ -11,8 +12,9 @@ import type { SandboxProduct } from '@/lib/sandbox/types';
 /** Start a tier's tour on its home page. `replace` for a deep link, so Back doesn't land on it and restart the tour. */
 export function enterPractice(product: SandboxProduct, { replace = false } = {}) {
 	startWalkthrough(product);
-	if (replace) window.location.replace('/home');
-	else window.location.assign('/home');
+	const url = withTutorialParams('/home', { tier: product, step: 0 });
+	if (replace) window.location.replace(url);
+	else window.location.assign(url);
 }
 
 /** Run the current tour again from the start, on a fresh sample workspace. */
