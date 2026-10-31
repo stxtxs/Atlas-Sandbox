@@ -1,118 +1,58 @@
-# The Warm-Up (practice mode)
+# The Atlas tutorial
 
-Lets a visitor see **Raise** or **Scout** in action before buying: The Warm-Up, a short guided demo over the real product UI with sample data, ending in sign up or replay. No time limit; it can be replayed any time.
+A public, guided tour of Atlas Explore, Raise and Scout. It runs the **real
+Atlas product components** (copied from `client/`) on **made-up sample data**.
+There is no backend, no database, no sign-in and no paywall, and nothing
+leaves the browser.
 
-**Front end only.** Nothing changes on the server: the user stays on Explore there. Practice only changes what the browser shows and which requests it answers itself.
+## How it fits together
 
-## Entry points
+| Piece | Where |
+| --- | --- |
+| Tier chooser | `app/page.tsx` (`/`). `/preview/<tier>` deep-links into a tour. |
+| Product pages | `app/(dashboard)/*`: the client's real pages, unchanged. |
+| Frame | `components/shell/tutorial-shell.tsx`: AtlasShell with no sidebar, the tutorial bar and the tour panel. |
+| Tour panel (coach) | `components/features/walkthrough/*`: guard, highlight, advance, contents menu. |
+| Tours | `lib/sandbox/tours/{explore,raise,scout}-tour.ts`: chapters of steps (`tour-types.ts`). |
+| State | `lib/sandbox/store.ts`: tier, step and per-tier sample workspace, in this browser only. |
+| "Backend" | `lib/sandbox/mock-api.ts` `mockFetch`, the only thing product code talks to. |
+| Sample data | `fixtures/world.ts` (the one fictional world) plus the route tables below. |
 
-All are labelled "Try the Warm-Up →" (or "Try the Warm-Up first"). They are shown only to real Explore users (`getRealUserType() === 'explore'`) and never while practice is already running (`usePracticeAccess().canEnter`, `components/features/walkthrough/use-practice-access.ts`).
+`mockFetch` answers `/api/*` from the tier's own routes first
+(`explore-routes.ts`, `raise-routes.ts`, `scout-routes.ts`), then the shared
+ones (`analytics-routes.ts`, `core-routes.ts`, `watchlist-routes.ts`).
+Anything unanswered gets an empty list. Any URL that isn't `/api/*` throws.
+It is reached through `lib/query-client.ts` (SWR fetcher and `apiRequest`)
+and the two streams (`components/chat/chat-core.tsx`,
+`components/features/deck-analysis/deck-analysis-detail.tsx`).
 
-| Where | Component |
-|---|---|
-| Explore Home: a one-time chooser modal ("Raising capital" → Raise, "Investing" → Scout; seen-flag `stx:walkthrough:welcome-seen`) and a permanent card in "What needs your attention" that reopens it | `walkthrough-home-entry.tsx`, rendered by `components/explore/explore-home.tsx` |
-| Explore sidebar upgrade cards: one link per product | `components/explore/upgrade-cards.tsx` |
-| Locked-page upsell (`TierGate`): secondary "Try the Warm-Up first" for the page's product | `components/features/tier-gate/tier-gate.tsx` |
-| Plans page, and the post-signup plan chooser (which first settles the account on Explore via `beforeStart`) | `WalkthroughButton` in `plans.tsx` / `paywall-gate.tsx` |
+The tier being toured is what the mocked `GET /api/profiles/me` returns as
+`user_type`. Every real page that branches on tier (home, recommended, deck,
+watchlist board…) renders that tier's version on its own.
 
-Every entry calls `enterPractice(product, source)` (`practice-actions.ts`): it resets the product's sample data, sets the tour's step 0 and does a full page load to Home.
+## Writing a tour step
 
-## Phases (`store.ts`)
+A step says exactly what to do, and only its target can be used (the guard
+swallows everything else). Advance kinds:
 
-State lives in localStorage (`stx:sandbox:v2`): `{ active: 'raise' | 'scout' | null, phase: 'tour' | 'view', step }`.
+- `next`: a button in the panel, for reading steps.
+- `click`: on the target, or on `on`. With `simulate`, the app never sees the click.
+- `type`: the target field holds `value`. The panel shows the text to type.
+- `request`: the app sent a matching method and path, with an optional body subset.
+- `path`: the visitor landed on a matching page.
 
-| Call | Effect |
-|---|---|
-| `startWalkthrough(p)` | Fresh sample data for `p`; `active = p`, `phase = 'tour'`, `step = 0` |
-| `setTourStep(n)` | Move the tour (`n === steps.length` is the finale) |
-| `finishTour()` | `phase = 'view'`: stay in the workspace, view-only |
-| `replayTour()` | Same as `startWalkthrough` for the active product |
-| `exitPractice()` | Leave practice |
-| `activeSandbox()` / `practicePhase()` | Plain reads for non-React code |
-| `useSandbox()` / `usePractice()` | React view of the state |
+Anchor elements with `data-tour="<page>-<thing>"`. The first step of every
+chapter must have a concrete `path` (no `:param`), because the Contents menu
+jumps straight to it.
 
-Entering, replaying and leaving always do a full page load (`practice-actions.ts`), so tier readers and the SWR cache start clean.
+## Rules
 
-While practice is on:
-- **Tier switch.** `getUserType()` (`hooks/use-user-profile.ts`) returns the practice product instead of `explore`, so nav, page gates and features follow it. `getRealUserType()` still gives the real plan (Plans, Billing, the plan chooser and every entry point use it).
-- **Practice bar** (`components/features/walkthrough/practice-bar.tsx`, above the navbar). Tour phase: "The Warm-Up · X", "Explore with sample data. No account required." + Exit. View phase: "Practice mode · view only" + Replay tour + Get Atlas X + Exit.
-- **Coach** (`walkthrough-coach.tsx`, mounted by `AppShell` in the tour phase only).
-
-## The tour engine
-
-Tours are data: `lib/sandbox/tours/raise-tour.ts` and `scout-tour.ts` (types in `tour-types.ts`), picked by product in `components/features/walkthrough/tours.ts`.
-
-It is a **guided demo, not a sandbox**: at each step only the highlighted element can be used.
-
-1. **Welcome** screen (numbered step 1: Start Warm-Up / Skip tour), then each **step**, then the **completion screen** — Get Atlas X (exits practice; signup in preview, Plans in the app) or Replay Warm-Up. There is no free exploring after it. A `continues` step shares the number before it (Scout's board toggle + stage move are one step).
-2. **Opening a step.** The coach navigates to `step.path` unless the current pathname already matches it. Prefer concrete paths (Scout's are pinned to Fanfold, the Pitch-side shortlist and the featured deal). A `:params` path is reached by the previous step's own navigation; the URL it ran on is recorded (`recordStepPath`) so Back can reopen it.
-3. **Guard** (`use-tour-guard.ts`). Every click, tap, key press and form submit outside the step's target is swallowed before the app sees it. `only` narrows the usable part of a big target (a card whose "View profile" link is the action); `allow` adds the popover option a step permits (the shortlist in the watchlist menu, "Reviewing" in the stage menu); `pointerOnly` blocks keys on the target too. The coach panel, the practice bar (Exit) and `.wt-allow` always work. Chat, Signals and the Deck Screener are therefore unreachable.
-4. **Dim + highlight** (`use-tour-target.ts`, `walkthrough-coach.tsx`). The page is dimmed with a clear cut-out, border and soft pulsing glow around the target, any `allow`ed element on screen, and any orientation `highlights` (adjacent ones merge into one block). The coach waits up to 5s for the target, scrolls it into view and follows it on scroll, resize and re-render. If it never appears, the step still shows, with a Next button. `expandNav` shows the sidebar expanded (the orientation step); `confirm` shows a simulated confirmation card instead of a real action.
-5. **Advancing** (`use-tour-advance.ts`):
-   - `next`: the panel button (labelled by `cta`, default Next) or Enter.
-   - `click`: a click (or change, for a select) on or inside the target, or inside `on` when given. `simulate` swallows the click so the app never acts on it (Request introduction).
-   - `request`: the interceptor fires `stx:practice-request` (`events.ts`) with `{ method, path }` after every `/api/*` request; the step advances on a method + pattern match.
-   - `path`: the pathname comes to match the pattern (after not matching, so stepping Back onto a matching page doesn't skip ahead).
-   - `pause` holds the page a moment after the step is done, so its result is seen.
-6. **Controls.** Back (Escape) reopens the previous step's page with the sample data as it was then (`saveStepSnapshot` / `restoreStepSnapshot`, then every SWR key refetches). Skip tour → the completion screen. "Need a hand?" (email). Enter triggers the primary action, never while typing or with another dialog open. Docked right on desktop, a bottom sheet at ≤1024px.
-7. **Analytics** (`lib/analytics`, no-op without a Mixpanel token): `walkthrough:<product>:start`, `walkthrough:<product>:<stepId>:done`, `walkthrough:<product>:<stepId>:skip`, `walkthrough:<product>:finish` (with `choice`), `walkthrough:<product>:replay`.
-
-### Adding or editing a step
-
-1. Put `data-tour="<name>"` on the real element (lists: the first item only). Shared components forward a `data-tour` prop (`FeedCard`, `Seg`, `SaveToWatchlist`).
-2. Add a `TourStep` to the product's tour: a stable `id` (analytics), the `path` it happens on, the `target`, a short `title`, a one or two sentence `body` (`{{Key}}` renders as a keyboard key) and an `advance`.
-3. Make sure the sample data makes the step possible: an empty list has no first item to point at, and a `request` step needs a route in `raise-routes.ts`, `scout-routes.ts` or `core-routes.ts` that answers it.
-
-## Requests (`interceptor.ts`)
-
-`window.fetch` is wrapped (installed in `app/providers.tsx`). For the active product it tries these routes in order, and anything they don't answer goes to the real backend:
-- `raise-routes.ts` or `scout-routes.ts`: the product's own data, as sample data. Writes are kept in this browser (`readSandboxData` / `writeSandboxData`).
-- `core-routes.ts`: deck analysis, chat, exports, API keys, contacts, list caps, and company watchlists (`watchlist-routes.ts`).
-
-In the **view** phase every non-GET `/api/*` request returns `gated()` ("Practice mode is view-only — get Atlas X to do this for real.") except `POST /api/deck-analysis/:id/stream` (a read-only stream) and `/api/auth/*` (sign-in bookkeeping). Add read-only POSTs to `VIEW_ALLOWED`.
-
-## Gating (what practice locks)
-
-| Feature | In practice |
-|---|---|
-| Deck analysis / Deck Screener | One sample deck with its full analysis; uploading, re-running and opening files → upgrade modal |
-| AI chat | `SANDBOX_CHAT_LIMIT` (3) canned answers, then an upgrade message (view phase: locked) |
-| Company contact details | Locked (`company_contacts` feature + empty contacts response) |
-| Exports, API keys, webhooks, watchlist share links | Locked |
-| Raise: strategy booking, Deal Flow opt-in | Locked |
-| Scout: request intro, open deal documents, submit a shared deal | Locked |
-| Investors list, Recently Funded | First `SANDBOX_LIST_CAP` (10) rows |
-| Company watchlists | Two seeded sample lists ("Pitch-side shortlist", "Portfolio watch") of real companies; the user's real lists are never read or written |
-| Pipeline, thesis, raise settings, shared-deal drafts, watchlists | Work during the tour, saved in this browser; read-only in the view phase |
-| Public data (companies, analytics, roundup, events) | Real |
-
-A locked action returns `gated()` (a 402 `TIER_REQUIRED`), which opens the app's normal upgrade modal with practice's own message.
-
-## Changing it
-
-- **Lock or unlock an action.** Add or remove a route in the right `*-routes.ts` file, returning `gated(product, 'message')`.
-- **Different sample data.** Edit `raise-routes.ts`, `scout-routes.ts` or `watchlist-routes.ts`. Shapes must match the consuming components' types.
-- **Reset in a browser.** Delete the localStorage keys starting `stx:sandbox:` (and `stx:walkthrough:welcome-seen` to see the Home chooser again).
-
-## Pre-signup preview (`app/preview/`)
-
-The same tour, same pages, same coach — reachable with **no session at all**, linked from the public landing page's "The Warm-Up" CTAs. `/preview` is a product chooser; picking one calls the same `enterPractice()` as every other entry point, just landing on `/preview/<product>/home` instead of the real `/home`.
-
-```
-/preview                        → app/preview/page.tsx (chooser)
-/preview/<product>/...          → app/preview/[product]/layout.tsx + page.tsx per route,
-                                   mirroring app/(dashboard)/ one-for-one
-```
-
-Each `app/preview/[product]/<route>/page.tsx` is a thin wrapper: it imports the *same* component the real route renders (`RaiseHome`, `Recommended`, `DealDetail`, …) and, for the handful of pages that branch on the signed-in tier, reads the tier from the `[product]` URL segment instead of `getUserType(profile)` — there's no profile to read.
-
-**`lib/preview-mode.ts`** is the one thing that makes this safe, and it's deliberately stateless: `previewBasePath()` derives `/preview/<product>` fresh from `window.location.pathname` on every call, rather than a flag set once and read later. An earlier version used a plain mutable variable and it went stale under Turbopack hot-reload (a file it depends on gets re-evaluated without the component that set the flag re-rendering) — don't reintroduce that shape.
-
-Three things read it, and this is the whole safety boundary:
-- `lib/sandbox/eligibility.ts` / `use-practice-access.ts` — `isPreviewMode()` substitutes for "real Explore account," since there is no account.
-- `lib/sandbox/interceptor.ts` — in preview, a request this file doesn't answer locally **never** reaches the real backend (`backendFetch` returns an empty `json([])` instead of calling it). The in-app version *does* let a few GETs (investors, companies, sectors) pass through to the real backend as "public data" for a logged-in Explore user — that passthrough is exactly what breaks for an anonymous visitor, which is why `/api/investors/:id`, `/api/companies/:id` (+ `/news`, `/similar`) and `/api/signals` exist as real local routes now instead of relying on it. If a tour step 404s or shows empty data only in `/preview/*`, check here first: it's probably a public-data GET with no local route.
-- `lib/routes.ts`'s `hrefOf()` / `pathOf()` / `companyHref()` — prefix every generated link so sidebar nav, "View company," breadcrumbs etc. stay inside `/preview/<product>/...` instead of bouncing an anonymous visitor to `/login`. `previewHref(path)` is the same idea for a path that arrives as a raw string from sandbox data rather than built from a route id (e.g. a home attention card's `cta_href`).
-
-**The one sharp edge:** `lib/sandbox/tours/*.ts` build each `TourStep.path` at *module* scope (`const DECK = hrefOf('deck')`), and that module only ever first loads while already inside `/preview/<product>/*`. A preview-aware `hrefOf()` there would bake the prefix into the step permanently, and the coach's own navigation effect (which already adds the prefix at push time) would add it a second time — `/preview/raise/preview/raise/home`, a 404. That's why the tours import `canonicalHrefOf` (aliased to `hrefOf`) instead of the real one. If a tour step ever needs a *new* `hrefOf(...)` call, it must go through `canonicalHrefOf`, never the preview-aware one — `useTourAdvance`/`walkthrough-coach.tsx` already assume every `TourStep.path` is canonical and strip/re-add the prefix themselves.
-
-**Adding a page to `/preview/*`:** add the matching `app/preview/[product]/<route>/page.tsx` the same way the existing ones are built — import the real component, branch on `useParams().product` instead of a profile if the real page does. If the page's data has no local sandbox route yet, add one (see "Changing it" above); don't assume a GET will quietly reach the real backend the way it does for a signed-in Explore user, because in preview it won't.
+- **Fake data only.** Every entity comes from `fixtures/world.ts`. Names are fictional; rename any that ever collides with a real company.
+- **No network.** No `fetch` outside `mock-api.ts`. Flags are in `public/flags/`, sample files are in `public/sample/`, and there are no remote logos.
+- **Syncing with the client.** Product code is a copy of `client/`. Re-copying it keeps the UI in step, but re-apply the seams afterwards:
+  - `query-client`, chat and deck streams → `mockFetch`;
+  - auth session and feature access → stubs;
+  - analytics and realtime → no-ops;
+  - Supabase uploads → `demoUpload`;
+  - `entity-logo` → local flags, no favicon lookup;
+  - the `data-tour` anchors.

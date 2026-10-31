@@ -1,3 +1,5 @@
+> **This repo is the Atlas Tutorial, not the client.** Product code is copied from `client/`, but there is no backend, Supabase or auth here: every `/api/*` call goes to `lib/sandbox/mock-api.ts` (fake data). Read [lib/sandbox/README.md](lib/sandbox/README.md) first; the client docs below apply to the product components only.
+
 # SportsTechX Client — Claude Entry Point
 
 Next.js 16 App Router + React 19 + TypeScript + Tailwind 4 + shadcn/ui + Supabase JS + SWR. Single-tenant SPA-style client for the SportsTechX intelligence platform. Talks to the NestJS backend at `BACKEND_URL` via the rewrite in [next.config.ts](next.config.ts).
