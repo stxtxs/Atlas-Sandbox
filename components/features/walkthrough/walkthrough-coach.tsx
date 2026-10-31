@@ -97,6 +97,31 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 		if (dest) router.push(withTutorialParams(dest, { tier: product, step }));
 	}, [current, stepKey, step, pathname, router, product]);
 
+	// Read-only view of the open step, for automated walkthroughs of the tours.
+	useEffect(() => {
+		(window as unknown as { __atlasTour?: unknown }).__atlasTour = { step, count, current };
+	}, [step, count, current]);
+
+	// A typing step puts the cursor in its field, so the visitor can just type.
+	useEffect(() => {
+		if (current?.advance.kind !== 'type') return;
+		const scope = current.only ?? (current.target ? tourSelector(current.target) : null);
+		if (!scope) return;
+		let tries = 0;
+		const timer = window.setInterval(() => {
+			const root = document.querySelector(scope);
+			const field = root?.matches('input, textarea') ? root : root?.querySelector<HTMLInputElement | HTMLTextAreaElement>('input:not([type="hidden"]):not([disabled]), textarea:not([disabled])');
+			if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+				window.clearInterval(timer);
+				if (document.activeElement === field) return;
+				field.focus({ preventScroll: true });
+				const end = field.value.length;
+				try { field.setSelectionRange(end, end); } catch { /* not a text field */ }
+			} else if (++tries > 50) window.clearInterval(timer);
+		}, 100);
+		return () => window.clearInterval(timer);
+	}, [current, stepKey]);
+
 	// The workspace as this step found it, for Back.
 	useEffect(() => {
 		if (current) saveStepSnapshot(product, step);
@@ -187,7 +212,7 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 	return (
 		<div style={{ '--wt-accent': ACCENT[product] } as React.CSSProperties}>
 			{soft ? <div className="wt-soft" aria-hidden="true" /> : current && (
-				<Spotlight primary={primarySel} extra={extra} stepKey={stepKey} merge={!!current.highlights} action={adv !== 'next'} onMissing={onMissing} />
+				<Spotlight primary={primarySel} extra={extra} stepKey={stepKey} merge={!!current.highlights} onMissing={onMissing} />
 			)}
 			{current?.confirm && (
 				<div className="wt-confirm">

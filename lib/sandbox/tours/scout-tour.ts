@@ -69,7 +69,7 @@ export const scoutTour: Tour = {
 					id: 'chat-send', path: '/home', target: 'scout-home-composer', only: '[data-tour="scout-home-composer"] textarea', continues: true,
 					title: 'Ask the co-pilot',
 					do: 'Press {{Enter}} to send.',
-					advance: { kind: 'path', pattern: '/chat' },
+					advance: { kind: 'request', method: 'POST', pattern: '/api/chat' },
 				},
 				{
 					id: 'chat-answer', path: '/chat/:id', target: 'chat-thread',

@@ -37,13 +37,11 @@ function place(node: HTMLDivElement, b: TargetBox | undefined) {
 	node.style.width = `${b.width}px`;
 	node.style.height = `${b.height}px`;
 	node.style.setProperty('--wt-r', `${b.radius}px`);
-	// A big target (a whole list) gets the hairline only — a tint over it would wash out the page.
-	node.classList.toggle('is-large', b.width * b.height > window.innerWidth * window.innerHeight * 0.3);
 }
 
 /**
- * The step's highlight: a light veil over the page with soft cut-outs, and a
- * soft hairline + tint + glow on each highlighted element.
+ * The step's highlight: a clean outline around each highlighted element, in the
+ * tier's colour — no veil over the page, no shadow.
  *
  * Smooth by construction:
  *   - one rAF loop reads the elements every frame and writes positions straight
@@ -57,19 +55,16 @@ function place(node: HTMLDivElement, b: TargetBox | undefined) {
  * Reports `missing` (no primary element for FIND_TIMEOUT_MS) so the coach can
  * offer Next. Without a primary selector, the first `extra` element leads.
  */
-export function Spotlight({ primary, extra, stepKey, merge, action, onMissing }: {
+export function Spotlight({ primary, extra, stepKey, merge, onMissing }: {
 	primary?: string;
 	extra: string[];
 	stepKey: string;
 	/** Join adjacent boxes into one (orientation highlights). */
 	merge: boolean;
-	/** The step waits for the visitor to act: the highlight breathes gently. */
-	action: boolean;
 	onMissing: (missing: boolean) => void;
 }) {
 	const live = useRef<(HTMLDivElement | null)[]>([]);
 	const ghosts = useRef<(HTMLDivElement | null)[]>([]);
-	const holes = useRef<(SVGRectElement | null)[]>([]);
 	const missingCb = useRef(onMissing);
 	useEffect(() => { missingCb.current = onMissing; }, [onMissing]);
 	const extraKey = extra.join('\n');
@@ -86,7 +81,6 @@ export function Spotlight({ primary, extra, stepKey, merge, action, onMissing }:
 			n.classList.remove('is-shown');
 			n.style.visibility = 'hidden';
 		});
-		holes.current.forEach((h) => h?.setAttribute('width', '0'));
 
 		let raf = 0;
 		let shown = false;
@@ -107,14 +101,6 @@ export function Spotlight({ primary, extra, stepKey, merge, action, onMissing }:
 				if (!inView(lead)) lead.scrollIntoView({ block: window.innerWidth <= SHEET_BREAKPOINT ? 'start' : 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 			}
 			live.current.forEach((n, i) => n && place(n, boxes[i]));
-			holes.current.forEach((h, i) => {
-				const b = boxes[i];
-				if (!h) return;
-				if (!b) { h.setAttribute('width', '0'); return; }
-				h.setAttribute('x', String(b.left)); h.setAttribute('y', String(b.top));
-				h.setAttribute('width', String(b.width)); h.setAttribute('height', String(b.height));
-				h.setAttribute('rx', String(b.radius));
-			});
 			if (boxes.length && !shown) {
 				shown = true;
 				live.current.forEach((n) => n?.classList.add('is-shown'));
@@ -133,16 +119,7 @@ export function Spotlight({ primary, extra, stepKey, merge, action, onMissing }:
 
 	const slots = Array.from({ length: POOL }, (_, i) => i);
 	return (
-		<div className={`wt-spot${action ? ' wt-spot--action' : ''}`} aria-hidden="true">
-			<svg className="wt-veil" width="100%" height="100%">
-				<defs>
-					<mask id="wt-veil-mask">
-						<rect width="100%" height="100%" fill="white" />
-						{slots.map((i) => <rect key={i} ref={(el) => { holes.current[i] = el; }} width="0" height="0" fill="black" />)}
-					</mask>
-				</defs>
-				<rect className="wt-veil__fill" width="100%" height="100%" mask="url(#wt-veil-mask)" />
-			</svg>
+		<div className="wt-spot" aria-hidden="true">
 			{slots.map((i) => <div key={`g${i}`} ref={(el) => { ghosts.current[i] = el; }} className="wt-hl wt-hl--ghost"><span /></div>)}
 			{slots.map((i) => <div key={`l${i}`} ref={(el) => { live.current[i] = el; }} className="wt-hl"><span /></div>)}
 		</div>

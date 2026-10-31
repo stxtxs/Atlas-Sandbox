@@ -20,6 +20,9 @@ import { tourSelector } from './use-tour-target';
  * A `click` step with `dropOn` also completes on a drop there (drag or pick,
  * either way the same move).
  */
+/** Typed text as compared with a step's value: case, extra spaces and trailing punctuation don't matter. */
+export const normalizeTyped = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, '');
+
 export function useTourAdvance(step: TourStep | null, pathname: string, onDone: () => void) {
 	const done = useRef(onDone);
 	useEffect(() => { done.current = onDone; }, [onDone]);
@@ -93,18 +96,36 @@ export function useTourAdvance(step: TourStep | null, pathname: string, onDone: 
 		return () => window.removeEventListener(PRACTICE_REQUEST_EVENT, onRequest);
 	}, [reqMethod, reqPattern, reqBody]);
 
-	// type — the target field holds the step's text
-	const typeWant = adv?.kind === 'type' ? adv.value.trim().toLowerCase() : null;
+	// type — the target field holds the step's text. Until it does, Enter and
+	// submit are held back, so a half-typed (or different) text can never send
+	// the form and carry the visitor off the tour's path.
+	const typeWant = adv?.kind === 'type' ? normalizeTyped(adv.value) : null;
 	const typeOn = adv?.kind === 'type' && target ? tourSelector(target) : null;
 	useEffect(() => {
 		if (!typeWant || !typeOn) return;
+		const field = (t: EventTarget | null) => (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) && t.closest(typeOn) ? t : null;
+		const matches = (el: HTMLInputElement | HTMLTextAreaElement) => normalizeTyped(el.value) === typeWant;
 		const onInput = (e: Event) => {
-			const el = e.target;
-			if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) || !el.closest(typeOn)) return;
-			if (el.value.trim().toLowerCase() === typeWant) done.current();
+			const el = field(e.target);
+			if (el && matches(el)) done.current();
+		};
+		const onKey = (e: KeyboardEvent) => {
+			const el = field(e.target);
+			if (el && e.key === 'Enter' && !matches(el)) { e.preventDefault(); e.stopImmediatePropagation(); }
+		};
+		const onSubmit = (e: Event) => {
+			const form = e.target instanceof HTMLFormElement ? e.target : null;
+			const el = form?.querySelector<HTMLInputElement | HTMLTextAreaElement>('input, textarea');
+			if (el && field(el) && !matches(el)) { e.preventDefault(); e.stopImmediatePropagation(); }
 		};
 		document.addEventListener('input', onInput, true);
-		return () => document.removeEventListener('input', onInput, true);
+		window.addEventListener('keydown', onKey, true);
+		window.addEventListener('submit', onSubmit, true);
+		return () => {
+			document.removeEventListener('input', onInput, true);
+			window.removeEventListener('keydown', onKey, true);
+			window.removeEventListener('submit', onSubmit, true);
+		};
 	}, [typeWant, typeOn]);
 
 	// path

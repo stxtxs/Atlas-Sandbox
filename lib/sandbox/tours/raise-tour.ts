@@ -44,7 +44,7 @@ export const raiseTour: Tour = {
 				{ id: 'home-ask', path: '/home', target: 'raise-home-composer', only: '[data-tour="raise-home-composer"] .atlas-composer-box', title: 'Ask the co-pilot',
 					do: 'Click into the co-pilot bar at the top, then type.', advance: { kind: 'type', value: 'Find seed investors' } },
 				{ id: 'home-send', path: '/home', target: 'raise-home-composer', continues: true,
-					title: 'Send it', do: 'Press {{Enter}} or click the send arrow.', advance: { kind: 'path', pattern: '/chat' } },
+					title: 'Send it', do: 'Press {{Enter}} or click the send arrow.', advance: { kind: 'request', method: 'POST', pattern: '/api/chat' } },
 			],
 		},
 		{
