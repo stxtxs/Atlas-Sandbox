@@ -197,6 +197,10 @@ body.wt-coach-open--right .atlas-shell { margin-right: var(--wt-panel-w); }
 	body.wt-coach-open--right [data-sonner-toaster] { right: calc(var(--wt-panel-w) + 24px) !important; }
 }
 
+/* Toasts never block what a step points at: clicks go through their body; their own buttons (Undo) still work. */
+body.wt-coach-open [data-sonner-toast] { pointer-events: none; }
+body.wt-coach-open [data-sonner-toast] :is(button, a) { pointer-events: auto; }
+
 /* The export dialog's credit pricing is about a purchase that doesn't exist here. */
 .export-modal__costwrap { visibility: hidden; }
 
@@ -221,9 +225,14 @@ body.wt-coach-open--right .atlas-shell { margin-right: var(--wt-panel-w); }
 	body.wt-coach-open .atlas-content { padding-bottom: var(--wt-sheet-h, 62vh); }
 	/* App overlays stop above the sheet, so their buttons stay reachable. */
 	body.wt-coach-open :is(.export-overlay, .setup-overlay, .scout-modal, .co-drawer-overlay, .pipe-drawer) { bottom: var(--wt-sheet-h, 62vh) !important; }
+	/* …and the dialogs inside them fit in the space above it (they size from the full screen otherwise). */
+	body.wt-coach-open .setup-modal { max-height: min(860px, calc(100dvh - var(--wt-sheet-h, 62vh) - 24px)) !important; }
+	body.wt-coach-open .export-modal { max-height: min(760px, calc(100dvh - var(--wt-sheet-h, 62vh) - 24px)) !important; }
+	body.wt-coach-open .scout-modal__box { max-height: min(720px, calc(100dvh - var(--wt-sheet-h, 62vh) - 24px)) !important; }
 	/* The highlight stays under the sheet instead of drawing over its text. */
 	.wt-hl { z-index: 1140; }
-	body.wt-coach-open [data-tour] { scroll-margin-top: 120px; }
+	/* Whatever a step scrolls to (a target or a control inside it) stops below the sticky top bar. */
+	body.wt-coach-open :is([data-tour], [data-tour] *) { scroll-margin-top: 120px; }
 }
 
 /* ── No sidebar: the tour does the navigating, so the rail and its menu button are gone. ── */

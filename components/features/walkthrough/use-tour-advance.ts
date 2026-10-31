@@ -37,6 +37,8 @@ export function useTourAdvance(step: TourStep | null, pathname: string, onDone: 
 		if (!clickOn) return;
 		const selector = clickOn;
 		const onEvent = (e: Event) => {
+			// Only the visitor's own clicks count — not the coach closing an overlay on Back/Contents.
+			if (!e.isTrusted) return;
 			const el = e.target instanceof Element ? e.target : null;
 			// A <select>'s 'click' just opens the native dropdown — it fires before a
 			// value is actually picked. Wait for 'change' there so the step doesn't
@@ -115,16 +117,26 @@ export function useTourAdvance(step: TourStep | null, pathname: string, onDone: 
 		};
 		const onSubmit = (e: Event) => {
 			const form = e.target instanceof HTMLFormElement ? e.target : null;
-			const el = form?.querySelector<HTMLInputElement | HTMLTextAreaElement>('input, textarea');
+			const el = form ? Array.from(form.elements).map(field).find(Boolean) : null;
+			if (el && !matches(el)) { e.preventDefault(); e.stopImmediatePropagation(); }
+		};
+		// Buttons beside the field (a send arrow, a suggestion chip) are held back too:
+		// a chat bar sends from its button, not a form submit.
+		const onClick = (e: MouseEvent) => {
+			const btn = e.target instanceof Element ? e.target.closest('button, a') : null;
+			const root = btn?.closest(typeOn);
+			const el = root?.querySelector<HTMLInputElement | HTMLTextAreaElement>('input, textarea');
 			if (el && field(el) && !matches(el)) { e.preventDefault(); e.stopImmediatePropagation(); }
 		};
 		document.addEventListener('input', onInput, true);
 		window.addEventListener('keydown', onKey, true);
 		window.addEventListener('submit', onSubmit, true);
+		window.addEventListener('click', onClick, true);
 		return () => {
 			document.removeEventListener('input', onInput, true);
 			window.removeEventListener('keydown', onKey, true);
 			window.removeEventListener('submit', onSubmit, true);
+			window.removeEventListener('click', onClick, true);
 		};
 	}, [typeWant, typeOn]);
 

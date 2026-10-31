@@ -73,6 +73,12 @@ export interface TourStep {
 	dropOn?: string;
 	/** Block keyboard input on the target too (e.g. a select whose arrow keys could pick a stage the step forbids). */
 	pointerOnly?: boolean;
+	/**
+	 * Another page the step also counts as being on — for a page that renames
+	 * itself (the chat moves from `/chat` to `/chat/<id>` once it answers), so
+	 * Back to this step doesn't reopen it fresh.
+	 */
+	alsoOn?: string;
 	/** Short headline, at most 7 words — the biggest text in the panel. */
 	title: string;
 	/**

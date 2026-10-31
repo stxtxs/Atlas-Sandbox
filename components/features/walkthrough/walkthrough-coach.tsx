@@ -92,14 +92,16 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 	useEffect(() => {
 		if (!current || navigatedFor.current === stepKey) return;
 		navigatedFor.current = stepKey;
-		if (matchPath(current.path, pathname)) return;
+		if (matchPath(current.path, pathname) || (current.alsoOn && matchPath(current.alsoOn, pathname))) return;
 		const dest = hasParams(current.path) ? stepPath(product, step) : current.path;
 		if (dest) router.push(withTutorialParams(dest, { tier: product, step }));
 	}, [current, stepKey, step, pathname, router, product]);
 
 	// Read-only view of the open step, for automated walkthroughs of the tours.
 	useEffect(() => {
-		(window as unknown as { __atlasTour?: unknown }).__atlasTour = { step, count, current };
+		const w = window as unknown as { __atlasTour?: unknown };
+		w.__atlasTour = { step, count, current };
+		return () => { delete w.__atlasTour; };
 	}, [step, count, current]);
 
 	// A typing step puts the cursor in its field, so the visitor can just type.
@@ -115,8 +117,8 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 				window.clearInterval(timer);
 				if (document.activeElement === field) return;
 				field.focus({ preventScroll: true });
-				const end = field.value.length;
-				try { field.setSelectionRange(end, end); } catch { /* not a text field */ }
+				// Text left from earlier (e.g. after Back) is selected, so typing replaces it.
+				if (field.value) field.select();
 			} else if (++tries > 50) window.clearInterval(timer);
 		}, 100);
 		return () => window.clearInterval(timer);
@@ -132,6 +134,23 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 	const usable = current?.only ?? (current?.target && current.advance.kind !== 'next' ? tourSelector(current.target) : null);
 	const allowed = current ? [...(usable ? [usable] : []), ...(current.allow ?? [])] : NO_SELECTORS;
 	useTourGuard(allowed, !!current?.pointerOnly, current?.dropOn, current?.dragFrom);
+
+	// A menu left open by an earlier step (Add filter, Sort…) that this step doesn't
+	// use is closed — the way a click elsewhere would — so it never covers what
+	// comes next. Menus this step works in stay open.
+	const allowedKey = allowed.join('\n');
+	useEffect(() => {
+		if (!current) return;
+		const keep = [...(allowedKey ? allowedKey.split('\n') : []), ...(current.advance.kind === 'click' && current.advance.on ? [current.advance.on] : [])];
+		const timer = window.setTimeout(() => {
+			const menus = Array.from(document.querySelectorAll<HTMLElement>('.atlas-menu'));
+			const used = menus.find((m) => keep.some((sel) => m.matches(sel) || m.querySelector(sel)));
+			// A step that works inside a menu whose content hasn't rendered yet: leave the menus alone.
+			if (!used && keep.some((sel) => sel.includes('atlas-menu') || sel.includes('atlas-wl'))) return;
+			if (menus.some((m) => m !== used)) (used ?? document.body).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		}, 0);
+		return () => window.clearTimeout(timer);
+	}, [stepKey, current, allowedKey]);
 
 	// A step with no target leads with its first allowed element, so it can still be "missing".
 	const primarySel = current?.target ? tourSelector(current.target) : current?.allow?.[0];
@@ -212,7 +231,7 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 	return (
 		<div style={{ '--wt-accent': ACCENT[product] } as React.CSSProperties}>
 			{soft ? <div className="wt-soft" aria-hidden="true" /> : current && (
-				<Spotlight primary={primarySel} extra={extra} stepKey={stepKey} merge={!!current.highlights} onMissing={onMissing} />
+				<Spotlight primary={primarySel} action={current.only} extra={extra} stepKey={stepKey} merge={!!current.highlights} onMissing={onMissing} />
 			)}
 			{current?.confirm && (
 				<div className="wt-confirm">

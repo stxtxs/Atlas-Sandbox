@@ -55,8 +55,10 @@ function place(node: HTMLDivElement, b: TargetBox | undefined) {
  * Reports `missing` (no primary element for FIND_TIMEOUT_MS) so the coach can
  * offer Next. Without a primary selector, the first `extra` element leads.
  */
-export function Spotlight({ primary, extra, stepKey, merge, onMissing }: {
+export function Spotlight({ primary, action, extra, stepKey, merge, onMissing }: {
 	primary?: string;
+	/** The part of the target the visitor has to use (`only`): it is what gets scrolled into view. */
+	action?: string;
 	extra: string[];
 	stepKey: string;
 	/** Join adjacent boxes into one (orientation highlights). */
@@ -84,7 +86,17 @@ export function Spotlight({ primary, extra, stepKey, merge, onMissing }: {
 
 		let raf = 0;
 		let shown = false;
-		let scrolled = false;
+		/** When the lead element was first seen; it is re-checked a few times as the page settles (late data pushes it down). */
+		let firstSeen = 0;
+		let checksDone = 0;
+		const CHECKS = [0, 600, 1500];
+		/** Page position the target was last scrolled to (null = not yet). */
+		let scrolledTo: number | null = null;
+		/** Once the visitor scrolls, taps or types, the page is theirs — no more automatic scrolling this step. */
+		let userMoved = false;
+		const onUser = (e: Event) => { if (e.isTrusted) userMoved = true; };
+		const userEvents = ['wheel', 'touchmove', 'pointerdown', 'keydown'] as const;
+		userEvents.forEach((type) => window.addEventListener(type, onUser, { capture: true, passive: true }));
 		let lastSeen = performance.now();
 		let missing = false;
 		missingCb.current(false);
@@ -96,9 +108,21 @@ export function Spotlight({ primary, extra, stepKey, merge, onMissing }: {
 			if (merge) boxes = mergeAdjacent(boxes);
 			boxes = boxes.slice(0, POOL);
 
-			if (lead && main && !scrolled) {
-				scrolled = true;
-				if (!inView(lead)) lead.scrollIntoView({ block: window.innerWidth <= SHEET_BREAKPOINT ? 'start' : 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+			if (lead && main && checksDone < CHECKS.length && !userMoved) {
+				const t = performance.now();
+				if (!firstSeen) firstSeen = t;
+				if (t - firstSeen >= CHECKS[checksDone]) {
+					checksDone++;
+					// Scroll to what has to be used — on a tall target (a card) its button can sit below the fold.
+					const use = (action && document.querySelector(action)) || lead;
+					const pageTop = use.getBoundingClientRect().top + window.scrollY;
+					// The first check scrolls if needed; later ones only if late content moved it since.
+					const moved = scrolledTo === null || Math.abs(pageTop - scrolledTo) > 4;
+					if (moved && !inView(use)) {
+						scrolledTo = pageTop;
+						use.scrollIntoView({ block: window.innerWidth <= SHEET_BREAKPOINT ? 'start' : 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+					}
+				}
 			}
 			live.current.forEach((n, i) => n && place(n, boxes[i]));
 			if (boxes.length && !shown) {
@@ -114,8 +138,11 @@ export function Spotlight({ primary, extra, stepKey, merge, onMissing }: {
 			raf = requestAnimationFrame(tick);
 		};
 		raf = requestAnimationFrame(tick);
-		return () => cancelAnimationFrame(raf);
-	}, [primary, extraKey, stepKey, merge]);
+		return () => {
+			cancelAnimationFrame(raf);
+			userEvents.forEach((type) => window.removeEventListener(type, onUser, { capture: true }));
+		};
+	}, [primary, action, extraKey, stepKey, merge]);
 
 	const slots = Array.from({ length: POOL }, (_, i) => i);
 	return (

@@ -49,7 +49,7 @@ export const raiseTour: Tour = {
 		},
 		{
 			id: 'chat', title: 'Co-pilot chat', steps: [
-				{ id: 'chat-answer', path: '/chat', target: 'chat-thread', title: 'Answers from SportsTechX data',
+				{ id: 'chat-answer', path: '/chat', alsoOn: '/chat/:id', target: 'chat-thread', title: 'Answers from SportsTechX data',
 					body: 'It knows your raise, so answers are about Fanloop, not founders in general. Sample data here.', advance: { kind: 'next' } },
 				{ id: 'chat-follow-up', path: '/chat/:id', target: 'chat-composer', title: 'Ask a follow-up',
 					advance: { kind: 'type', value: 'Draft an intro email' } },
@@ -208,8 +208,8 @@ export const raiseTour: Tour = {
 			id: 'companies', title: 'Companies', steps: [
 				{ id: 'companies-search', path: '/companies', target: 'filters-search', title: 'Look up any company',
 					body: 'Every sports tech company Atlas tracks: competitors, partners, possible customers.', advance: { kind: 'type', value: 'Kitroom' } },
-				{ id: 'companies-open', path: '/companies', target: 'companies-results', continues: true, title: 'Open the profile',
-					do: 'Click {{Kitroom}}.', advance: { kind: 'path', pattern: '/companies/:slug' } },
+				{ id: 'companies-open', path: '/companies', target: 'companies-results', only: '[data-tour="companies-results"] a[href="/companies/kitroom"]', continues: true, title: 'Open the profile',
+					do: 'Click {{Kitroom}}.', advance: { kind: 'path', pattern: '/companies/kitroom' } },
 				{ id: 'company-head', path: '/companies/:slug', target: 'company-head', title: 'A company at a glance',
 					body: 'Where they are, when they were founded, and whether they’re verified.', advance: { kind: 'next' } },
 				{ id: 'company-funding', path: '/companies/:slug', target: 'company-funding', title: 'Every round they raised',
