@@ -253,7 +253,7 @@ export interface WAcquisition {
 	id: string; target: string; acquirer: string;
 	/** USD; null = undisclosed. */
 	price_usd: number | null;
-	daysAgo: number; type: 'acquisition' | 'merger' | 'acqui-hire';
+	daysAgo: number; type: 'acquisition' | 'merger' | 'asset_purchase';
 	/** Whether the acquirer is a company in this world (else a corporate outside it). */
 	acquirerCountry: string;
 }
@@ -264,7 +264,7 @@ const acquisition = (target: string, acquirer: string, price_usd: number | null,
 export const ACQUISITIONS: WAcquisition[] = [
 	acquisition('Scrumcap Labs', 'Pitchmark Analytics', 8_000_000, 150, 'acquisition', 'GB'),
 	acquisition('Benchside', 'Grandstand Growth', 40_000_000, 400, 'acquisition', 'US'),
-	acquisition('Huddle Fit (product line)', 'Huddle Health', null, 520, 'acqui-hire', 'IE'),
+	acquisition('Huddle Fit (product line)', 'Huddle Health', null, 520, 'asset_purchase', 'IE'),
 	acquisition('Linesman AI', 'Arenaflow', 12_000_000, 85, 'acquisition', 'SE'),
 	acquisition('Ticketnest', 'Clubvault', 3_500_000, 260, 'merger', 'FR'),
 	acquisition('Stadium Stories', 'Strikezone Media', 6_000_000, 35, 'acquisition', 'US'),
