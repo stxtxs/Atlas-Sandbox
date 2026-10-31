@@ -26,6 +26,18 @@ const ACCENT: Record<SandboxProduct, string> = { explore: '#F32163', raise: '#34
 
 const hasParams = (path: string) => /\/:/.test(path);
 
+/**
+ * Close any drawer or modal the app has open (export, company/event/program
+ * drawers, the pipeline drawer, the intro request), by clicking its own close
+ * control — the guard lets these programmatic clicks through. Used before Back,
+ * a Contents jump and opening Contents, so the step you land on is never stuck
+ * under an overlay from a later step.
+ */
+const OVERLAY_CLOSERS = ['.export-modal__x', '.co-drawer-head .icon-btn[title="Close"]', '.pipe-drawer [aria-label="Close"]', '.scout-dd-modal__x'];
+function closeOverlays() {
+	for (const sel of OVERLAY_CLOSERS) document.querySelector<HTMLElement>(sel)?.click();
+}
+
 function isTyping(el: EventTarget | null): boolean {
 	if (!(el instanceof HTMLElement)) return false;
 	return el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
@@ -56,13 +68,16 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 	const pathname = usePathname() ?? '';
 	const { steps, chapterOf, chapterStart } = flatten(tour);
 	const [contents, setContents] = useState(false);
-	const [missing, setMissing] = useState(false);
+	// Which step's target went missing — tied to the step, so a new step never inherits it.
+	const [missingFor, setMissingFor] = useState('');
 	const count = steps.length;
 	const showIntro = step <= 0;
 	const isFinale = step > count;
 	const index = flatIndexOf(step);
 	const current: TourStep | null = showIntro || isFinale ? null : steps[index];
 	const stepKey = current ? `${step}:${current.id}` : showIntro ? 'intro' : 'finale';
+	const missing = missingFor === stepKey;
+	const onMissing = useCallback((m: boolean) => setMissingFor(m ? stepKey : ''), [stepKey]);
 	const chapter = current ? chapterOf[index] : -1;
 	const chapterSteps = chapter >= 0 ? tour.chapters[chapter].steps.length : 0;
 	const inChapter = chapter >= 0 ? index - chapterStart[chapter] + 1 : 0;
@@ -99,6 +114,7 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 
 	const goTo = useCallback((to: number) => {
 		setContents(false);
+		closeOverlays();
 		// Going back: put the sample data as that step found it, then refetch everything on screen.
 		if (to < step && to > 0 && restoreStepSnapshot(product, to)) void mutate(() => true);
 		setTourStep(to);
@@ -113,8 +129,10 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 	}, [stepKey]);
 	const advance = useCallback(() => {
 		if (!current || pauseTimer.current !== null) return;
-		if (!current.pause) { setTourStep(step + 1); return; }
-		pauseTimer.current = window.setTimeout(() => { pauseTimer.current = null; setTourStep(step + 1); }, current.pause);
+		// The step moves on — Contents (if open) must not hide what comes next.
+		const go = () => { setContents(false); setTourStep(step + 1); };
+		if (!current.pause) { go(); return; }
+		pauseTimer.current = window.setTimeout(() => { pauseTimer.current = null; go(); }, current.pause);
 	}, [current, step]);
 	useTourAdvance(current, pathname, advance);
 
@@ -122,10 +140,12 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 		if (showIntro || isFinale) return;
 		// Back lands on the start of the previous numbered step: the second half
 		// of a two-part step (`continues`) needs the first half's result on screen.
+		// It also skips `:param` steps never visited in this tab (e.g. after a
+		// Contents jump): there is no page to reopen for them.
 		let prev = index - 1;
-		while (prev > 0 && steps[prev].continues) prev -= 1;
+		while (prev > 0 && (steps[prev].continues || (hasParams(steps[prev].path) && !stepPath(product, urlStepOf(prev))))) prev -= 1;
 		goTo(prev < 0 ? 0 : urlStepOf(prev));
-	}, [showIntro, isFinale, index, steps, goTo]);
+	}, [showIntro, isFinale, index, steps, goTo, product]);
 
 	const adv = current?.advance.kind;
 	const canNext = !!current && (adv === 'next' || missing);
@@ -144,6 +164,17 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 		return () => document.body.classList.remove('wt-coach-open', 'wt-coach-open--right');
 	}, []);
 
+	// As a bottom sheet (phones, tablets) its live height is what app overlays leave room for.
+	const panel = useRef<HTMLElement>(null);
+	useEffect(() => {
+		const el = panel.current;
+		if (!el) return;
+		const root = document.documentElement;
+		const ro = new ResizeObserver(() => root.style.setProperty('--wt-sheet-h', `${el.offsetHeight}px`));
+		ro.observe(el);
+		return () => { ro.disconnect(); root.style.removeProperty('--wt-sheet-h'); };
+	}, []);
+
 	const label = PRODUCT_NAME[product];
 	const done = (c: number) => (chapterStart[c + 1] ?? count) < step;
 	const soft = showIntro || isFinale || contents;
@@ -156,10 +187,10 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 	return (
 		<div style={{ '--wt-accent': ACCENT[product] } as React.CSSProperties}>
 			{soft ? <div className="wt-soft" aria-hidden="true" /> : current && (
-				<Spotlight primary={primarySel} extra={extra} stepKey={stepKey} merge={!!current.highlights} action={adv !== 'next'} onMissing={setMissing} />
+				<Spotlight primary={primarySel} extra={extra} stepKey={stepKey} merge={!!current.highlights} action={adv !== 'next'} onMissing={onMissing} />
 			)}
 			{current?.confirm && (
-				<div className="wt-confirm wt-confirm--right">
+				<div className="wt-confirm">
 					<div className="wt-confirm__card" role="status" aria-live="polite">
 						<CheckCircle2 className="wt-confirm__icon" size={28} aria-hidden="true" />
 						<h2 className="wt-confirm__title">{current.confirm.title}</h2>
@@ -169,22 +200,22 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 				</div>
 			)}
 
-			<aside className="wt-coach" aria-label={`Atlas ${label} tutorial`}>
+			<aside ref={panel} className="wt-coach" aria-label={`Atlas ${label} tutorial`}>
 				<header className="wt-coach__top">
 					{current ? (
 						<div className="wt-coach__progress">
-							<span className="wt-coach__chapter">{tour.chapters[chapter].title} · {inChapter} of {chapterSteps}</span>
+							<span className="wt-coach__chapter-label">{tour.chapters[chapter].title} · {inChapter} of {chapterSteps}</span>
 							<span className="wt-coach__track" aria-hidden="true"><span style={{ width: `${(step / count) * 100}%` }} /></span>
 						</div>
 					) : <span className="wt-coach__brand">Atlas {label} · Tutorial</span>}
 					{!isFinale && !showIntro && (
-						<button type="button" className="wt-coach__contents-btn" aria-expanded={contents} onClick={() => setContents((v) => !v)}>
+						<button type="button" className="wt-coach__contents-btn" aria-expanded={contents} onClick={() => { if (!contents) closeOverlays(); setContents((v) => !v); }}>
 							<ListOrdered size={14} aria-hidden="true" /> Contents
 						</button>
 					)}
 				</header>
 
-				<div className="wt-coach__main" aria-live="polite">
+				<div className="wt-coach__main">
 					{contents ? (
 						<>
 							<h2 className="wt-coach__title">Contents</h2>
@@ -206,7 +237,7 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 							<p className="wt-coach__lead"><CoachText text={tour.intro.body} /></p>
 							{tour.intro.points && <Points points={tour.intro.points} open />}
 							<p className="wt-coach__hint">{tour.chapters.length} short chapters on sample data. No account needed.</p>
-							<button type="button" className="wt-keycap" onClick={start} aria-label="Start the tour">Enter</button>
+							<button type="button" className="wt-keycap" onClick={start} title="Start the tour">Enter</button>
 						</>
 					) : isFinale ? (
 						<>
@@ -220,8 +251,11 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 						</>
 					) : current && (
 						<>
-							<h2 className="wt-coach__title">{current.title}</h2>
-							<ActionCue step={current} onNext={advance} canNext={canNext && !current.confirm} />
+							{/* Only the headline and the action are announced — not the whole panel each step. */}
+							<div className="wt-coach__focus" aria-live="polite">
+								<h2 className="wt-coach__title">{current.title}</h2>
+								<ActionCue step={current} onNext={advance} canNext={canNext && !current.confirm} />
+							</div>
 							{current.body && <p className="wt-coach__info"><CoachText text={current.body} /></p>}
 							{current.points && <Points points={current.points} />}
 							{missing && adv !== 'next' && <p className="wt-coach__hint">Can&apos;t spot it on this page? Carry on with Next.</p>}

@@ -228,7 +228,7 @@ function recommendations(state: ScoutState): Recommendation[] {
 			const flags = {
 				match_sector: underSector(c.sector, sectorIds),
 				match_geo: geoMatches(c.country, thesis.geo),
-				match_stage: !!latest && rounds.has(latest.round.toLowerCase()),
+				match_stage: !!latest && rounds.has(roundByName(latest.round).name.toLowerCase()),
 				// A cheque fits when the last round was small enough for the thesis
 				// cheque to be a meaningful slice of it (≤ 4× the max cheque).
 				match_cheque: !!latest?.amount_usd && thesis.cheque_max != null && latest.amount_usd <= thesis.cheque_max * 4,

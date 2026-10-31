@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { STEP_PARAM, TOUR_PARAM } from '@/lib/sandbox/tutorial-url';
 
 /**
  * URL-as-state helpers. Two jobs:
@@ -77,6 +78,9 @@ export function useDeepLinkKey(ignore: readonly string[] = []): string {
 		if (qs == null) return null;
 		const p = new URLSearchParams(qs);
 		for (const k of ignore) p.delete(k);
+		// The tutorial's position (`?tour=&step=`) changes every step — never a deep link.
+		p.delete(TOUR_PARAM);
+		p.delete(STEP_PARAM);
 		return p.toString();
 	};
 	const sp = strip(useSearchParams().toString())!;

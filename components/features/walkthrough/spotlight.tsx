@@ -104,7 +104,7 @@ export function Spotlight({ primary, extra, stepKey, merge, action, onMissing }:
 
 			if (lead && main && !scrolled) {
 				scrolled = true;
-				if (!inView(lead)) lead.scrollIntoView({ block: window.innerWidth <= SHEET_BREAKPOINT ? 'start' : 'center', behavior: 'smooth' });
+				if (!inView(lead)) lead.scrollIntoView({ block: window.innerWidth <= SHEET_BREAKPOINT ? 'start' : 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 			}
 			live.current.forEach((n, i) => n && place(n, boxes[i]));
 			holes.current.forEach((h, i) => {

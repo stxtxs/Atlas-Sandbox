@@ -15,7 +15,8 @@ export interface PracticeState {
 	step: number;
 }
 
-const KEY = 'stx:tutorial:v3';
+// v4: `step` is numbered as in the URL (0 welcome) — older saved positions would land one step off.
+const KEY = 'stx:tutorial:v4';
 const EVENT = 'stx:tutorial';
 const PRODUCTS: SandboxProduct[] = ['explore', 'raise', 'scout'];
 const EMPTY: PracticeState = { active: null, step: 0 };
@@ -45,6 +46,11 @@ function write(next: PracticeState) {
 /** The tier being toured, or null. */
 export function activeSandbox(): SandboxProduct | null {
 	return read().active;
+}
+
+/** The current position (URL numbering), read live — for event handlers outside React state. */
+export function currentStep(): number {
+	return read().step;
 }
 
 /** Start a tier's tour at its first step, on a fresh sample workspace. */
@@ -83,7 +89,7 @@ export function usePractice(): PracticeState {
 }
 
 /** Per-tier sample workspace for the mock API's write handlers. */
-const DATA_KEY = (p: SandboxProduct) => `stx:tutorial:data:${p}`;
+const DATA_KEY = (p: SandboxProduct) => `stx:tutorial:v4:data:${p}`;
 export function readSandboxData(p: SandboxProduct): Record<string, unknown> {
 	try { return JSON.parse(sessionStorage.getItem(DATA_KEY(p)) ?? '{}') as Record<string, unknown>; } catch { return {}; }
 }
@@ -95,8 +101,8 @@ export function writeSandboxData(p: SandboxProduct, data: Record<string, unknown
  * Step snapshots: the sample workspace as it was when each step first opened,
  * so Back (and jumping to an earlier chapter) puts that step's data back too.
  */
-const SNAP_KEY = (p: SandboxProduct) => `stx:tutorial:snap:${p}`;
-const PATHS_KEY = (p: SandboxProduct) => `stx:tutorial:paths:${p}`;
+const SNAP_KEY = (p: SandboxProduct) => `stx:tutorial:v4:snap:${p}`;
+const PATHS_KEY = (p: SandboxProduct) => `stx:tutorial:v4:paths:${p}`;
 
 function readSnapshots(p: SandboxProduct): Record<string, string | null> {
 	try { return JSON.parse(sessionStorage.getItem(SNAP_KEY(p)) ?? '{}') as Record<string, string | null>; } catch { return {}; }

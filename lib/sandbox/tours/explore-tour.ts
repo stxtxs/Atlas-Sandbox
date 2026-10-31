@@ -47,7 +47,7 @@ export const exploreTour: Tour = {
 				{ id: 'chat-type', path: '/chat', target: 'chat-composer', title: 'Ask a question', do: 'Click the box at the bottom, then type.', advance: { kind: 'type', value: 'Who is funding fan engagement?' } },
 				{ id: 'chat-send', path: '/chat', target: 'chat-composer', only: `${scoped('chat-composer', '.atlas-composer-send')}, ${scoped('chat-composer', 'textarea')}`, title: 'Send it', do: 'Press {{Enter}} or click the send arrow.', advance: { kind: 'request', method: 'POST', pattern: '/api/chat' } },
 				{ id: 'chat-answer', path: '/chat/:id', target: 'chat-thread', title: 'Your answer', body: 'Figures and names you can follow up on. In the real Atlas it reads the live database.', advance: { kind: 'next' } },
-				{ id: 'chat-history', path: '/chat/:id', target: 'chat-history', title: 'Your conversations', body: 'Every chat is kept here. {{New chat}} starts a fresh one.', advance: { kind: 'next' } },
+				{ id: 'chat-history', path: '/chat/:id', target: 'chat-history', title: 'Your conversations', body: 'Every chat is kept here. New chat starts a fresh one.', advance: { kind: 'next' } },
 			],
 		},
 		{
@@ -75,7 +75,7 @@ export const exploreTour: Tour = {
 				{ id: 'company-save-name', path: '/companies/kitroom', target: 'company-save', only: scoped('company-save', '.atlas-wl-new input'), continues: true, title: 'Name it', do: 'Click the name box, then type.', advance: { kind: 'type', value: 'Fan engagement watch' } },
 				{ id: 'company-save-create', path: '/companies/kitroom', target: 'company-save', only: scoped('company-save', '.atlas-wl-create'), continues: true, title: 'Create and save', do: 'Click {{Create}}.', body: 'Kitroom goes into your new list.', advance: { kind: 'request', method: 'POST', pattern: '/api/user-watchlists/:id/companies/:companyId' } },
 				{ id: 'company-rail', path: '/companies/kitroom', target: 'company-signals', highlights: ['company-related'], title: 'Signals and related companies', body: 'Recent Kitroom news on the right, similar companies below — a quick way to map a niche.', advance: { kind: 'next' } },
-				{ id: 'company-ma', path: '/companies/pitchmark-analytics', target: 'company-ma', title: 'M&A activity', body: 'Pitchmark Analytics acquired Scrumcap Labs. In Atlas, clicking a row opens the full deal.', advance: { kind: 'next' } },
+				{ id: 'company-ma', path: '/companies/pitchmark-analytics', target: 'company-ma', title: 'M&A activity', body: 'Pitchmark Analytics bought Rinkside Data and Scrumcap Labs. In Atlas, clicking a row opens the full deal.', advance: { kind: 'next' } },
 			],
 		},
 		{
@@ -108,7 +108,7 @@ export const exploreTour: Tour = {
 		},
 		{
 			id: 'newsletter', title: 'Newsletter', steps: [
-				{ id: 'newsletter-latest', path: '/newsletter', target: 'resources-featured', title: 'The SportsTechX briefing', body: 'Funding, deals and the stories that matter, every two weeks. The latest edition is on top.', advance: { kind: 'next' } },
+				{ id: 'newsletter-latest', path: '/newsletter', target: 'resources-featured', title: 'The SportsTechX briefing', body: 'Funding, deals and the stories that matter. The latest edition is on top.', advance: { kind: 'next' } },
 				{ id: 'newsletter-search', path: '/newsletter', target: 'filters-search', title: 'Find an edition', do: 'Click the search box, then type.', advance: { kind: 'type', value: 'Wearables' } },
 				{ id: 'newsletter-open', path: '/newsletter', target: 'resources-grid', only: scoped('resources-grid', '.atlas-post:first-child .atlas-action'), title: 'Open it', do: 'Click {{View edition}}.', advance: { kind: 'click', simulate: true } },
 				{ id: 'newsletter-open-done', path: '/newsletter', title: 'Read the edition', body: 'Editions open on the newsletter’s own site, so you can share them.', confirm: { title: 'The edition would open in a new tab', body: 'This one is sample content, so it stays here.' }, cta: 'Next', advance: { kind: 'next' } },
@@ -130,8 +130,8 @@ export const exploreTour: Tour = {
 				{ id: 'roundup-kpis', path: '/roundup', target: 'roundup-kpis', title: 'The headline numbers', body: 'Capital raised, average deal size and deal count — with the change on the month before.', advance: { kind: 'next' } },
 				{ id: 'roundup-count', path: '/roundup', target: 'roundup-metric', only: scoped('roundup-metric', '[data-key="count"]'), title: 'Count instead of amount', do: 'Click {{Count}}.', body: 'The breakdowns now count deals instead of dollars.', advance: { kind: 'click' } },
 				{ id: 'roundup-donuts', path: '/roundup', target: 'roundup-donuts', title: 'The breakdown', body: 'By sector, business model and country.', advance: { kind: 'next' } },
-				{ id: 'roundup-ma', path: '/roundup', target: 'roundup-mode', only: scoped('roundup-mode', '[data-key="ma"]'), title: 'Switch to M&A', do: 'Click {{M&A}}.', body: 'Atlas jumps to the latest month with acquisitions and sums those up.', advance: { kind: 'click' } },
-				{ id: 'roundup-table', path: '/roundup', target: 'roundup-table', title: 'Every deal of the month', body: 'Sorted by value, each company linked to its profile.', advance: { kind: 'next' } },
+				{ id: 'roundup-ma', path: '/roundup', target: 'roundup-mode', only: scoped('roundup-mode', '[data-key="ma"]'), title: 'Switch to M&A', do: 'Click {{M&A}}.', body: 'The month’s acquisitions are now summed up instead of its rounds.', advance: { kind: 'click' } },
+				{ id: 'roundup-table', path: '/roundup', target: 'roundup-table', title: 'Every deal of the month', body: 'Sorted by value; companies on Atlas link to their profiles.', advance: { kind: 'next' } },
 				{ id: 'roundup-archive', path: '/roundup', target: 'roundup-archive', only: scoped('roundup-archive', '.mkt-archive-row:nth-child(2) button'), title: 'Go back a month', do: 'Click {{View}} next to the previous month.', advance: { kind: 'click' } },
 			],
 		},

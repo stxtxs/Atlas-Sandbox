@@ -3,10 +3,10 @@
 import { useEffect } from 'react';
 
 /**
- * Always usable during the tour: the tour panel, the tutorial bar (Get Atlas X,
- * theme, Exit) and the simulated confirmation card.
+ * Always usable during the tour: the tour panel (incl. Get Atlas X, theme and
+ * Exit in its footer) and the simulated confirmation card.
  */
-const ALWAYS = ['.wt-coach', '.wt-bar', '.wt-confirm'];
+const ALWAYS = ['.wt-coach', '.wt-confirm'];
 
 // Not touchstart: cancelling it would stop touch scrolling, and the tap's click is caught anyway.
 const POINTER_EVENTS = ['pointerdown', 'mousedown', 'mouseup', 'click', 'dblclick', 'auxclick', 'contextmenu', 'dragstart'] as const;

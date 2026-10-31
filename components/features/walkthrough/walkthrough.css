@@ -60,6 +60,7 @@ body.wt-soft-open .atlas-main { filter: blur(5px) saturate(0.85); }
 	body .atlas-main { transition: none; }
 	.wt-hl.is-shown > span { opacity: 1; }
 	.wt-spot--action .wt-hl.is-shown > span::after { animation: none; }
+	.atlas .wt-confirm__card { animation: none; }
 }
 
 /* ── Simulated confirmation: a card over the page, beside the panel ───────── */
@@ -95,7 +96,7 @@ body.wt-soft-open .atlas-main { filter: blur(5px) saturate(0.85); }
 .atlas .wt-coach__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
 .atlas .wt-coach__brand { font-size: 13px; font-weight: 600; letter-spacing: 0.01em; color: var(--wt-faint); }
 .atlas .wt-coach__progress { flex: 1; display: grid; gap: 8px; min-width: 0; }
-.atlas .wt-coach__chapter { font-size: 13px; font-weight: 500; line-height: 1.4; color: var(--wt-faint); }
+.atlas .wt-coach__chapter-label { font-size: 13px; font-weight: 500; line-height: 1.4; color: var(--wt-faint); }
 .atlas .wt-coach__track { height: 3px; border-radius: 99px; background: var(--wt-line); overflow: hidden; }
 .atlas .wt-coach__track > span { display: block; height: 100%; background: var(--wt-accent); border-radius: inherit; transition: width 0.35s ease; }
 .atlas .wt-coach__contents-btn {
@@ -105,6 +106,7 @@ body.wt-soft-open .atlas-main { filter: blur(5px) saturate(0.85); }
 .atlas .wt-coach__contents-btn:hover, .atlas .wt-coach__contents-btn[aria-expanded="true"] { color: var(--wt-ink); border-color: rgba(255, 255, 255, 0.3); }
 
 .atlas .wt-coach__main { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 20px; padding: 28px 0; }
+.atlas .wt-coach__focus { display: grid; gap: 20px; }
 .atlas .wt-coach__title { margin: 0; font-family: var(--a-font); font-size: 31px; font-weight: 700; line-height: 1.12; letter-spacing: -0.015em; color: var(--wt-ink); text-wrap: balance; }
 .atlas .wt-coach__title--hero { font-size: 36px; line-height: 1.06; }
 .atlas .wt-coach__lead { margin: 0; font-size: 17px; line-height: 1.55; color: var(--wt-muted); }
@@ -201,7 +203,7 @@ body.wt-soft-open .atlas-main { filter: blur(5px) saturate(0.85); }
 body.wt-coach-open .atlas-shell { transition: margin 0.2s ease; }
 body.wt-coach-open--right .atlas-shell { margin-right: var(--wt-panel-w); }
 /* A setup wizard opened by a step (z 1100, above the panel) sits beside the panel, not over it. */
-@media (min-width: 1025px) {
+@media (width > 1024px) {
 	body.wt-coach-open--right .setup-overlay { right: var(--wt-panel-w); }
 	/* Full-screen overlays the app opens (drawers, export modal, M&A panel) stop at the panel. */
 	body.wt-coach-open--right .co-drawer-overlay,
@@ -209,19 +211,22 @@ body.wt-coach-open--right .atlas-shell { margin-right: var(--wt-panel-w); }
 	body.wt-coach-open--right .pipe-drawer { right: var(--wt-panel-w) !important; }
 	body.wt-coach-open--right .ma-panel { right: var(--wt-panel-w) !important; }
 	body.wt-coach-open--right .ma-scrim { right: var(--wt-panel-w) !important; }
+	body.wt-coach-open--right .scout-modal { right: var(--wt-panel-w); }
+	/* Toasts land beside the panel, not on its header. */
+	body.wt-coach-open--right [data-sonner-toaster] { right: calc(var(--wt-panel-w) + 24px) !important; }
 }
 
 /* The export dialog's credit pricing is about a purchase that doesn't exist here. */
 .export-modal__costwrap { visibility: hidden; }
 
 /* ── Phones and tablets: the panel is a bottom sheet ────────────────────── */
-@media (max-width: 1024px) {
+@media (width <= 1024px) {
 	:root { --wt-panel-w: 0px; }
 	body.wt-coach-open--right .atlas-shell { margin: 0; }
 	.atlas .wt-coach {
 		/* Above the app's own overlays (drawers, export, wizards — z ≤ 1100), so the sheet is never covered. */
 		z-index: 1150; inset: auto 0 0 0; width: auto; max-height: 62vh;
-		border-radius: 18px 18px 0 0; padding: 16px 20px 12px;
+		border-radius: 18px 18px 0 0; padding: 16px 20px calc(12px + env(safe-area-inset-bottom));
 		box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.3);
 	}
 	.atlas .wt-coach__main { justify-content: flex-start; gap: 14px; padding: 16px 0; }
@@ -231,8 +236,12 @@ body.wt-coach-open--right .atlas-shell { margin-right: var(--wt-panel-w); }
 	.atlas .wt-cue__value { font-size: 18px; padding: 10px 14px; }
 	.atlas .wt-coach__info { font-size: 14px; }
 	.atlas .wt-confirm { inset: 0 0 auto 0; padding-top: 72px; }
-	/* Room to scroll the last element on the page above the sheet. */
-	body.wt-coach-open .atlas-content { padding-bottom: 62vh; }
+	/* Room to scroll the last element on the page above the sheet (its live height, set by the coach). */
+	body.wt-coach-open .atlas-content { padding-bottom: var(--wt-sheet-h, 62vh); }
+	/* App overlays stop above the sheet, so their buttons stay reachable. */
+	body.wt-coach-open :is(.export-overlay, .setup-overlay, .scout-modal, .co-drawer-overlay, .pipe-drawer) { bottom: var(--wt-sheet-h, 62vh) !important; }
+	/* The highlight stays under the sheet instead of drawing over its text. */
+	.wt-hl { z-index: 1140; }
 	body.wt-coach-open [data-tour] { scroll-margin-top: 120px; }
 }
 

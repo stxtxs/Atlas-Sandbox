@@ -3,7 +3,7 @@
  *
  * The visitor is Robin Keller, partner at Kestrel Field Ventures (fixtures/
  * world.ts), with a finished thesis (scout-routes.ts). Steps are pinned to the
- * same sample objects — Kitroom (the top thesis match), the Shortlist
+ * same sample objects — Kitroom (a raising company in your stage and cheque range), the Shortlist
  * watchlist (Stridewise waiting in "Identified"), the featured Matchday Loop
  * raise — so every path is concrete and Back can always reopen it. Each
  * `target` is a `data-tour` attribute on the real page.
@@ -92,7 +92,7 @@ export const scoutTour: Tour = {
 				{
 					id: 'companies-search', path: '/companies', target: 'filters-search',
 					title: 'Search the database',
-					body: 'Kitroom is a fan loyalty start-up that fits your thesis.',
+					body: 'Kitroom, a Berlin fan-loyalty start-up, is raising a round that fits your stage and cheque.',
 					advance: { kind: 'type', value: 'Kitroom' },
 				},
 				{
@@ -105,7 +105,7 @@ export const scoutTour: Tour = {
 				{
 					id: 'company-head', path: KITROOM, target: 'company-head',
 					title: 'The company at a glance',
-					body: 'Sector, location, founding year and what Kitroom does.',
+					body: 'Location, founding year, and whether Kitroom is verified and raising.',
 					advance: { kind: 'next' },
 				},
 				{
@@ -222,7 +222,7 @@ export const scoutTour: Tour = {
 				},
 				{
 					id: 'investors-results', path: '/investors', target: 'investors-results',
-					title: 'Their portfolio and focus',
+					title: 'Who they are at a glance',
 					body: 'Type, location and deal count, so you can see who to syndicate with.',
 					advance: { kind: 'next' },
 				},
@@ -261,7 +261,7 @@ export const scoutTour: Tour = {
 			steps: [
 				{
 					id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', only: '[data-tour="roundup-pickers"]',
-					title: 'Last month at a glance',
+					title: 'A month at a glance',
 					body: 'Pick a month to see its rounds, deals and news on one page.',
 					advance: { kind: 'next' },
 				},
@@ -279,13 +279,13 @@ export const scoutTour: Tour = {
 				{
 					id: 'funded-search', path: '/recently-funded', target: 'filters-search',
 					title: 'Fresh rounds',
-					body: 'Newly disclosed rounds, newest first; Pitchmark’s is this month’s biggest.',
+					body: 'Newly disclosed rounds, newest first; Pitchmark’s is the biggest of the last two months.',
 					advance: { kind: 'type', value: 'Pitchmark' },
 				},
 				{
 					id: 'funded-result', path: '/recently-funded',
 					title: 'Pitchmark’s $14M Series B',
-					body: 'Led by Podium Capital; filters narrow rounds by sector, stage, country and size.',
+					body: 'Led by Podium Capital. Filters narrow rounds by type, country and period.',
 					advance: { kind: 'next' },
 				},
 			],
@@ -571,7 +571,7 @@ export const scoutTour: Tour = {
 				{
 					id: 'framework', path: '/framework', target: 'framework-grid',
 					title: 'The sports tech framework',
-					body: 'Browse every company on a sector map, from Fans & Media to Performance.',
+					body: 'Browse every company on one map: for athletes, for fans and for executives.',
 					advance: { kind: 'next' },
 				},
 				{
