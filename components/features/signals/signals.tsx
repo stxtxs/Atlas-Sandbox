@@ -50,7 +50,7 @@ export function Signals({ companiesHref }: { companiesHref: string }) {
 				<h2 className="atlas-h2">Signals</h2>
 				<p className="atlas-sig-lede">Companies showing activity worth watching.</p>
 			</div>
-			<div className="atlas-sig-filter atlas-sig-filter--top">
+			<div className="atlas-sig-filter atlas-sig-filter--top" data-tour="signals-filters">
 				<PillTabs ariaLabel="Signal type" value={type} onChange={setType} options={FILTERS} />
 				<ViewToggle value={view} onChange={setView} />
 			</div>
@@ -69,7 +69,7 @@ export function Signals({ companiesHref }: { companiesHref: string }) {
 							: 'No signals yet.'}
 					</Empty>
 				) : view === 'cards' ? (
-					<div className="atlas-sig-list">
+					<div className="atlas-sig-list" data-tour="signals-list">
 						{rows.map((s) => {
 							const name = s.company_name ?? 'Unknown company';
 							const href = `${companiesHref}/${s.company_slug ?? s.company_id}`;

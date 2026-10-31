@@ -45,7 +45,7 @@ export function CompanyMa({ companyId }: { companyId: string }) {
 	if (deals.length === 0) return null;
 
 	return (
-		<section className="atlas-card atlas-co__funding">
+		<section className="atlas-card atlas-co__funding" data-tour="company-ma">
 			<div className="atlas-co__card-head">
 				<h2 className="atlas-co__h2">M&amp;A activity</h2>
 				<span className="atlas-co__aside">Acquisitions &amp; mergers</span>

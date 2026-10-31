@@ -86,10 +86,10 @@ export function InvestorBoard({ listId }: { listId: 'main' | string }) {
 		<div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 			<div style={{ padding: `${PAD_TOP} ${PAD_X} 18px` }}>
 				<SectionHeader
-					actions={<Button onClick={() => setAdding(true)}><Plus size={13} /> Add investor</Button>}
+					actions={<Button data-tour="pipeline-add" onClick={() => setAdding(true)}><Plus size={13} /> Add investor</Button>}
 				/>
 				<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-					<div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+					<div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }} data-tour="pipeline-filters">
 						{FILTERS.map(([f, l]) => (
 							<button key={f} aria-pressed={filter === f} className={filter === f ? 'atlas-btn atlas-btn--primary' : 'atlas-btn atlas-btn--outline'} onClick={() => setFilter(f)}>{l}</button>
 						))}
@@ -100,9 +100,9 @@ export function InvestorBoard({ listId }: { listId: 'main' | string }) {
 
 			{isLoading ? <Loading /> : (
 				<div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: `0 ${PAD_X} 20px` }}>
-					<div className="pipe-board">
+					<div className="pipe-board" data-tour="pipeline-board">
 						{STAGES.map(([s, label]) => (
-							<div key={s}
+							<div key={s} data-tour={`pipeline-col-${s}`}
 								onDragOver={(e) => { e.preventDefault(); if (dragOver !== s) setDragOver(s); }}
 								onDragLeave={() => setDragOver((cur) => (cur === s ? null : cur))}
 								onDrop={(e) => { e.preventDefault(); setDragOver(null); const id = e.dataTransfer.getData('text/plain'); if (id) void moveCard(id, s); }}
@@ -115,7 +115,7 @@ export function InvestorBoard({ listId }: { listId: 'main' | string }) {
 									{(byStage[s] ?? []).length === 0 && dragOver !== s
 										? <div style={{ border: '1px dashed var(--a-border-strong)', borderRadius: 'var(--a-radius-sm)', padding: '14px 10px', textAlign: 'center', fontFamily: 'var(--a-mono)', fontSize: 10, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--a-faint)' }}>No investors yet</div>
 										: (byStage[s] ?? []).map((p) => (
-											<div key={p.id} draggable
+											<div key={p.id} draggable data-tour={`pipe-card-${p.id}`}
 												onDragStart={(e) => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; }}
 												onClick={() => setOpen(p)}
 												style={{ textAlign: 'left', cursor: 'grab', background: 'var(--a-field)', border: '1px solid var(--a-border)', borderRadius: 'var(--a-radius-sm)', padding: 12 }}>
@@ -161,9 +161,9 @@ function DetailPanel({ row, onClose, onSaved }: { row: Pipe; onClose: () => void
 
 	return (
 		<Drawer onClose={onClose} title={nameOf(row)}>
-			<div style={{ display: 'grid', gap: 14 }}>
+			<div style={{ display: 'grid', gap: 14 }} data-tour="pipeline-fields">
 				<Field label="Watchlist"><Select value={f.watchlist_id ?? ''} onChange={(e) => set('watchlist_id', e.target.value || null)} options={listOptions} /></Field>
-				<Field label="Stage"><Select value={f.stage} onChange={(e) => set('stage', e.target.value)} options={STAGES} /></Field>
+				<Field label="Stage"><div data-tour="pipeline-stage"><Select value={f.stage} onChange={(e) => set('stage', e.target.value)} options={STAGES} /></div></Field>
 				<Field label="Contact"><Input value={f.contact_name ?? ''} onChange={(e) => set('contact_name', e.target.value)} /></Field>
 				<Field label="Potential amount"><Input type="number" min={0} step={1000} value={(f.potential_amount as string) ?? ''} onChange={(e) => set('potential_amount', e.target.value)} /></Field>
 				<Field label="Next step"><Input value={f.next_step ?? ''} onChange={(e) => set('next_step', e.target.value)} /></Field>
@@ -171,7 +171,7 @@ function DetailPanel({ row, onClose, onSaved }: { row: Pipe; onClose: () => void
 				<Field label="Notes"><Textarea value={f.notes ?? ''} onChange={(e) => set('notes', e.target.value)} /></Field>
 			</div>
 			<div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-				<Button disabled={busy} onClick={() => void save({
+				<Button data-tour="pipeline-save" disabled={busy} onClick={() => void save({
 					stage: f.stage, contact_name: f.contact_name || null, potential_amount: f.potential_amount || null,
 					next_step: f.next_step || null, next_step_due: f.next_step_due || null, notes: f.notes || null,
 					...listChange,
@@ -179,7 +179,7 @@ function DetailPanel({ row, onClose, onSaved }: { row: Pipe; onClose: () => void
 				<Button variant="ghost" disabled={busy} onClick={() => void save({ is_archived: true })}><Archive size={13} /> Archive</Button>
 			</div>
 
-			<div style={{ marginTop: 24 }}>
+			<div style={{ marginTop: 24 }} data-tour="pipeline-activity">
 				<div style={{ marginBottom: 10 }}><Eyebrow>Activity</Eyebrow></div>
 				<div className="atlas-card" style={{ padding: 0, overflow: 'hidden' }}>
 					{(act?.data ?? []).map((a, i) => (
@@ -221,12 +221,12 @@ function AddPanel({ listId, onClose, onSaved, existing }: { listId: string; onCl
 		<Drawer onClose={onClose} title="Add investor">
 			<div style={{ marginBottom: 8 }}><Eyebrow>From the Atlas database</Eyebrow></div>
 			<div style={{ fontSize: 12, color: 'var(--a-muted)', lineHeight: 1.55, marginBottom: 12 }}>Search the investor database — adds with a full profile.</div>
-			<div style={{ position: 'relative' }}>
+			<div style={{ position: 'relative' }} data-tour="pipeline-add-search">
 				<Search size={13} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--a-muted)', pointerEvents: 'none' }} />
 				<Input className="atlas-input--search" placeholder="Search investors by name…" value={q} onChange={(e) => setQ(e.target.value)} style={{ paddingLeft: 34 }} autoFocus />
 			</div>
 			{dq.trim().length >= 2 && (
-				<div className="atlas-card" style={{ marginTop: 10, padding: 0, overflow: 'hidden' }}>
+				<div className="atlas-card" style={{ marginTop: 10, padding: 0, overflow: 'hidden' }} data-tour="pipeline-add-results">
 					{results.isLoading ? <div style={{ padding: 12, fontSize: 13, color: 'var(--a-faint)' }}>Searching…</div>
 						: (results.data?.data.length ?? 0) === 0 ? <div style={{ padding: 12, fontSize: 13, color: 'var(--a-faint)' }}>No investors found.</div>
 							: results.data!.data.map((inv) => {

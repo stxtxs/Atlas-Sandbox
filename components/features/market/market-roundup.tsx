@@ -150,7 +150,7 @@ export function MarketRoundup() {
 					<div style={{ fontFamily: 'var(--a-font)', fontSize: 21, fontWeight: 700, color: 'var(--a-ink)', marginBottom: 12 }}>{roundup.data?.edition?.title || `${monthName} ${year} Sports-Tech Roundup`}</div>
 					<div style={{ fontSize: 13, color: 'var(--a-muted)' }}>The most relevant developments from across the global sports-tech market.</div>
 				</div>
-				<div style={{ display: 'flex', gap: 10 }}>
+				<div style={{ display: 'flex', gap: 10 }} data-tour="roundup-pickers">
 					<Combobox className="atlas-select atlas-select--pill" ariaLabel="Month" value={String(month)} onChange={(v) => setMonth(Number(v))} style={{ width: 132 }} options={MONTHS.map(([v, l]) => [String(v), l] as [string, string])} />
 					<Combobox className="atlas-select atlas-select--pill" ariaLabel="Year" value={String(year)} onChange={(v) => setYear(Number(v))} style={{ width: 92 }} options={YEARS.map(([v, l]) => [String(v), l] as [string, string])} />
 				</div>
@@ -158,15 +158,15 @@ export function MarketRoundup() {
 
 			{/* Funding / M&A + Amount / Count */}
 			<div className="atlas-controls">
-				<Seg<Mode> ariaLabel="Market" value={mode} onChange={setMode} options={[{ key: 'funding', label: 'Funding' }, { key: 'ma', label: 'M&A' }]} />
-				<Seg<Metric> ariaLabel="Metric" value={metric} onChange={setMetric} options={[{ key: 'amount', label: 'Amount' }, { key: 'count', label: 'Count' }]} />
+				<Seg<Mode> ariaLabel="Market" data-tour="roundup-mode" value={mode} onChange={setMode} options={[{ key: 'funding', label: 'Funding' }, { key: 'ma', label: 'M&A' }]} />
+				<Seg<Metric> ariaLabel="Metric" data-tour="roundup-metric" value={metric} onChange={setMetric} options={[{ key: 'amount', label: 'Amount' }, { key: 'count', label: 'Count' }]} />
 				{mode === 'ma' && <Seg<Perspective> ariaLabel="Perspective" value={perspective} onChange={setPerspective} options={[{ key: 'acquiree', label: 'Acquiree' }, { key: 'acquirer', label: 'Acquirer' }]} />}
 			</div>
 
 			{roundup.isLoading ? <Loading /> : (
 				<>
 					{/* KPIs */}
-					<div className="atlas-kpis atlas-kpis--pink">
+					<div className="atlas-kpis atlas-kpis--pink" data-tour="roundup-kpis">
 						<Kpi k={mode === 'ma' ? 'M&A value' : 'Capital raised'} v={fmtUsd(total)} delta={deltaPct(total, s?.prev_total_amount)} />
 						<Kpi k="Avg deal size" v={fmtUsd(avg)} note="this month" />
 						<Kpi k={mode === 'ma' ? 'Acquisitions' : 'Disclosed deals'} v={fmtCount(count)} delta={deltaAbs(count, s?.prev_count)} />
@@ -181,7 +181,7 @@ export function MarketRoundup() {
 					)}
 
 					{/* Donuts */}
-					<div className="mkt-donuts">
+					<div className="mkt-donuts" data-tour="roundup-donuts">
 						{donuts.map((d, di) => (
 							<Card key={d.title} className="mkt-donut-card">
 								<div className="atlas-chart-card__head">
@@ -218,7 +218,7 @@ export function MarketRoundup() {
 
 					{/* Largest deals table */}
 					<Card style={{ padding: '0 23px' }}>
-						<div className="atlas-section-head" style={{ padding: '16px 0 14px', alignItems: 'center' }}>
+						<div className="atlas-section-head" style={{ padding: '16px 0 14px', alignItems: 'center' }} data-tour="roundup-table">
 							<div className="atlas-section-title" style={{ fontSize: 16 }}>{mode === 'ma' ? 'Acquisitions this month' : 'Funding rounds this month'}</div>
 							<span className="atlas-section-aside">All disclosed {mode === 'ma' ? 'acquisitions' : 'rounds'} for {monthName} {year}, sorted by {mode === 'ma' ? 'value' : 'amount'}</span>
 						</div>
@@ -295,7 +295,7 @@ export function MarketRoundup() {
 					{/* Archive */}
 					<Card>
 						<div className="atlas-section-head" style={{ marginBottom: 8 }}><div className="atlas-section-title">Archive</div><span className="atlas-section-aside">Last 12 months</span></div>
-						<div className="mkt-archive">
+						<div className="mkt-archive" data-tour="roundup-archive">
 							{archive.map((a) => (
 								<div className="mkt-archive-row" key={`${a.year}-${a.month}`}>
 									<span style={{ fontSize: 14, color: 'var(--a-ink)' }}>{a.label}</span>

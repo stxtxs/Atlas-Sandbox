@@ -23,7 +23,7 @@ export function InterestsPage() {
 			<Card className="explore-card">
 				<InterestFields value={value} onChange={setDraft} keys={['sectors', 'subs', 'sports', 'geos', 'goals']} />
 			</Card>
-			<div className="explore-actions">
+			<div className="explore-actions" data-tour="interests-save">
 				<Button
 					disabled={!draft || busy}
 					onClick={async () => {

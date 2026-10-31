@@ -94,7 +94,7 @@ export function CompanyPicker({ d, patch }: Props) {
 		);
 	}
 	return (
-		<div className="fundpicker__wrap" ref={wrapRef}>
+		<div className="fundpicker__wrap" ref={wrapRef} data-tour="share-company-search">
 			<span className="fundpicker__ico"><Search size={15} aria-hidden="true" /></span>
 			<input
 				className="atlas-input fundpicker__input"

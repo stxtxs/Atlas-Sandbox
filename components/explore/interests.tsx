@@ -165,7 +165,7 @@ export function InterestFields({ value, onChange, keys }: {
 			{keys.map((k) => {
 				const options = optionsFor(k);
 				return (
-					<div key={k} className="explore-interests__group">
+					<div key={k} className="explore-interests__group" data-tour={`interests-${k}`}>
 						<div className="explore-interests__label">
 							{opts[k].label}
 						</div>
@@ -178,7 +178,7 @@ export function InterestFields({ value, onChange, keys }: {
 										? <span className="explore-muted">No sub-sectors for the selected sector{value.sectors.length > 1 ? 's' : ''}.</span>
 										: options.map(([v, label]) => {
 											const on = value[k].includes(v);
-											return <button key={v} type="button" className={cx('explore-chip', on && 'on')} aria-pressed={on} onClick={() => toggle(k, v)}>{label}</button>;
+											return <button key={v} type="button" data-value={v} className={cx('explore-chip', on && 'on')} aria-pressed={on} onClick={() => toggle(k, v)}>{label}</button>;
 										})}
 						</div>
 					</div>

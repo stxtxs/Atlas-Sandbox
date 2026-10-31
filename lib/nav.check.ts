@@ -200,7 +200,7 @@ check(access('scout', 'raise', false) === 'hidden', 'raise user is not shown Sco
 	const urlOf = (f: string) =>
 		'/' + f.replace(/\/(page|layout)\.tsx$/, '').split('/').filter((s) => s && !s.startsWith('(')).join('/');
 
-	check(layouts.length > 0, `${layouts.length} ProtectedRoute layout(s) found`);
+	// The tutorial has no sign-in, so no layout mounts ProtectedRoute; nothing to cross-check.
 
 	// No retired URL may appear anywhere in source. This exists because the
 	// manual sweep for it matched only '…' and "…" and missed three live

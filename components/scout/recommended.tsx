@@ -106,9 +106,9 @@ export function Recommended() {
 			</div>
 
 			{lastDismissed && (
-				<div className="scout-undo">
+				<div className="scout-undo" data-tour="rec-undo-bar">
 					<span>{lastDismissed.name} marked not relevant.</span>
-					<button type="button" className="scout-link" onClick={() => void undoDismiss()}>Undo</button>
+					<button type="button" className="scout-link" data-tour="rec-undo" onClick={() => void undoDismiss()}>Undo</button>
 				</div>
 			)}
 
@@ -129,7 +129,7 @@ export function Recommended() {
 					view === 'cards' ? (
 					<div className="atlas-rec-list">
 						{rows.map((c) => (
-							<article key={c.id} className="atlas-rec">
+							<article key={c.id} className="atlas-rec" data-tour="rec-card">
 								<div className="atlas-rec__top">
 									<Logo co={{ name: c.name, website: c.website, custom_logo_url: c.custom_logo_url }} size={72} radius={9} />
 									<div className="atlas-rec__id">
@@ -148,7 +148,7 @@ export function Recommended() {
 									</div>
 								</div>
 
-								<div className="atlas-rec__why">
+								<div className="atlas-rec__why" data-tour="rec-why">
 									<div className="atlas-rec__whyhead">
 										<span className="atlas-rec__whylabel">Why it matches</span>
 										{CHIPS.map(([label, key]) => (
@@ -169,9 +169,9 @@ export function Recommended() {
 								</div>
 
 								<div className="atlas-rec__actions">
-									<button type="button" className="atlas-rec__dismiss" onClick={() => void dismiss(c.id, c.name)}>Not relevant</button>
+									<button type="button" className="atlas-rec__dismiss" data-tour="rec-dismiss" onClick={() => void dismiss(c.id, c.name)}>Not relevant</button>
 									<SaveToWatchlist companyId={c.id} companyName={c.name} />
-									<Link className="atlas-action" href={companyHref(c.slug ?? c.id)}>
+									<Link className="atlas-action" data-tour="rec-view" href={companyHref(c.slug ?? c.id)}>
 										<span className="atlas-action__icon"><ArrowUpRight /></span><span className="atlas-action__label">View company</span>
 									</Link>
 								</div>

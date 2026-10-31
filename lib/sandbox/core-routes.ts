@@ -66,13 +66,26 @@ export const coreSandboxRoutes: SandboxRoute[] = [
 	])],
 
 	// AI chat: a canned, tier-specific answer streamed like the real co-pilot.
-	['POST', '/api/chat', ({ product }) => sse([
-		{ event: 'conversation', data: { id: 'sample-chat' } },
-		...CHAT_ANSWERS[product].match(/[\s\S]{1,40}/g)!.map((t) => ({ event: 'content_delta', data: { text: t } })),
-		{ event: 'done', data: {} },
-	])],
-	['GET', '/api/chat/conversations', () => []],
-	['GET', '/api/chat/conversations/:id', () => json({ error: { code: 'NOT_FOUND', message: 'Not in the tutorial' } }, 404)],
+	// The question is kept so the history rail and a reopened conversation show it.
+	['POST', '/api/chat', ({ product, body, state, save }) => {
+		const message = (body as { message?: unknown } | undefined)?.message;
+		state.chat = { question: typeof message === 'string' ? message : 'Your question', at: daysFromNow(0) };
+		save();
+		return sse([
+			{ event: 'conversation', data: { id: 'sample-chat' } },
+			...CHAT_ANSWERS[product].match(/[\s\S]{1,40}/g)!.map((t) => ({ event: 'content_delta', data: { text: t } })),
+			{ event: 'done', data: {} },
+		]);
+	}],
+	['GET', '/api/chat/conversations', ({ state }) => {
+		const chat = state.chat as { question: string; at: string } | undefined;
+		return chat ? [{ id: 'sample-chat', title: chat.question.slice(0, 60), last_message_at: chat.at }] : [];
+	}],
+	['GET', '/api/chat/conversations/:id', ({ product, state }) => {
+		const chat = state.chat as { question: string } | undefined;
+		if (!chat) return json({ error: { code: 'NOT_FOUND', message: 'Not in the tutorial' } }, 404);
+		return { id: 'sample-chat', messages: [{ role: 'user', content: chat.question }, { role: 'assistant', content: CHAT_ANSWERS[product] }] };
+	}],
 	['GET', '/api/chat/conversations/:id/export', ({ product }) => new Response(`# Atlas co-pilot
 
 ${CHAT_ANSWERS[product]}

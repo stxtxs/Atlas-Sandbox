@@ -32,7 +32,7 @@ export function ThesisSettings() {
 			<PageHead
 				title="Thesis settings"
 				sub="What Atlas uses to personalise your recommendations, signals and Deal Flow."
-				actions={<Button onClick={() => openScoutThesis({ edit: true })}><Pencil size={13} /> Edit thesis</Button>}
+				actions={<Button data-tour="thesis-edit" onClick={() => openScoutThesis({ edit: true })}><Pencil size={13} /> Edit thesis</Button>}
 			/>
 
 			{needsSetup ? (
@@ -47,7 +47,7 @@ export function ThesisSettings() {
 					</div>
 				</Card>
 			) : (
-				<div className="scout-stack">
+				<div className="scout-stack" data-tour="thesis-summary">
 					<SummaryCard title="Profile" fields={[
 						['Name', t.name], ['Work email', t.email], ['Role', t.role], ['LinkedIn', t.linkedin],
 					]} />

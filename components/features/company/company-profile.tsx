@@ -160,7 +160,7 @@ export function CompanyProfile({ idOrSlug, backHref, companyHref, listHref, rail
 
 	return (
 		<article className="atlas-co">
-			<header className="atlas-co__head">
+			<header className="atlas-co__head" data-tour="company-head">
 				<div className="atlas-co__id">
 					<Logo co={{ name: c.name, website: c.website ?? null, custom_logo_url: c.custom_logo_url }} size={72} radius={10} />
 					<div>
@@ -201,7 +201,7 @@ export function CompanyProfile({ idOrSlug, backHref, companyHref, listHref, rail
 
 			<div className="atlas-co__grid">
 				<div className="atlas-co__main">
-					<section className="atlas-card atlas-co__facts" aria-label="Key facts">
+					<section className="atlas-card atlas-co__facts" aria-label="Key facts" data-tour="company-facts">
 						{facts.map(([k, v]) => (
 							<div key={k}><div className="atlas-co__fact-k">{k}</div><div className="atlas-co__fact-v">{v}</div></div>
 						))}
@@ -214,7 +214,7 @@ export function CompanyProfile({ idOrSlug, backHref, companyHref, listHref, rail
 						</section>
 					)}
 
-					<section className="atlas-card atlas-chart-card atlas-co__funding">
+					<section className="atlas-card atlas-chart-card atlas-co__funding" data-tour="company-funding">
 						<div className="atlas-co__card-head">
 							<h2 className="atlas-co__h2">Funding history</h2>
 							<span className="atlas-co__aside">Disclosed rounds</span>
@@ -263,7 +263,7 @@ export function CompanyProfile({ idOrSlug, backHref, companyHref, listHref, rail
 					{railTop}
 					<ContactCard companyId={c.id} />
 					<CompanyPrograms companyId={c.id} />
-					<section className="atlas-card atlas-co__side">
+					<section className="atlas-card atlas-co__side" data-tour="company-signals">
 						<h2 className="atlas-co__h">Recent signals</h2>
 						{newsRows.length === 0 ? <p className="atlas-co__empty">No recent signals for this company yet.</p> : newsRows.map((n) => (
 							<div key={n.id} className="atlas-co__signal">
@@ -273,7 +273,7 @@ export function CompanyProfile({ idOrSlug, backHref, companyHref, listHref, rail
 						))}
 					</section>
 
-					<section className="atlas-card atlas-co__side">
+					<section className="atlas-card atlas-co__side" data-tour="company-related">
 						<h2 className="atlas-co__h">Related Companies</h2>
 						<p className="atlas-co__sub">Similar categories, sports, customers and geographies</p>
 						{related.length === 0 ? <p className="atlas-co__empty">No related companies found.</p> : related.map((r) => (

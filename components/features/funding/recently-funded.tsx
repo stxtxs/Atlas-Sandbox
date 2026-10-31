@@ -77,7 +77,7 @@ export function RecentlyFunded({ companyHref }: { companyHref: (idOrSlug: string
 				actions={<ExportButton entity="deals" search={dq} params={params} />}
 			/>
 
-			<section className="atlas-card atlas-funded">
+			<section className="atlas-card atlas-funded" data-tour="funded-list">
 				<div className="atlas-funded__head">
 					<h2 className="atlas-h2">Funding rounds</h2>
 					<span className="atlas-eyebrow">Disclosed rounds · {PERIODS.find(([k]) => k === period)?.[1] ?? 'All time'} · sorted by {sort === '-amount_usd' ? 'amount' : 'date'}</span>

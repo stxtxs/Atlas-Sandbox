@@ -44,7 +44,7 @@ export function FundraisingGuide() {
 	const rows = data?.data ?? [];
 	if (rows.length === 0) return <Empty>The guide is being written — check back soon.</Empty>;
 	return (
-		<div className="fg">
+		<div className="fg" data-tour="guide-phases">
 			{PHASES.map((p) => {
 				const items = rows.filter((r) => r.phase === p.key);
 				if (!items.length) return null;
@@ -56,7 +56,7 @@ export function FundraisingGuide() {
 						</div>
 						<div className="fg-grid">
 							{items.map((r) => (
-								<Link key={r.id} href={guideHref(r.slug)} className="atlas-card fg-card">
+								<Link key={r.id} href={guideHref(r.slug)} className="atlas-card fg-card" data-tour={`guide-${r.slug}`}>
 									<span className="fg-kind">{KIND[r.kind].icon}{KIND[r.kind].label}</span>
 									<span className="fg-card__title">{r.title}</span>
 									{r.summary && <span className="fg-card__summary">{r.summary}</span>}
@@ -165,7 +165,7 @@ export function FundraisingGuideItem({ slug }: { slug: string }) {
 				<h1 className="atlas-h1 fg-item__title">{data.title}</h1>
 				{data.summary && <p className="fg-item__summary">{data.summary}</p>}
 				{data.items_total > 0 && (
-					<div className="fg-item__progress" aria-live="polite">
+					<div className="fg-item__progress" aria-live="polite" data-tour="guide-progress">
 						<Progress pct={(data.checked.length / data.items_total) * 100} />
 						<span>{data.checked.length} of {data.items_total} done</span>
 					</div>
@@ -186,7 +186,7 @@ export function FundraisingGuideItem({ slug }: { slug: string }) {
 								<aside key={i} className="fg-tip"><Lightbulb size={16} strokeWidth={1.75} aria-hidden="true" /><div>{b.lines.map((l, j) => <p key={j}>{inline(l.replace(/^Tip:\s*/i, ''))}</p>)}</div></aside>
 							);
 							case 'check': return (
-								<ul key={i} className="fg-checks">
+								<ul key={i} className="fg-checks" data-tour="guide-checks">
 									{b.items.map((it) => {
 										const on = checked.has(it);
 										return (

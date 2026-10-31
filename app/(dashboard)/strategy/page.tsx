@@ -42,7 +42,7 @@ export default function RaiseStrategyPage() {
 			<PageHead title="Strategy session" sub="Get direct feedback from SportsTechX leadership on your deck, investor strategy and next steps — one quarterly session." />
 
 			{isLoading || !s ? <Loading /> : (
-				<Card glow={s.status === 'available' ? 'blue' : undefined} style={{ marginBottom: 20 }}>
+				<div data-tour="strategy-status"><Card glow={s.status === 'available' ? 'blue' : undefined} style={{ marginBottom: 20 }}>
 					<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 28, flexWrap: 'wrap' }}>
 						{s.status === 'booked' ? (
 							<>
@@ -58,7 +58,7 @@ export default function RaiseStrategyPage() {
 									<div style={{ fontFamily: 'var(--a-font)', fontWeight: 700, fontSize: 17, marginBottom: 6, color: 'var(--a-ink)' }}>Your strategy session is available</div>
 									<div style={{ fontSize: 13, color: 'var(--a-muted)', lineHeight: 1.55 }}>Use your quarterly session to pressure-test the raise and plan what to do next.</div>
 								</div>
-								<Button onClick={() => void book()} disabled={busy}>{busy ? <Loader2 className="animate-spin" size={13} /> : 'Book your call'}</Button>
+								<Button data-tour="strategy-book" onClick={() => void book()} disabled={busy}>{busy ? <Loader2 className="animate-spin" size={13} /> : 'Book your call'}</Button>
 							</>
 						) : (
 							<>
@@ -81,10 +81,10 @@ export default function RaiseStrategyPage() {
 							</>
 						)}
 					</div>
-				</Card>
+				</Card></div>
 			)}
 
-			<Card>
+			<div data-tour="strategy-perks"><Card>
 				<div className="atlas-eyebrow" style={{ marginBottom: 14 }}>What to expect</div>
 				<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
 					{PERKS.map(([h, d]) => (
@@ -94,7 +94,7 @@ export default function RaiseStrategyPage() {
 						</div>
 					))}
 				</div>
-			</Card>
+			</Card></div>
 		</Screen>
 	);
 }

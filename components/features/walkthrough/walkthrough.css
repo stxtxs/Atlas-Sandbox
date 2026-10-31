@@ -125,6 +125,8 @@
 :root { --wt-panel-w: 360px; }
 body.wt-coach-open .atlas-shell { transition: margin 0.2s ease; }
 body.wt-coach-open--right .atlas-shell { margin-right: var(--wt-panel-w); }
+/* A setup wizard opened by a step (z 1100, above the panel) sits beside the panel, not over it. */
+@media (min-width: 1025px) { body.wt-coach-open--right .setup-overlay { right: var(--wt-panel-w); } }
 
 @media (max-width: 1024px) {
 	:root { --wt-panel-w: auto; }
@@ -162,6 +164,15 @@ body.wt-coach-open--right .atlas-shell { margin-right: var(--wt-panel-w); }
 .atlas .wt-bar__btn--solid { border-color: transparent; background: var(--a-primary-ink); color: var(--a-primary); text-decoration: none; }
 @media (max-width: 640px) { .atlas .wt-bar { padding: 8px 16px; } .atlas .wt-bar__text { display: none; } }
 
+
+/* Full-screen overlays the app opens (drawers, export modal, M&A panel) stop at the
+   tour panel instead of covering it, so the instructions stay readable. */
+@media (min-width: 1025px) {
+	body.wt-coach-open--right .co-drawer-overlay,
+	body.wt-coach-open--right .export-overlay { right: var(--wt-panel-w); }
+	body.wt-coach-open--right .ma-panel { right: var(--wt-panel-w) !important; }
+	body.wt-coach-open--right .ma-scrim { right: var(--wt-panel-w) !important; }
+}
 
 /* ── No sidebar: the tour does the navigating, so the rail and its menu button are gone. ── */
 .atlas.atlas-shell, .atlas.atlas-shell.is-collapsed { grid-template-columns: minmax(0, 1fr); }

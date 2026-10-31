@@ -78,7 +78,7 @@ export function DealflowOptIn() {
 	const pending = data.status === 'pending';
 
 	return (
-		<div style={{ display: 'grid', gap: 12 }}>
+		<div style={{ display: 'grid', gap: 12 }} data-tour="dealflow-optin">
 			<div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
 				<Users size={14} aria-hidden="true" style={{ color: 'var(--a-muted)' }} />
 				{live && <Badge tone="ok">Live with the Investor Circle</Badge>}
@@ -111,7 +111,7 @@ export function DealflowOptIn() {
 						{busy ? 'Working…' : 'Withdraw'}
 					</Button>
 				) : (
-					<Button disabled={busy} onClick={() => void act('POST', 'Sent for review')}>
+					<Button data-tour="dealflow-share" disabled={busy} onClick={() => void act('POST', 'Sent for review')}>
 						{busy ? 'Working…' : 'Share my round'}
 					</Button>
 				)}

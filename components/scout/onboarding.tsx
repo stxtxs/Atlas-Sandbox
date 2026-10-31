@@ -157,7 +157,7 @@ function OnboardingForm({ initial, save, onClose, edit }: { initial: Thesis; sav
 
 				<div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
 					<Button variant="ghost" disabled={step === 0 || busy} onClick={() => { setStep(step - 1); setErr(''); top(); }}><ArrowLeft size={13} /> Back</Button>
-					<Button disabled={busy} onClick={() => void next()}>
+					<Button disabled={busy} onClick={() => void next()} data-tour="thesis-next">
 						{busy ? <Loader2 className="animate-spin" size={13} /> : last ? (edit ? <>Save changes <Check size={13} /></> : <>Finish setup <Check size={13} /></>) : <>Continue <ArrowRight size={13} /></>}
 					</Button>
 				</div>
@@ -280,7 +280,7 @@ function Review({ t, onEdit }: { t: Thesis; onEdit: (step: number) => void }) {
 		<div className="scout-review">
 			{groups.map(([name, i, rows]) => (
 				<div key={name}>
-					<div className="scout-review__head"><span className="atlas-eyebrow">{name}</span><button type="button" className="scout-link" onClick={() => onEdit(i)}>Edit</button></div>
+					<div className="scout-review__head"><span className="atlas-eyebrow">{name}</span><button type="button" className="scout-link" data-tour={`thesis-review-edit-${i}`} onClick={() => onEdit(i)}>Edit</button></div>
 					{rows.map(([k, x]) => <div key={k} className="scout-review__row"><span>{k}</span><span className={v(x) === '—' ? 'scout-muted' : undefined}>{v(x)}</span></div>)}
 				</div>
 			))}

@@ -155,7 +155,7 @@ export function DealDetail({ id }: { id: string }) {
 				</div>
 				<div className="scout-dd-head__actions">
 					<button
-						type="button" className="scout-df-pill" aria-pressed={isWatched} disabled={watchBusy}
+						type="button" className="scout-df-pill" data-tour="deal-watch" aria-pressed={isWatched} disabled={watchBusy}
 						onClick={toggleWatch}
 					>
 						{isWatched ? 'Watching ✓' : 'Watch'}
@@ -163,6 +163,7 @@ export function DealDetail({ id }: { id: string }) {
 					<button
 						type="button"
 						className={cx('scout-df-pill', !d.interest_status && 'scout-df-pill--primary')}
+						data-tour="deal-request-intro"
 						disabled={!!d.interest_status}
 						onClick={() => setOpen(true)}
 					>
@@ -172,14 +173,14 @@ export function DealDetail({ id }: { id: string }) {
 			</header>
 
 			{d.interest_status && (
-				<div className="scout-dd-sent">
+				<div className="scout-dd-sent" data-tour="deal-intro-status">
 					{d.disclosed
 						? 'SportsTechX has shared this opportunity with you in full.'
 						: 'Request sent. SportsTechX will confirm with the company before sharing anything further, usually within two working days.'}
 				</div>
 			)}
 
-			<div className="scout-dd-terms">
+			<div className="scout-dd-terms" data-tour="deal-terms">
 				{terms.map(([k, v]) => (
 					<div key={k} className="scout-dd-term"><div className="scout-dd-term__k">{k}</div><div className="scout-dd-term__v">{v}</div></div>
 				))}
@@ -187,7 +188,7 @@ export function DealDetail({ id }: { id: string }) {
 
 			<div className="scout-dd-grid">
 				<div className="scout-dd-col">
-					<section className="scout-dd-box scout-dd-box--summary">
+					<section className="scout-dd-box scout-dd-box--summary" data-tour="deal-summary">
 						<h2 className="scout-dd-box__h">
 							{isCircle ? `Shared by ${submitterLabel(d)}` : 'SportsTechX summary'}
 						</h2>
@@ -236,13 +237,13 @@ export function DealDetail({ id }: { id: string }) {
 							<button type="button" className="scout-dd-modal__x" aria-label="Close" onClick={() => setOpen(false)}><X size={14} /></button>
 						</div>
 						<p className="scout-dd-modal__sub">SportsTechX will confirm with the company before sharing your details or theirs, usually within two working days.</p>
-						<label className="scout-dd-modal__field">
+						<label className="scout-dd-modal__field" data-tour="deal-intro-note">
 							<span>Anything you&rsquo;d like us to include?<em> · Optional</em></span>
 							<textarea autoFocus value={note} onChange={(e) => setNote(e.target.value)} placeholder="We’re interested in learning more about..." />
 						</label>
 						<div className="scout-dd-modal__actions">
 							<button type="button" className="scout-df-pill" onClick={() => setOpen(false)}>Cancel</button>
-							<button type="button" className="scout-df-pill scout-df-pill--primary" disabled={busy} onClick={() => void requestIntro()}>
+							<button type="button" className="scout-df-pill scout-df-pill--primary" data-tour="deal-intro-send" disabled={busy} onClick={() => void requestIntro()}>
 								{busy ? 'Sending…' : 'Send request'}
 							</button>
 						</div>
@@ -287,7 +288,7 @@ function Documents({ d }: { d: DealRow }) {
 	};
 
 	return (
-		<section className="scout-dd-box scout-dd-box--docs">
+		<section className="scout-dd-box scout-dd-box--docs" data-tour="deal-documents">
 			<h2 className="scout-dd-box__h">Documents</h2>
 			{present.length === 0 ? (
 				<p className="scout-dd-box__text">No materials have been shared for this deal.</p>

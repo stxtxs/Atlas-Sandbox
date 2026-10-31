@@ -100,7 +100,7 @@ export function DealFlow({ tab = 'all' }: { tab?: DealTab }) {
 			{showCircle && <MySubmissions />}
 
 			{!nothingLive && (
-				<div className="scout-df__filter">
+				<div className="scout-df__filter" data-tour="dealflow-filter">
 					<span className="scout-df__filter-label">Max valuation</span>
 					<div style={{ width: 96 }}><Select value={valCcy} onChange={(e) => setValCcy(e.target.value)} options={[['EUR', 'EUR'], ['USD', 'USD']]} /></div>
 					<div style={{ width: 170 }}><Input type="number" min="0" step={100000} value={maxVal} onChange={(e) => setMaxVal(e.target.value)} placeholder={`e.g. ${valCcy === 'USD' ? '$' : '€'}10000000`} /></div>
@@ -119,7 +119,7 @@ export function DealFlow({ tab = 'all' }: { tab?: DealTab }) {
 			{showFeatured && featured && <FeaturedDeal d={featured} />}
 
 			{showVerified && (tab === 'verified' || verified.length > 0) && (
-				<section className="scout-df__section">
+				<section className="scout-df__section" data-tour="dealflow-verified">
 					<div className="scout-df__head">
 						<h2 className="scout-df__title">Verified Raises</h2>
 						<span className="scout-df__aside">Reviewed and verified by SportsTechX</span>
@@ -131,10 +131,10 @@ export function DealFlow({ tab = 'all' }: { tab?: DealTab }) {
 			)}
 
 			{showCircle && (
-				<section className="scout-df__section">
+				<section className="scout-df__section" data-tour="dealflow-circle">
 					<div className="scout-df__head">
 						<h2 className="scout-df__title">From the Circle</h2>
-						<Link href={`${hrefOf('deal-flow-circle')}/share`} className="scout-df__btn">+ Share a deal</Link>
+						<Link href={`${hrefOf('deal-flow-circle')}/share`} className="scout-df__btn" data-tour="dealflow-share">+ Share a deal</Link>
 					</div>
 					<p className="scout-df__note">Opportunities shared by Investor Circle members. Eligibility checked by SportsTechX; not independently selected or endorsed.</p>
 					{circle.length === 0
@@ -165,7 +165,7 @@ function MySubmissions() {
 	if (mine.length === 0) return null;
 
 	return (
-		<section className="scout-df__section">
+		<section className="scout-df__section" data-tour="dealflow-mine">
 			<div className="scout-df__head">
 				<h2 className="scout-df__title">Your submissions</h2>
 				<span className="scout-df__aside">Only visible to you</span>
@@ -297,7 +297,7 @@ function FeaturedDeal({ d }: { d: DealRow }) {
 	] as [string, string | null | undefined][]).filter((t): t is [string, string] => !!t[1] && t[1] !== '—');
 	const desc = d.company_description?.trim();
 	return (
-		<article className="scout-df-feat">
+		<article className="scout-df-feat" data-tour="dealflow-featured">
 			<div className="scout-df-feat__eyebrow">★ Featured deal · {month}</div>
 			<div className="scout-df-feat__body">
 				<div className="scout-df-feat__main">

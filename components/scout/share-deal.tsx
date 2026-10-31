@@ -155,7 +155,7 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 	};
 
 	if (done) return (
-		<Card className="scout-section scout-done">
+		<div data-tour="share-done"><Card className="scout-section scout-done">
 			<span className="scout-tag scout-tag--ok"><Check size={11} /> Submitted for eligibility check</span>
 			<h2 className="atlas-h2">{d.company || 'Your deal'} has been submitted.</h2>
 			<p className="scout-body">SportsTechX will review eligibility, usually within two working days. We&rsquo;ll email you once it&rsquo;s live in From the Circle, or if we need anything else.</p>
@@ -168,7 +168,7 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 					if (resumeId) router.replace(`${hrefOf('deal-flow-circle')}/share`);
 				}}>Share another deal</Button>
 			</div>
-		</Card>
+		</Card></div>
 	);
 
 	const s = STEPS[step];
@@ -183,7 +183,7 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 						: 'Share an opportunity with Investor Circle members. SportsTechX checks eligibility before it’s published.'}</p>
 				</div>
 			</div>
-			<Steps names={STEPS.map((x) => x.name)} step={step} onPick={(i) => i < step && setStep(i)} />
+			<div data-tour="share-steps"><Steps names={STEPS.map((x) => x.name)} step={step} onPick={(i) => i < step && setStep(i)} /></div>
 			<Card className="scout-section">
 				<div className="scout-section__head"><h2 className="atlas-h2">{s.title}</h2><p className="scout-muted">{s.sub}</p></div>
 				{step === 0 && (
@@ -197,7 +197,7 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 								options={sectorOptions} groups={sectorGroups} placeholder="Select a sector…"
 							/>
 						</Field>
-						<div className="scout-span">
+						<div className="scout-span" data-tour="share-description">
 							<Field label="Short description"><Textarea rows={3} {...txt('desc')} placeholder="One or two sentences on what the company does and who it serves." /></Field>
 						</div>
 						{/* STX-only, and the reason an admin opens the row at all — it is
@@ -209,13 +209,13 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 				)}
 				{step === 1 && (
 					<>
-						<Block label="Round"><ChipSet options={['Pre-seed', 'Seed', 'Series A', 'Series B', 'Bridge / extension']} value={d.round} onToggle={(o) => patch({ round: o })} /></Block>
+						<Block label="Round"><ChipSet data-tour="share-round" options={['Pre-seed', 'Seed', 'Series A', 'Series B', 'Bridge / extension']} value={d.round} onToggle={(o) => patch({ round: o })} /></Block>
 						<Block label="Instrument"><ChipSet options={['Priced Equity', 'SAFE', 'Convertible Note', 'ASA', 'Other']} value={d.instrument} onToggle={(o) => patch({ instrument: o })} /></Block>
 						<Block label="Currency"><ChipSet options={['EUR', 'USD']} value={d.currency} onToggle={(o) => patch({ currency: o })} /></Block>
 						<div className="scout-form-grid">
 							{/* Numeric now: the columns are numeric with the currency held
 							    separately, so "€1.5m" cannot be stored. */}
-							<Field label={`Target raise (${sym})`}><Input type="number" min="0" {...txt('target')} placeholder="1500000" /></Field>
+							<Field label={`Target raise (${sym})`}><Input type="number" min="0" {...txt('target')} placeholder="1500000" data-tour="share-target" /></Field>
 							<Field label={`Committed to date (${sym}) · Optional`}><Input type="number" min="0" {...txt('committed')} placeholder="500000" /></Field>
 							<Field label="Valuation / cap · Optional">
 								<div style={{ display: 'flex', gap: 8 }}>
@@ -238,7 +238,7 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 				)}
 				{step === 2 && (
 					<>
-						<Field label="Note for Circle members"><Textarea rows={3} {...txt('notes')} placeholder="What do you like about the company? Anything investors should know? What are they looking for?" /></Field>
+						<Field label="Note for Circle members"><Textarea rows={3} data-tour="share-note" {...txt('notes')} placeholder="What do you like about the company? Anything investors should know? What are they looking for?" /></Field>
 						{/* Single-select: the column holds one relationship. */}
 						<Block label="Your relationship to the deal"><ChipSet options={['Investing in this round', 'Existing investor', 'Advisor / board', 'Referral only']} value={d.relation} onToggle={(o) => patch({ relation: o })} /></Block>
 						<div className="scout-form-grid">
@@ -260,14 +260,14 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 							they&rsquo;re allowed it. An anonymous listing always requires an introduction
 							first, whatever you choose above, because a deck names the company on every page.
 						</p>
-						<button type="button" className={cx('scout-consent', d.consent && 'on')} aria-pressed={d.consent} onClick={() => patch({ consent: !d.consent })}>
+						<button type="button" className={cx('scout-consent', d.consent && 'on')} data-tour="share-consent" aria-pressed={d.consent} onClick={() => patch({ consent: !d.consent })}>
 							<span className="scout-pick__box" aria-hidden="true">{d.consent && <Check size={11} />}</span>
 							The founder has agreed to this opportunity being shared with Investor Circle members.
 						</button>
 					</>
 				)}
 				{step === 3 && (
-					<div className="scout-review">
+					<div className="scout-review" data-tour="share-review">
 						{([
 							['Company', 0, [['Company', d.company], ['Website', d.website], ['Headquarters', d.hq], ['Sector', sectorOptions.find(([v]) => v === d.sectorId)?.[1] ?? ''], ['Description', d.desc], ['Founder contact', [d.founderName, d.founderEmail, d.founderPhone].filter(Boolean).join(' · ')]]],
 							['Round', 1, [['Round', d.round], ['Instrument', d.instrument], ['Target', d.target && `${sym}${d.target}`], ['Committed', d.committed && `${sym}${d.committed}`], ['Valuation', fmtValuation(d)], ['Close', d.close], ['Lead', d.leadStatus === 'Lead confirmed' ? d.lead || d.leadStatus : d.leadStatus]]],
@@ -286,7 +286,7 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 					{step === 0
 						? <Link href={hrefOf('deal-flow-circle')} className="atlas-btn atlas-btn--outline">Cancel</Link>
 						: <Button variant="outline" onClick={() => setStep(step - 1)}>← Back</Button>}
-					<Button disabled={busy} onClick={next}>{busy ? 'Submitting…' : step === 3 ? (resumeId ? 'Resubmit for review' : 'Submit deal') : 'Continue'}</Button>
+					<Button disabled={busy} onClick={next} data-tour="share-continue">{busy ? 'Submitting…' : step === 3 ? (resumeId ? 'Resubmit for review' : 'Submit deal') : 'Continue'}</Button>
 				</div>
 			</Card>
 		</>

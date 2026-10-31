@@ -23,23 +23,35 @@ export const slugify = (s: string) => s.toLowerCase().replace(/&/g, 'and').repla
 // ─── Taxonomy ────────────────────────────────────────────────────────────────
 
 export interface WSector { id: string; name: string; slug: string; parent_id: string | null }
-const sector = (n: number, name: string, parent: number | null = null): WSector =>
-	({ id: uuid(0x5ec, n), name, slug: slugify(name), parent_id: parent === null ? null : uuid(0x5ec, parent) });
+const sector = (n: number, name: string, parent: number | null = null, slug = slugify(name)): WSector =>
+	({ id: uuid(0x5ec, n), name, slug, parent_id: parent === null ? null : uuid(0x5ec, parent) });
 
-/** Three levels deep, like the Atlas framework: sector → sub-sector → niche. */
+/**
+ * The SportsTechX framework: pillar → category → sub-category. Pillar and
+ * category slugs are the keys the Framework page's copy is written against
+ * (components/features/framework/framework-content.ts); the sub-categories are
+ * the sample world's own and are what companies are filed under.
+ */
 export const SECTORS: WSector[] = [
-	sector(1, 'Fans & Media'),
-	sector(2, 'Fan Engagement', 1), sector(3, 'Media & Broadcasting', 1), sector(4, 'Betting & Fantasy', 1),
-	sector(5, 'Loyalty & Rewards', 2), sector(6, 'Second Screen', 2),
-	sector(10, 'Performance'),
-	sector(11, 'Wearables', 10), sector(12, 'Tracking & Analytics', 10), sector(13, 'Recovery & Injury Prevention', 10),
-	sector(14, 'Video Analysis', 12),
-	sector(20, 'Management & Operations'),
-	sector(21, 'Club & League Management', 20), sector(22, 'Venue & Facility Management', 20), sector(23, 'Ticketing', 20),
-	sector(30, 'Participation & Fitness'),
-	sector(31, 'Health & Fitness', 30), sector(32, 'Booking & Community', 30),
-	sector(40, 'eSports & Gaming'),
-	sector(41, 'Competitive Gaming', 40),
+	sector(100, 'Activity & Performance', null, 'activity_performance'),
+	sector(101, 'For Activity: Hardware', 100, 'activity_performance__for_activity_hardware'),
+	sector(102, 'For Activity: Software', 100, 'activity_performance__for_activity_software'),
+	sector(103, 'Before & After Activity', 100, 'activity_performance__before_after_activity'),
+	sector(11, 'Wearables', 101),
+	sector(12, 'Tracking & Analytics', 102), sector(14, 'Video Analysis', 102),
+	sector(13, 'Recovery & Injury Prevention', 103), sector(31, 'Health & Fitness', 103), sector(32, 'Booking & Community', 103),
+	sector(200, 'Fans & Content', null, 'fans_content'),
+	sector(201, 'Content Platforms', 200, 'fans_content__content_platforms'),
+	sector(202, 'Fan Experiences', 200, 'fans_content__fan_experiences'),
+	sector(203, 'Fantasy Sports & Betting', 200, 'fans_content__fantasy_sports_betting'),
+	sector(3, 'Media & Broadcasting', 201), sector(41, 'Competitive Gaming', 201),
+	sector(2, 'Fan Engagement', 202), sector(5, 'Loyalty & Rewards', 202), sector(6, 'Second Screen', 202), sector(23, 'Ticketing', 202),
+	sector(4, 'Betting & Fantasy', 203),
+	sector(300, 'Management & Organisation', null, 'management_organisation'),
+	sector(301, 'Organisations & Venues', 300, 'management_organisation__organisations_venues'),
+	sector(302, 'Media & Sponsors', 300, 'management_organisation__media_sponsors'),
+	sector(21, 'Club & League Management', 301), sector(22, 'Venue & Facility Management', 301),
+	sector(24, 'Sponsorship & Advertising', 302),
 ];
 export const sectorByName = (name: string) => SECTORS.find((s) => s.name === name)!;
 /** The sector a sub-sector or niche rolls up to. */

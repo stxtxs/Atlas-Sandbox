@@ -98,17 +98,17 @@ export function MarketAnalysis() {
 			{/* Controls */}
 			<div className="atlas-controls">
 				<Seg<Series>
-					ariaLabel="Series" value={series} onChange={setSeries}
+					ariaLabel="Series" value={series} onChange={setSeries} data-tour="analysis-series"
 					options={[{ key: 'funding', label: 'Funding' }, { key: 'ma', label: 'M&A' }, { key: 'total', label: 'Total' }]}
 				/>
 				<Seg<Range>
-					ariaLabel="Range" value={range} onChange={setRange}
+					ariaLabel="Range" value={range} onChange={setRange} data-tour="analysis-range"
 					options={[{ key: '10y', label: '10 yrs' }, { key: '5y', label: '5 yrs' }, { key: 'ytd', label: 'YTD' }]}
 				/>
 			</div>
 
 			{/* KPIs — pink highlight, matching the Figma Market frames (and Roundup). */}
-			<div className="atlas-kpis atlas-kpis--pink">
+			<div className="atlas-kpis atlas-kpis--pink" data-tour="analysis-kpis">
 				<Kpi k={`Total ${series === 'ma' ? 'M&A value' : series === 'total' ? 'capital' : 'funding'}`} v={fmtUsd(stats.grand)} note={rangeLabel(range)} />
 				<Kpi k="Latest year" v={fmtUsd(stats.last?.amt)} note={stats.last ? `${stats.last.year} · ${fmtCount(stats.last.deals)} ${lineLabel.toLowerCase()}` : '—'} />
 				<Kpi k={series === 'ma' ? 'Deals recorded' : 'Rounds recorded'} v={fmtCount(stats.deals)} note={rangeLabel(range)} />
@@ -147,7 +147,7 @@ export function MarketAnalysis() {
 					<div className="atlas-section-title">{seriesLabel} by sector</div>
 					<div className="atlas-section-note">Drill down into sector and sub-sector value</div>
 				</div>
-				<div className="atlas-chart-card__body" style={{ paddingTop: 20, paddingBottom: 20 }}>
+				<div className="atlas-chart-card__body" style={{ paddingTop: 20, paddingBottom: 20 }} data-tour="analysis-sectors">
 					{tree.isLoading ? <Loading /> : treeRows.length === 0
 						? <div style={{ fontSize: 13, color: 'var(--a-faint)' }}>No data for this period.</div>
 						: <div className="atlas-drilldown"><HBarDrilldown rows={treeRows} /></div>}
@@ -171,7 +171,7 @@ export function MarketAnalysis() {
 			{/* Top table (hidden on Total) */}
 			{series !== 'total' && (
 				<Card style={{ padding: '0 23px' }}>
-					<div className="atlas-section-head" style={{ padding: '14px 0 12px' }}>
+					<div className="atlas-section-head" style={{ padding: '14px 0 12px' }} data-tour="analysis-top">
 						<div className="atlas-section-title" style={{ fontSize: 16 }}>{series === 'ma' ? 'Largest acquirers' : 'Top funded companies'}</div>
 					</div>
 					{(series === 'funding' ? topFunded.isLoading : topAcq.isLoading) ? <Loading /> : (

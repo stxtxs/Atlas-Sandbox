@@ -181,10 +181,10 @@ export function MarketCompanies({ companyHref }: { companyHref?: (idOrSlug: stri
 			{(all.isLoading || !filtersReady) && rows.length === 0 ? <Loading />
 				: rows.length === 0 ? <Empty>No companies match your filters.</Empty>
 					: (
-						<div className="atlas-card atlas-chart-card" style={{ marginTop: 10 }}>
+						<div className="atlas-card atlas-chart-card" style={{ marginTop: 10 }} data-tour="companies-results">
 							<div className="atlas-chart-card__head" style={{ padding: '17px 25px 16px', fontSize: 13, color: 'var(--a-muted)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
 								<span>{total.toLocaleString()} compan{total === 1 ? 'y' : 'ies'}{anyFilter ? ' match your filters' : ' · Filter to refine results'}</span>
-								<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ViewToggle value={view} onChange={setView} /><ExportButton entity="companies" search={dq} params={params} /></div>
+								<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span data-tour="companies-view"><ViewToggle value={view} onChange={setView} /></span><span data-tour="companies-export"><ExportButton entity="companies" search={dq} params={params} /></span></div>
 							</div>
 							{view === 'cards'
 								? <div className="mkt-list">{rows.map((c) => <CompanyRow key={c.id} c={c} href={companyHref?.(c.slug ?? c.id)} onOpen={() => setOpenId(c.slug ?? c.id)} />)}</div>

@@ -86,13 +86,13 @@ export function ScoutHome() {
 					Here&rsquo;s what has changed across {listText(thesis.sectors) || 'sports tech'} since your last visit.
 				</p>
 				{data?.thesis_set && tags.length > 0 && (
-					<div className="scout-home__thesis">
+					<div className="scout-home__thesis" data-tour="scout-home-thesis">
 						<span className="atlas-eyebrow">Tuned to your thesis</span>
 						<div className="scout-tags">{tags.map((t) => <span key={t} className="scout-tag">{t}</span>)}</div>
 						<Link href={hrefOf('thesis')} className="scout-link">Edit thesis</Link>
 					</div>
 				)}
-				<div className="scout-home__composer">
+				<div className="scout-home__composer" data-tour="scout-home-composer">
 					<AgentComposer
 						value={q}
 						onChange={setQ}
@@ -108,11 +108,12 @@ export function ScoutHome() {
 
 			<section className="scout-home__attn">
 				<SectionHead title="What needs your attention" meta="Based on your thesis · since your last visit" />
-				<div className="atlas-feed-grid">
+				<div className="atlas-feed-grid" data-tour="scout-home-cards">
 					{/* Server-ranked and already capped at three. */}
 					{(data?.attention ?? []).map((c) => (
 						<FeedCard
 							key={c.id}
+							data-tour={`scout-card-${c.id}`}
 							tag={c.count != null ? `${c.count}` : 'Scout'}
 							icon={CARD_ICON[c.id] ?? Sparkles}
 							title={c.title}
@@ -128,12 +129,14 @@ export function ScoutHome() {
 					))}
 					{/* Two standing entry points the read-model does not emit. */}
 					<FeedCard
+						data-tour="scout-card-roundup"
 						tag="Monthly Roundup" icon={CalendarDays}
 						title={`${month} market roundup`}
 						body="Funding, deals and news across sports tech for the month."
 						href={hrefOf('roundup')}
 					/>
 					<FeedCard
+						data-tour="scout-card-deal-flow"
 						tag="Deal Flow" icon={Layers}
 						title="Live raises from the Circle"
 						body="Featured deals and verified raises, ranked by thesis fit."

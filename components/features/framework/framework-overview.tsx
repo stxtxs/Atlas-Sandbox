@@ -20,7 +20,7 @@ export function FrameworkOverview({ categoryHref }: { categoryHref: (slug: strin
 	return (
 		<>
 			<p className="atlas-fw-intro">{FRAMEWORK_INTRO}</p>
-			<div className="atlas-fw-grid">
+			<div className="atlas-fw-grid" data-tour="framework-grid">
 				{pillars.map((p) => (
 					<section key={p.slug} className="atlas-fw-pillar" style={{ '--fw-color': p.copy.color, '--fw-ink': p.copy.tagInk } as CSSProperties} aria-label={p.copy.badge}>
 						<span className="atlas-fw-badge">{p.copy.badge}</span>

@@ -116,7 +116,7 @@ export function RecommendedInvestors() {
 			) : (matches.data?.results.length ?? 0) === 0 ? <Empty>No matches yet. Broaden your investor criteria in setup.</Empty>
 				: <>
 					{criteriaSummary && (
-						<div className="atlas-card atlas-card--glow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', padding: '16px 23px', marginBottom: 20 }}>
+						<div className="atlas-card atlas-card--glow" data-tour="matches-criteria" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', padding: '16px 23px', marginBottom: 20 }}>
 							<span style={{ fontSize: 13, color: 'var(--a-muted)' }}>{criteriaSummary}</span>
 							<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 								<ViewToggle value={view} onChange={setView} />
@@ -126,7 +126,7 @@ export function RecommendedInvestors() {
 					)}
 					{!criteriaSummary && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}><ViewToggle value={view} onChange={setView} /></div>}
 					{view === 'cards' ? (
-					<Grid>
+					<Grid tour="matches">
 						{matches.data!.results.filter((m) => !dismissed.has(m.id)).map((m) => (
 							<InvestorCard key={m.id} inv={m} added={inPipeline.has(m.id)} reasons={m.match_reasons}
 								onDismiss={() => void dismiss(m.id, m.name)} />
@@ -306,7 +306,7 @@ function AllInvestorsTab({ inPipeline, canWatchlist }: { inPipeline: Set<string>
 			{(all.isLoading || !filtersReady) && rows.length === 0 ? <Loading />
 				: rows.length === 0 ? <Empty>No investors match your filters.</Empty>
 				: (
-				<div className="atlas-card atlas-chart-card" style={{ marginTop: 10 }}>
+				<div className="atlas-card atlas-chart-card" style={{ marginTop: 10 }} data-tour="investors-results">
 					<div className="atlas-chart-card__head" style={{ padding: '17px 25px 16px', fontSize: 13, color: 'var(--a-muted)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
 						<span>{total.toLocaleString()} investor{total === 1 ? '' : 's'}{anyFilter ? ' match your filters' : ' · Filter to refine results'}</span>
 						<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ViewToggle value={view} onChange={setView} /><ExportButton entity="investors" search={dq} params={params} /></div>
@@ -328,7 +328,7 @@ function AllInvestorsTab({ inPipeline, canWatchlist }: { inPipeline: Set<string>
 						    has to be on the row too. A row can't be a <Link> around a menu,
 						    so the row navigates on click and the name is the real link. */}
 						{rows.map((inv) => (
-							<div key={inv.id} className="atlas-table__row" style={{ cursor: 'pointer' }} onClick={() => router.push(`${hrefOf('investors')}/${inv.id}`)}>
+							<div key={inv.id} className="atlas-table__row" data-tour="investor-row" style={{ cursor: 'pointer' }} onClick={() => router.push(`${hrefOf('investors')}/${inv.id}`)}>
 								<div className="atlas-table__name">
 									<Logo co={{ name: inv.name, website: inv.website, custom_logo_url: inv.logo_url }} size={28} radius={5} />
 									<div className="atlas-table__name-main">
@@ -342,7 +342,7 @@ function AllInvestorsTab({ inPipeline, canWatchlist }: { inPipeline: Set<string>
 								<span className="atlas-table__col hide-sm hide-md" style={{ width: 84 }}>{inv.year_launched ?? DASH}</span>
 								<span className="atlas-table__col hide-sm" style={{ width: 72 }}>{inv.actively_investing ? <span className="atlas-chip-sm">ACTIVE</span> : DASH}</span>
 								{canWatchlist && (
-									<span className="atlas-table__col atlas-table__col--action" style={{ width: 190 }} onClick={(e) => e.stopPropagation()}>
+									<span className="atlas-table__col atlas-table__col--action" data-tour="investor-row-save" style={{ width: 190 }} onClick={(e) => e.stopPropagation()}>
 										<SaveInvestorToWatchlist investorId={inv.id} investorName={inv.name} align="end" portal />
 									</span>
 								)}
@@ -366,7 +366,7 @@ function AllInvestorsTab({ inPipeline, canWatchlist }: { inPipeline: Set<string>
 
 function InvestorCard({ inv, added, reasons, onDismiss, canAdd = true }: { inv: InvestorCardData; added: boolean; reasons?: string[]; onDismiss?: () => void; canAdd?: boolean }) {
 	return (
-		<div className="atlas-card atlas-entity-card">
+		<div className="atlas-card atlas-entity-card" data-tour="investor-card">
 			<div className="atlas-entity-card__head">
 				<Logo co={{ name: inv.name, website: inv.website, custom_logo_url: inv.logo_url }} size={62} radius={9} />
 				<div style={{ minWidth: 0, paddingTop: 11 }}>
@@ -379,7 +379,7 @@ function InvestorCard({ inv, added, reasons, onDismiss, canAdd = true }: { inv: 
 			</div>
 			{inv.description && <div className="atlas-entity-card__desc">{inv.description}</div>}
 			{reasons && reasons.length > 0 && (
-				<div className="atlas-entity-card__desc" style={{ WebkitLineClamp: 4 }}>
+				<div className="atlas-entity-card__desc" style={{ WebkitLineClamp: 4 }} data-tour="investor-card-why">
 					<span style={{ color: 'var(--a-ink)', fontWeight: 500 }}>Why Atlas recommends this: </span>{reasons.slice(0, 2).join('; ')}.
 				</div>
 			)}
@@ -392,5 +392,5 @@ function InvestorCard({ inv, added, reasons, onDismiss, canAdd = true }: { inv: 
 	);
 }
 
-function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))', gap: 16 }}>{children}</div>; }
+function Grid({ children, tour }: { children: React.ReactNode; tour?: string }) { return <div data-tour={tour} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))', gap: 16 }}>{children}</div>; }
 

@@ -76,7 +76,7 @@ export function FundFields({ t, patch }: Props) {
 export function StageFields({ t, patch }: Props) {
 	return (
 		<>
-			<FieldBlock label="Stages" hint="Select all that apply"><ChipSet options={THESIS_OPTIONS.stages} value={t.stages} onToggle={(o) => patch({ stages: toggleIn(t.stages, o) })} /></FieldBlock>
+			<FieldBlock label="Stages" hint="Select all that apply"><ChipSet data-tour="thesis-stages" options={THESIS_OPTIONS.stages} value={t.stages} onToggle={(o) => patch({ stages: toggleIn(t.stages, o) })} /></FieldBlock>
 			<div className="scout-form-grid">
 				<Field label="Typical cheque — minimum (EUR)"><Input type="number" min={0} inputMode="numeric" value={String(t.chequeMin ?? '')} onChange={(e) => patch({ chequeMin: e.target.value })} placeholder="e.g. 250000" /></Field>
 				<Field label="Typical cheque — maximum (EUR)"><Input type="number" min={0} inputMode="numeric" value={String(t.chequeMax ?? '')} onChange={(e) => patch({ chequeMax: e.target.value })} placeholder="e.g. 2000000" /></Field>

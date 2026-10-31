@@ -61,7 +61,7 @@ export function FilterBar({ search, groups, sort, canClear, onClear, count, acti
 
 	return (
 		<div className="atlas-fbar" ref={rootRef}>
-			<div className="atlas-fbar__search">
+			<div className="atlas-fbar__search" data-tour="filters-search">
 				<Search size={13} aria-hidden="true" />
 				<input
 					className="atlas-input atlas-input--search"
@@ -95,7 +95,7 @@ export function FilterBar({ search, groups, sort, canClear, onClear, count, acti
 				</div>
 			))}
 
-			<div className="atlas-fbar__anchor">
+			<div className="atlas-fbar__anchor" data-tour="filters-add">
 				<button type="button" className="atlas-btn atlas-btn--primary" aria-expanded={menu?.at === 'add'} onClick={() => toggleMenu('add')}>
 					<Plus /> Add filter
 				</button>
@@ -111,7 +111,7 @@ export function FilterBar({ search, groups, sort, canClear, onClear, count, acti
 										) : g.filters.map((f) => {
 											const on = f.kind === 'select' ? !!f.value : f.value;
 											return (
-												<button key={f.key} type="button" className={cx('atlas-menu__item', on && 'on')}
+												<button key={f.key} type="button" data-key={f.key} className={cx('atlas-menu__item', on && 'on')}
 													aria-pressed={f.kind === 'toggle' ? f.value : undefined}
 													onClick={() => (f.kind === 'toggle' ? f.onChange(!f.value) : setMenu({ at: 'add', view: f.key }))}>
 													<span className="atlas-menu__dot" aria-hidden="true" />{f.label}
@@ -141,7 +141,7 @@ export function FilterBar({ search, groups, sort, canClear, onClear, count, acti
 				{count && <span className="atlas-fbar__count">{count}</span>}
 				{actions}
 				{sort && (
-					<div className="atlas-fbar__anchor">
+					<div className="atlas-fbar__anchor" data-tour="filters-sort">
 						<button type="button" className="atlas-btn atlas-btn--outline" aria-expanded={menu?.at === 'sort'} onClick={() => toggleMenu('sort')}>
 							<SlidersHorizontal /><span className="atlas-btn__label">Sort by</span>
 						</button>
@@ -149,7 +149,7 @@ export function FilterBar({ search, groups, sort, canClear, onClear, count, acti
 							<div ref={menuRef} className="atlas-menu atlas-menu--end atlas-menu--sheet" role="dialog" aria-label="Sort by">
 								<div className="atlas-menu__list">
 									{sort.options.map(([v, l]) => (
-										<button key={v} type="button" className={cx('atlas-menu__item', v === sort.value && 'on')} aria-pressed={v === sort.value}
+										<button key={v} type="button" data-value={v} className={cx('atlas-menu__item', v === sort.value && 'on')} aria-pressed={v === sort.value}
 											onClick={() => { sort.onChange(v); setMenu(null); }}>
 											<span className="atlas-menu__dot" aria-hidden="true" />{l}
 										</button>
@@ -187,7 +187,7 @@ function OptionsView({ f, onBack, onDone }: { f: Extract<FilterDef, { kind: 'sel
 				)}
 				{opts.length === 0 && <div className="atlas-menu__empty">{f.options.length === 0 ? 'No options' : 'No matches'}</div>}
 				{opts.map(([v, l]) => (
-					<button key={v} type="button" className={cx('atlas-menu__item', v === f.value && 'on')} aria-pressed={v === f.value} onClick={() => pick(v)}>
+					<button key={v} type="button" data-value={v} data-label={l} className={cx('atlas-menu__item', v === f.value && 'on')} aria-pressed={v === f.value} onClick={() => pick(v)}>
 						<span className="atlas-menu__dot" aria-hidden="true" />{l}
 					</button>
 				))}

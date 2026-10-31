@@ -56,6 +56,7 @@ export function WatchlistBoard({ id }: { id: string }) {
 						return (
 							<section
 								key={s}
+								data-tour={`board-${s.toLowerCase().replace(/\s+/g, '-')}`}
 								className={cx('scout-board__col', over === s && 'is-over')}
 								onDragOver={(e) => { e.preventDefault(); setOver(s); }}
 								onDragLeave={() => setOver((o) => (o === s ? null : o))}
@@ -64,7 +65,7 @@ export function WatchlistBoard({ id }: { id: string }) {
 							>
 								<div className="scout-board__head"><span>{s}</span><span className="scout-board__n">{cards.length}</span></div>
 								{cards.map((c) => (
-									<article key={c.id} className="scout-board__card" draggable onDragStart={() => setDragging(c.id)} onDragEnd={() => { setDragging(null); setOver(null); }}>
+									<article key={c.id} className="scout-board__card" data-tour="board-card" draggable onDragStart={() => setDragging(c.id)} onDragEnd={() => { setDragging(null); setOver(null); }}>
 										<div className="scout-board__id">
 											<Logo co={{ name: c.name, website: c.website, custom_logo_url: c.custom_logo_url }} size={26} radius={5} />
 											<Link href={companyHref(c.slug ?? c.id)} className="scout-board__name">{c.name}</Link>

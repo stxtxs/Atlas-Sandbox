@@ -90,7 +90,7 @@ export function companyListItem(c: WCompany): Company & { total_funding: number 
 		primary_sport: c.sport, total_funding_usd: funding,
 		// Company detail extras (detailSql) — the list carries them too, harmlessly.
 		hq_region: country.region, twitter_url: null, instagram_url: null, facebook_url: null,
-		linkedin_url: `linkedin.com/company/${c.slug}`, youtube_url: null, contact_email: `hello@${c.website}`,
+		linkedin_url: null, youtube_url: null, contact_email: `hello@${c.website}`,
 		sport_count: 1, tech_tag_count: c.tags.length, deal_count: deals.length,
 		last_deal_date: deals[0] ? agoDate(deals[0].daysAgo) : null, last_round_type: deals[0]?.round ?? null,
 		// framework-category.tsx reads `total_funding`.
@@ -164,7 +164,7 @@ export function companyContact(c: WCompany) {
 	const first = FIRST[i % FIRST.length]; const last = LAST[(i * 5) % LAST.length];
 	return {
 		id: `${c.id}-contact`, full_name: `${first} ${last}`, job_position: 'Co-founder & CEO',
-		email: `${first.toLowerCase()}@${c.website}`, linkedin_url: `linkedin.com/in/${slugify(`${first} ${last}`)}`,
+		email: `${first.toLowerCase()}@${c.website}`, linkedin_url: null,
 		phone: null, role: 'founder',
 	};
 }
@@ -236,7 +236,7 @@ export function investorRow(i: WInvestor): InvestorListItem & Investor {
 		thesis: `${i.stages.join(' and ')} rounds in ${i.focus.join(' and ')}, cheques of ${money(i.cheque[0])}–${money(i.cheque[1])}.`,
 		total_aum_usd: usd(i.aum_usd ?? null),
 		hq_region: country.region, twitter_url: null, instagram_url: null, facebook_url: null,
-		linkedin_url: `linkedin.com/company/${i.slug}`, youtube_url: null, contact_email: `deals@${i.website}`,
+		linkedin_url: null, youtube_url: null, contact_email: `deals@${i.website}`,
 	};
 }
 

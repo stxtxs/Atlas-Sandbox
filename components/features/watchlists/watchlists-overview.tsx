@@ -33,7 +33,7 @@ export function WatchlistsOverview({ watchlistHref }: { watchlistHref: (id: stri
 
 	return (
 		<>
-			<form className="atlas-wl-createbar" onSubmit={(e) => { e.preventDefault(); const n = name.trim(); if (n) void run(async () => { await createWatchlist(n, newKind); setName(''); }, `Created ${n}`); }}>
+			<form className="atlas-wl-createbar" data-tour="watchlists-create" onSubmit={(e) => { e.preventDefault(); const n = name.trim(); if (n) void run(async () => { await createWatchlist(n, newKind); setName(''); }, `Created ${n}`); }}>
 				{isRaise && <Seg ariaLabel="New watchlist holds" value={kind} onChange={setKind} options={[{ key: 'investors', label: 'Investors' }, { key: 'companies', label: 'Companies' }]} />}
 				<Input className="atlas-input--search" placeholder="New watchlist name, e.g. Football Infrastructure" value={name} maxLength={120} onChange={(e) => setName(e.target.value)} aria-label="New watchlist name" />
 				<Button type="submit" disabled={!name.trim() || busy}><Plus /> New watchlist</Button>
@@ -42,7 +42,7 @@ export function WatchlistsOverview({ watchlistHref }: { watchlistHref: (id: stri
 			{isLoading ? <Loading /> : lists.length === 0 ? (
 				<Empty>No watchlists yet. Create one above, or use “Add to watchlist” on any company page.</Empty>
 			) : (
-				<div className="atlas-rowlist">
+				<div className="atlas-rowlist" data-tour="watchlists-list">
 					{lists.map((l) => (
 						<div key={l.id} className="atlas-rowlist__row">
 							<div className="atlas-rowlist__main">

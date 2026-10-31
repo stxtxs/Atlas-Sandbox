@@ -41,7 +41,7 @@ export function FrameworkCategory({ slug, backHref, categoryHref, exploreHref }:
 	const cos = examples.data?.data ?? [];
 
 	return (
-		<section className="atlas-fw-detail" style={{ '--fw-color': pillar.copy.color, '--fw-ink': pillar.copy.tagInk } as CSSProperties}>
+		<section className="atlas-fw-detail" data-tour="framework-detail" style={{ '--fw-color': pillar.copy.color, '--fw-ink': pillar.copy.tagInk } as CSSProperties}>
 			<header className="atlas-fw-detail__head">
 				<div className="atlas-fw-detail__title-row">
 					<span className="atlas-fw-badge">{pillar.copy.badge}</span>
@@ -73,7 +73,7 @@ export function FrameworkCategory({ slug, backHref, categoryHref, exploreHref }:
 			{(cos.length > 0 || examples.isLoading) && (
 				<>
 					<h3 className="atlas-fw-col__title" style={{ marginTop: 40 }}>Top companies in this category</h3>
-					<div className="atlas-fw-companies">
+					<div className="atlas-fw-companies" data-tour="framework-companies">
 						{examples.isLoading && cos.length === 0 && <p className="atlas-fw-col__empty">Loading…</p>}
 						{cos.map((co) => (
 							<Link key={co.id} href={companyHref(co.slug)} className="atlas-fw-co">
@@ -89,7 +89,7 @@ export function FrameworkCategory({ slug, backHref, categoryHref, exploreHref }:
 			)}
 
 			<hr className="atlas-fw-detail__rule atlas-fw-detail__rule--full" />
-			<Link href={exploreHref(pillar.slug, c.slug)} className="atlas-btn atlas-btn--primary">
+			<Link href={exploreHref(pillar.slug, c.slug)} className="atlas-btn atlas-btn--primary" data-tour="framework-explore">
 				Explore {count == null ? '' : `${count.toLocaleString()} `}companies in this category <ArrowUpRight />
 			</Link>
 		</section>

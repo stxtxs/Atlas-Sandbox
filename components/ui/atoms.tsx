@@ -102,7 +102,7 @@ export function Flag({
 			{code && !failed && (
 				/* eslint-disable-next-line @next/next/no-img-element */
 				<img
-					src={`https://flagcdn.com/${code}.svg`}
+					src={`/flags/${code}.png`}
 					alt=""
 					width={size}
 					height={size * 0.7}

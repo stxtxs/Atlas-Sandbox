@@ -1,79 +1,52 @@
 /**
- * Sandbox ("The Warm-Up") — Scout-only endpoints answered locally.
+ * Atlas Scout's sample data: the visitor is Alex Morgan, partner at Kestrel
+ * Field Ventures (fixtures/world.ts), with a finished, verified Scout workspace
+ * and thesis, so Home, Recommended and Deal Flow work from the first request.
  *
- * The practice run ("The Warm-Up") starts as a READY-MADE sample investor:
- * Jordan Ellis, partner at the fictional Kestrel Field Ventures, with a fully
- * set-up, verified Scout workspace and a seed–Series A European sports-tech
- * thesis built from REAL taxonomy rows (sector / sport / round-type ids are
- * production ids, see server/scripts/local-db/seed-data). Home, Recommended
- * and Deal Flow therefore work from the first request.
- *
- * Every route still answers as the server does for the state it holds
- * (server/src/modules/scout/**), so edits behave like the real product:
- *
- *   - no row:   only reachable if a stored state says so. GET /api/scout → null;
- *               GET /home → needs_setup; GET /recommended and deal-flow writes →
- *               403 SCOUT_NOT_SET_UP.
- *   - row:      the sample's, or one re-created by PATCH /api/scout or PUT
- *               /thesis. Recommended is scored against the stored thesis.
- *   - complete: `setup_completed_at` is stamped on the sample; PATCH never clears it.
+ * Every route answers in the shape the real server does (server/src/modules/
+ * scout/**); writes persist to this browser's tutorial workspace, so the
+ * wizard, dismissals, watches and intro requests behave like the product.
  *
  * Consumers: use-thesis.ts / onboarding.tsx / thesis-settings.tsx (profile,
  * thesis), scout-home.tsx (home), recommended.tsx, deal-flow.tsx,
  * deal-detail.tsx, share-deal.tsx.
- *
- * Only writes call `ctx.save()`. The interceptor hands each request its own
- * snapshot of state, so a GET that saved after an `await` could overwrite a
- * wizard step that landed meanwhile — caches therefore live in module memory.
- *
- * Recommendations are REAL companies (public `/api/companies`). Deal Flow
- * listings are fictional on purpose: a listing asserts a live round, valuation
- * and commitments, which would be invented claims about a real business.
  */
-import { mockFetch } from './mock-api';
 import type { DealRow, MyDealRow } from '@/components/scout/deal-types';
 import type { ScoutProfile, ServerThesis, TaxonomyRef } from '@/components/scout/thesis-codec';
+import { mockJson } from './mock-api';
+import {
+	COMPANIES, DEALS, ROUND_TYPES, SECTORS, SPORTS, companyByName, countryByCode, sectorByName,
+	type WCompany,
+} from './fixtures/world';
 import { daysFromNow, json, type SandboxCtx, type SandboxRoute } from './types';
 
-// ─── Constants & state ───────────────────────────────────────────────────────
+// ─── State ───────────────────────────────────────────────────────────────────
 
-const RECOMMENDED_CAP = 10;
-const COMPANY_SAMPLE_PATH = '/api/companies?limit=12&page=1';
-const NEW_MATCH_WINDOW_MS = 7 * 864e5;
-
-/**
- * Bump to discard earlier sandbox state. v2 started as a brand-new customer
- * with no workspace; v3 starts as the ready-made Kestrel Field Ventures sample.
- */
-const STATE_KEY = 'scoutV3';
-const LEGACY_KEYS = ['scoutProfile', 'scoutThesis', 'scoutDrafts', 'scoutCompanies', 'scoutV2'];
+const STATE_KEY = 'scout';
 
 /** `ScoutProfileRow` on the server; the client reads the `ScoutProfile` subset. */
 interface ScoutProfileRow extends ScoutProfile {
-	id: string;
-	profile_id: string;
-	claim_id: string | null;
-	investor_id: string | null;
-	photo_url: string | null;
-	location_id: string | null;
-	created_at: string;
-	updated_at: string;
+	id: string; profile_id: string; claim_id: string | null; investor_id: string | null;
+	photo_url: string | null; location_id: string | null; created_at: string; updated_at: string;
 }
 
 /** A submitter's own deal (`SELECT *` server-side). */
 type DraftDeal = MyDealRow & Record<string, unknown>;
 
 interface ScoutState {
-	/** null = no `scout_profiles` row yet. */
 	profile: ScoutProfileRow | null;
-	/** null = nothing saved; reads as the server's empty thesis. */
 	thesis: ServerThesis | null;
 	drafts: DraftDeal[];
-	/** Deals the visitor asked SportsTechX for an introduction to. */
-	interests?: string[];
+	/** Deal ids the visitor asked SportsTechX to introduce. */
+	interests: string[];
+	/** Deal ids the visitor is watching. */
+	watched: string[];
+	/** Company ids marked "Not relevant" on Recommended. */
+	dismissed: string[];
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const list = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
 function readState(ctx: SandboxCtx): ScoutState {
 	const s = ctx.state[STATE_KEY];
@@ -81,69 +54,55 @@ function readState(ctx: SandboxCtx): ScoutState {
 	return {
 		profile: isRecord(s.profile) ? (s.profile as unknown as ScoutProfileRow) : null,
 		thesis: isRecord(s.thesis) ? (s.thesis as unknown as ServerThesis) : null,
-		drafts: Array.isArray(s.drafts) ? (s.drafts as DraftDeal[]) : [],
-		interests: Array.isArray(s.interests) ? (s.interests as string[]) : [],
+		drafts: list(s.drafts), interests: list(s.interests), watched: list(s.watched), dismissed: list(s.dismissed),
 	};
 }
 
 function writeState(ctx: SandboxCtx, next: ScoutState) {
-	for (const k of LEGACY_KEYS) delete ctx.state[k];
 	ctx.state[STATE_KEY] = next;
 	ctx.save();
 }
 
-// ─── Server responses ────────────────────────────────────────────────────────
-
-/** scout.controller.ts:230-237 and scout-dealflow.controller.ts:265-272. */
 const notSetUp = () => json({ error: { code: 'SCOUT_NOT_SET_UP', message: 'complete Scout setup first' } }, 403);
 const notFound = () => json({ error: { code: 'NOT_FOUND', message: 'not found' } }, 404);
 const badRequest = (message: string) => json({ error: { code: 'VALIDATION_ERROR', message } }, 400);
 const isoDate = (days: number) => daysFromNow(days).slice(0, 10);
 
-/** scout.repository.ts:211-218 — an unset thesis reads as empty. */
 const EMPTY_THESIS: ServerThesis = {
 	sectors: [], sports: [], round_types: [], geo: [], business_models: [],
 	cheque_min: null, cheque_max: null, traction_floor: null, invest_style: null, exclusions: null,
 };
 
-// ─── Sample identity: Kestrel Field Ventures ─────────────────────────────────
+// ─── The sample investor: Kestrel Field Ventures ─────────────────────────────
 
-/** Fixed ids so the sample row reads the same on every request. */
-const SAMPLE_PROFILE_ID = '5c0e7a10-3f4b-4d2a-9b6e-1a2b3c4d5e01';
-/** Set = verified (`verification` on /home reads `investor_id`). Fictional fund, not a directory row. */
-const SAMPLE_INVESTOR_ID = '5c0e7a10-3f4b-4d2a-9b6e-1a2b3c4d5e02';
+const ref = (r: { id: string; name: string }): TaxonomyRef => ({ id: r.id, name: r.name });
+const roundRef = (name: string) => ref(ROUND_TYPES.find((r) => r.name === name)!);
 
-/** Real taxonomy rows (production ids), so recommendations score against the live sector tree. */
 const SAMPLE_THESIS: ServerThesis = {
-	sectors: [
-		{ id: 'a4f1d65b-33ec-482a-a9de-e46c01dd2836', name: 'Fan Engagement' },
-		{ id: '8dddaed5-95f3-4d96-9569-fc5878db810a', name: 'Recovery & Injury Prevention' },
-		{ id: '55d31fcd-8802-4f3f-9183-3545aea50a7c', name: 'Tracking & Analytics' },
-	],
-	sports: [{ id: 'f15b372b-4b3b-42cb-869c-a40db20d0fca', name: 'Football / Soccer' }],
-	round_types: [
-		{ id: 'd5cfe586-f001-402a-8d7b-35862d047053', name: 'Series A' },
-		{ id: 'f5ed8eeb-33d5-4e55-bc47-064248942cce', name: 'Seed Round' },
-	],
+	sectors: ['Fan Engagement', 'Recovery & Injury Prevention', 'Tracking & Analytics'].map((n) => ref(sectorByName(n))),
+	sports: [ref(SPORTS[0])],
+	round_types: [roundRef('Seed'), roundRef('Series A')],
 	geo: [{ scope_type: 'continent', scope_value: 'Europe' }],
 	business_models: ['b2b'],
 	cheque_min: 250_000,
-	cheque_max: 1_500_000,
+	cheque_max: 2_000_000,
 	traction_floor: 'Early revenue',
 	invest_style: 'either',
 	exclusions: 'Betting & prediction',
+	include_tags: [],
 };
 
-/** The state a fresh practice run starts in: set up, verified, thesis saved. */
 function sampleState(): ScoutState {
 	const profile: ScoutProfileRow = {
-		id: SAMPLE_PROFILE_ID, profile_id: 'sandbox', claim_id: null, investor_id: SAMPLE_INVESTOR_ID,
-		full_name: 'Jordan Ellis', role_title: 'Partner', linkedin_url: null, photo_url: null,
-		fund_name: 'Kestrel Field Ventures', investor_type: 'venture_capital',
-		fund_website: 'https://kestrelfield.example', location_id: null, hq_country: 'United Kingdom', hq_city: 'London', aum: '€25–100m',
+		id: '5c0e7a10-3f4b-4d2a-9b6e-1a2b3c4d5e01', profile_id: 'demo-user', claim_id: null,
+		// Set = verified (`verification` on /home reads it), so sharing a deal is open.
+		investor_id: '0000001a-0000-4000-8000-000000000001',
+		full_name: 'Alex Morgan', role_title: 'Partner', linkedin_url: null, photo_url: null,
+		fund_name: 'Kestrel Field Ventures', investor_type: 'venture_capital', investor_type_label: 'Venture capital',
+		fund_website: 'https://kestrelfieldventures.example', location_id: null, hq_country: 'United Kingdom', hq_city: 'London', aum: '180000000',
 		setup_completed_at: daysFromNow(-21), created_at: daysFromNow(-21), updated_at: daysFromNow(-2),
 	};
-	return { profile, thesis: SAMPLE_THESIS, drafts: [] };
+	return { profile, thesis: SAMPLE_THESIS, drafts: [], interests: [], watched: [], dismissed: [] };
 }
 
 const HOME_PROMPTS = [
@@ -153,40 +112,23 @@ const HOME_PROMPTS = [
 	'Find European Series A companies',
 ];
 
-// ─── Profile ─────────────────────────────────────────────────────────────────
+// ─── Profile & thesis ────────────────────────────────────────────────────────
 
 const PROFILE_KEYS = [
-	'full_name', 'role_title', 'linkedin_url', 'photo_url',
-	'fund_name', 'investor_type', 'fund_website', 'location_id', 'hq_country', 'hq_city', 'aum',
+	'full_name', 'role_title', 'linkedin_url', 'fund_name', 'investor_type', 'investor_type_label',
+	'fund_website', 'location_id', 'hq_country', 'hq_city', 'aum',
 ] as const;
 
-const newProfileRow = (): ScoutProfileRow => {
-	const now = daysFromNow(0);
-	return {
-		id: crypto.randomUUID(), profile_id: 'sandbox', claim_id: null, investor_id: null,
-		full_name: null, role_title: null, linkedin_url: null, photo_url: null,
-		fund_name: null, investor_type: null, fund_website: null, location_id: null, hq_country: null, hq_city: null, aum: null,
-		setup_completed_at: null, created_at: now, updated_at: now,
-	};
-};
-
-/**
- * `POST` and `PATCH /api/scout` (scout.controller.ts:101-122 → repository
- * upsert): creates the row on first call, writes only the keys present, and
- * `setup_completed: true` stamps `setup_completed_at` once, never clearing it.
- */
+/** `POST`/`PATCH /api/scout`: writes the keys present; `setup_completed: true` stamps once, never clears. */
 function upsertProfile(ctx: SandboxCtx) {
 	if (!isRecord(ctx.body)) return badRequest('expected a JSON object');
 	const body = ctx.body;
 	const state = readState(ctx);
-	const current = state.profile ?? newProfileRow();
-	const changes = Object.fromEntries(
-		PROFILE_KEYS.filter((k) => k in body).map((k) => [k, typeof body[k] === 'string' ? body[k] : null]),
-	);
+	const current = state.profile ?? sampleState().profile!;
+	const changes = Object.fromEntries(PROFILE_KEYS.filter((k) => k in body).map((k) => [k, typeof body[k] === 'string' ? body[k] : null]));
 	const now = daysFromNow(0);
 	const profile: ScoutProfileRow = {
-		...current,
-		...changes,
+		...current, ...changes,
 		setup_completed_at: current.setup_completed_at ?? (body.setup_completed === true ? now : null),
 		updated_at: now,
 	};
@@ -194,353 +136,181 @@ function upsertProfile(ctx: SandboxCtx) {
 	return profile;
 }
 
-// ─── Reference data (public endpoints, cached in memory) ─────────────────────
-
-interface RefRow { id: string; name: string | null; parent_id?: string | null }
-
-const refCache = new Map<string, Promise<RefRow[]>>();
-
-/** `/api/sectors` etc. answer a bare array (or `{data}`). Empty on failure. */
-function reference(ctx: SandboxCtx, path: string): Promise<RefRow[]> {
-	const hit = refCache.get(path);
-	if (hit) return hit;
-	const p = mockFetch(new URL(path, ctx.url.origin), undefined, { quiet: true })
-		.then((r) => (r.ok ? r.json() : []))
-		.then((d: unknown) => (Array.isArray(d) ? d : isRecord(d) && Array.isArray(d.data) ? d.data : []) as RefRow[])
-		.catch(() => {
-			refCache.delete(path);
-			return [] as RefRow[];
-		});
-	refCache.set(path, p);
-	return p;
-}
-
-const REF_PATHS = { sectors: '/api/sectors', sports: '/api/sports', rounds: '/api/round-types' } as const;
-
-/** Ids → `TaxonomyRef`s. Unknown ids are dropped, as the server does; an omitted group is left alone. */
-function refsById(rows: RefRow[], ids: unknown, previous: TaxonomyRef[]): TaxonomyRef[] {
+/** Ids → refs from the world taxonomy; an omitted group keeps its previous value. */
+function refsById(rows: { id: string; name: string }[], ids: unknown, previous: TaxonomyRef[]): TaxonomyRef[] {
 	if (!Array.isArray(ids)) return previous;
 	const byId = new Map(rows.map((r) => [r.id, r]));
-	const known = new Map(previous.map((r) => [r.id, r]));
-	return ids
-		.filter((id): id is string => typeof id === 'string')
-		.map((id) => {
-			const row = byId.get(id);
-			return row ? { id, name: row.name } : known.get(id);
-		})
-		.filter((r): r is TaxonomyRef => !!r)
-		.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+	return ids.map((id) => byId.get(String(id))).filter((r): r is { id: string; name: string } => !!r)
+		.map(ref).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
 }
 
-// ─── Thesis ──────────────────────────────────────────────────────────────────
-
-/** scout.controller.ts:119-122 — readable with or without a row. */
-const getThesis = (ctx: SandboxCtx): ServerThesis => readState(ctx).thesis ?? EMPTY_THESIS;
-
-const pick = <T>(body: Record<string, unknown>, key: string, prev: T, valid: (v: unknown) => boolean): T =>
-	key in body && (body[key] === null || valid(body[key])) ? (body[key] as T) : prev;
-
-/**
- * `PUT /api/scout/thesis` (scout.controller.ts:129-142): creates the workspace
- * if there is none, replaces only the groups named in the body, and returns the
- * stored state.
- */
-async function putThesis(ctx: SandboxCtx) {
+/** `PUT /api/scout/thesis`: replaces only the groups named in the body, returns the stored thesis. */
+function putThesis(ctx: SandboxCtx) {
 	if (!isRecord(ctx.body)) return badRequest('expected a JSON object');
 	const body = ctx.body;
 	const state = readState(ctx);
 	const prev = state.thesis ?? EMPTY_THESIS;
-	const [sectors, sports, rounds] = await Promise.all([
-		reference(ctx, REF_PATHS.sectors), reference(ctx, REF_PATHS.sports), reference(ctx, REF_PATHS.rounds),
-	]);
 	const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 	const isStr = (v: unknown) => typeof v === 'string';
+	const pick = <T>(key: string, previous: T, valid: (v: unknown) => boolean): T =>
+		key in body && (body[key] === null || valid(body[key])) ? (body[key] as T) : previous;
 	const thesis: ServerThesis = {
-		sectors: refsById(sectors, body.sector_ids, prev.sectors),
-		sports: refsById(sports, body.sport_ids, prev.sports),
-		round_types: refsById(rounds, body.round_type_ids, prev.round_types),
+		sectors: refsById(SECTORS, body.sector_ids, prev.sectors),
+		sports: refsById(SPORTS, body.sport_ids, prev.sports),
+		round_types: refsById(ROUND_TYPES, body.round_type_ids, prev.round_types),
 		geo: Array.isArray(body.geo)
 			? body.geo.filter((g): g is ServerThesis['geo'][number] => isRecord(g) && isStr(g.scope_type) && isStr(g.scope_value))
 			: prev.geo,
-		business_models: pick(body, 'business_models', prev.business_models, Array.isArray) ?? [],
-		cheque_min: pick(body, 'cheque_min', prev.cheque_min, isNum),
-		cheque_max: pick(body, 'cheque_max', prev.cheque_max, isNum),
-		traction_floor: pick(body, 'traction_floor', prev.traction_floor, isStr),
-		invest_style: pick(body, 'invest_style', prev.invest_style, isStr),
-		exclusions: pick(body, 'exclusions', prev.exclusions, isStr),
+		business_models: pick('business_models', prev.business_models, Array.isArray) ?? [],
+		cheque_min: pick('cheque_min', prev.cheque_min, isNum),
+		cheque_max: pick('cheque_max', prev.cheque_max, isNum),
+		traction_floor: pick('traction_floor', prev.traction_floor, isStr),
+		invest_style: pick('invest_style', prev.invest_style, isStr),
+		exclusions: pick('exclusions', prev.exclusions, isStr),
+		include_tags: pick('include_tags', prev.include_tags ?? [], Array.isArray) ?? [],
 	};
 	if (thesis.cheque_min != null && thesis.cheque_max != null && thesis.cheque_min > thesis.cheque_max) {
 		return badRequest('cheque_min must not exceed cheque_max');
 	}
-	writeState(ctx, { ...state, profile: state.profile ?? newProfileRow(), thesis });
+	writeState(ctx, { ...state, profile: state.profile ?? sampleState().profile, thesis });
 	return thesis;
 }
 
-// ─── Recommendations (real companies, scored like the server) ────────────────
+// ─── Recommendations, scored against the thesis like the server ─────────────
 
-/** The fields of a public `/api/companies` row this module reads. */
-interface CompanyLite {
-	id: string; name: string; slug: string | null; description: string | null;
-	website: string | null; custom_logo_url: string | null; sector_id: string | null;
-	primary_sector: string | null; hq_city: string | null; hq_country: string | null;
-	total_funding_usd: string | null;
-	/** Sample-only profile detail: the public list carries none of these. */
-	latest_round?: string | null; founded_year?: number | null; business_model?: string | null;
-}
-
-/** Mirrors `RecommendationRow` / `Recommendation` in recommended.tsx. */
+/** Mirrors `Recommendation` in components/scout/recommended.tsx. */
 interface Recommendation {
 	id: string; name: string; slug: string | null; description: string | null;
 	website: string | null; custom_logo_url: string | null; sector: string | null;
-	city: string | null; country: string | null; total_funding_usd: string | null;
-	latest_round: string | null;
-	match_sector: boolean; match_geo: boolean; match_stage: boolean; match_cheque: boolean;
+	city: string | null; country: string | null; total_funding_usd: string | null; latest_round: string | null;
+	match_sector: boolean; match_geo: boolean; match_stage: boolean; match_cheque: boolean; match_activity: boolean;
 	match_count: number;
 }
 
-/** Used only when the public companies list cannot be read. */
-export const FALLBACK_COMPANIES: CompanyLite[] = ([
-	['Pitchside Metrics', 'Computer-vision match analytics for semi-pro football clubs.', 'Tracking & Analytics', 'Leeds', 'United Kingdom', '1800000', 'Seed', 2020, 'b2b'],
-	['Racketry', 'Court booking and league software for padel clubs.', 'Booking & Discovery', 'Valencia', 'Spain', '650000', 'Pre-seed', 2022, 'b2b'],
-	['Fanfold', 'Loyalty and ticketing wallet for mid-tier European clubs.', 'Fan Engagement', 'Hamburg', 'Germany', '2400000', 'Seed', 2021, 'b2b2c'],
-	['Strideline', 'Running gait coaching app built on wearable data.', 'Tracking & Analytics', 'Stockholm', 'Sweden', '900000', 'Pre-seed', 2022, 'b2c'],
-] as const).map(([name, description, sector, city, country, funding, round, founded, model], i) => ({
-	id: `7a1c3e5f-0b2d-4c6e-8f1a-3b5d7f9a1c0${i}`,
-	name, slug: null, description, website: null, custom_logo_url: null, sector_id: null,
-	primary_sector: sector, hq_city: city, hq_country: country, total_funding_usd: funding,
-	latest_round: round, founded_year: founded, business_model: model,
-}));
+/** The thesis picker's regions, by country code. */
+const REGION_OF: Record<string, string> = {
+	DE: 'DACH', AT: 'DACH', CH: 'DACH', GB: 'UK & Ireland', IE: 'UK & Ireland', SE: 'Nordics', DK: 'Nordics',
+	FR: 'France & Benelux', NL: 'France & Benelux', ES: 'Southern Europe', IT: 'Southern Europe', PT: 'Southern Europe', US: 'USA & Canada',
+};
 
-/**
- * Fanfold — the tour's predetermined match. With no backend the public company
- * list is empty, so these four are the recommendations, and Fanfold (sector +
- * geography, first alphabetically among the two-dimension matches) tops them.
- */
-export const SANDBOX_FANFOLD_ID = FALLBACK_COMPANIES[2].id;
-
-const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
-
-function toCompanyLite(raw: unknown): CompanyLite | null {
-	if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.name !== 'string') return null;
-	const funding = raw.total_funding_usd ?? raw.total_funding_usd_cached;
-	return {
-		id: raw.id, name: raw.name, slug: str(raw.slug), description: str(raw.description),
-		website: str(raw.website), custom_logo_url: str(raw.custom_logo_url), sector_id: str(raw.sector_id),
-		primary_sector: str(raw.primary_sector), hq_city: str(raw.hq_city), hq_country: str(raw.hq_country),
-		total_funding_usd: funding == null ? null : String(funding),
-	};
-}
-
-let companyCache: Promise<CompanyLite[]> | null = null;
-
-/** One public fetch per page load. Fictional fallback on failure (not cached, so it retries). */
-function sampleCompanies(ctx: SandboxCtx): Promise<CompanyLite[]> {
-	if (companyCache) return companyCache;
-	const p = mockFetch(new URL(COMPANY_SAMPLE_PATH, ctx.url.origin), undefined, { quiet: true })
-		.then(async (res) => {
-			if (!res.ok) throw new Error(String(res.status));
-			const body: unknown = await res.json();
-			const list = isRecord(body) && Array.isArray(body.data) ? body.data : [];
-			const rows = list.map(toCompanyLite).filter((c): c is CompanyLite => !!c);
-			if (rows.length === 0) throw new Error('empty company list');
-			return rows;
-		})
-		.catch(() => {
-			companyCache = null;
-			return FALLBACK_COMPANIES;
-		});
-	companyCache = p;
-	return p;
-}
-
-/** Country → the region and continent the thesis picker offers. */
-const GEO: Array<[region: string, continent: string, countries: string[]]> = [
-	['DACH', 'Europe', ['Germany', 'Austria', 'Switzerland']],
-	['UK & Ireland', 'Europe', ['United Kingdom', 'UK', 'England', 'Scotland', 'Wales', 'Ireland']],
-	['Nordics', 'Europe', ['Sweden', 'Denmark', 'Norway', 'Finland', 'Iceland']],
-	['France & Benelux', 'Europe', ['France', 'Netherlands', 'Belgium', 'Luxembourg']],
-	['Southern Europe', 'Europe', ['Spain', 'Portugal', 'Italy', 'Greece', 'Malta', 'Cyprus']],
-	['CEE', 'Europe', ['Poland', 'Czech Republic', 'Czechia', 'Slovakia', 'Hungary', 'Romania', 'Bulgaria', 'Croatia', 'Slovenia', 'Serbia', 'Ukraine']],
-	['Baltics', 'Europe', ['Estonia', 'Latvia', 'Lithuania']],
-	['USA & Canada', 'North America', ['United States', 'USA', 'US', 'Canada']],
-];
-
-function geoMatches(country: string | null, geo: ServerThesis['geo']): boolean {
-	if (!country) return false;
-	const c = country.replace(/^the\s+/i, '').trim().toLowerCase();
-	const entry = GEO.find(([, , list]) => list.some((x) => x.toLowerCase() === c));
+function geoMatches(code: string, geo: ServerThesis['geo']): boolean {
+	const c = countryByCode(code);
 	return geo.some((g) => {
 		const v = g.scope_value.toLowerCase();
-		if (g.scope_type === 'country') return v === c;
-		if (g.scope_type === 'region') return !!entry && entry[0].toLowerCase() === v;
-		return (!!entry && entry[1].toLowerCase() === v) || v === 'global';
+		if (g.scope_type === 'country') return v === c.name.toLowerCase();
+		if (g.scope_type === 'region') return (REGION_OF[code] ?? '').toLowerCase() === v;
+		return c.continent.toLowerCase() === v || v === 'global';
 	});
 }
 
-/** True when `id` is `target` or sits under it in the sector tree (the server's `descendants` CTE). */
-function underSector(id: string | null, targets: Set<string>, byId: Map<string, RefRow>): boolean {
-	let cur = id ? byId.get(id) : undefined;
-	if (id && targets.has(id)) return true;
-	for (let guard = 0; cur?.parent_id && guard < 10; guard += 1) {
-		if (targets.has(cur.parent_id)) return true;
-		cur = byId.get(cur.parent_id);
+/** True when the company's sector is a thesis sector or sits under one (the server's `descendants` CTE). */
+function underSector(sectorName: string, targets: Set<string>): boolean {
+	for (let s: (typeof SECTORS)[number] | undefined = sectorByName(sectorName); s; s = SECTORS.find((p) => p.id === s!.parent_id)) {
+		if (targets.has(s.id)) return true;
 	}
 	return false;
 }
 
-/** A company's latest round ("Seed") against the thesis round types ("Seed Round", "Series A"). */
-function roundMatches(round: string | null | undefined, rounds: TaxonomyRef[]): boolean {
-	const r = round?.trim().toLowerCase();
-	return !!r && rounds.some((t) => (t.name ?? '').toLowerCase().startsWith(r));
-}
+const roundsOf = (c: WCompany) => DEALS.filter((d) => d.company === c.name).sort((a, b) => a.daysAgo - b.daysAgo);
+const fundingOf = (c: WCompany) => roundsOf(c).reduce((n, d) => n + (d.amount_usd ?? 0), 0);
 
-/** Scored against the caller's own thesis; an empty thesis matches nothing (server parity). */
-async function recommendations(ctx: SandboxCtx, thesis: ServerThesis): Promise<Recommendation[]> {
-	const [companies, sectors] = await Promise.all([sampleCompanies(ctx), reference(ctx, REF_PATHS.sectors)]);
-	const byId = new Map(sectors.map((s) => [s.id, s]));
+/** Companies the visitor has been searching for and asking about — the "From your activity" chip. */
+const ACTIVITY = new Set(['Kitroom']);
+
+function recommendations(state: ScoutState): Recommendation[] {
+	const thesis = state.thesis ?? EMPTY_THESIS;
 	const sectorIds = new Set(thesis.sectors.map((s) => s.id));
-	const sectorNames = new Set(thesis.sectors.map((s) => (s.name ?? '').toLowerCase()));
-	return companies
+	const rounds = new Set(thesis.round_types.map((r) => (r.name ?? '').toLowerCase()));
+	return COMPANIES
+		.filter((c) => c.status !== 'acquired' && !state.dismissed.includes(c.id))
 		.map((c): Recommendation => {
+			const latest = roundsOf(c).find((d) => d.round !== 'Grant');
 			const flags = {
-				match_sector: c.sector_id
-					? underSector(c.sector_id, sectorIds, byId)
-					: sectorNames.has((c.primary_sector ?? '').toLowerCase()),
-				match_geo: geoMatches(c.hq_country, thesis.geo),
-				// The public list carries no latest round, so stage cannot be shown as
-				// matched — the server's rule for a company with no deal. The sample
-				// companies do carry one, so their profile and their match agree.
-				match_stage: roundMatches(c.latest_round, thesis.round_types),
-				// No ticket size is known for any of them.
-				match_cheque: false,
+				match_sector: underSector(c.sector, sectorIds),
+				match_geo: geoMatches(c.country, thesis.geo),
+				match_stage: !!latest && rounds.has(latest.round.toLowerCase()),
+				// A cheque fits when the last round was small enough for the thesis
+				// cheque to be a meaningful slice of it (≤ 4× the max cheque).
+				match_cheque: !!latest?.amount_usd && thesis.cheque_max != null && latest.amount_usd <= thesis.cheque_max * 4,
 			};
+			const match_activity = ACTIVITY.has(c.name);
+			const country = countryByCode(c.country).name;
 			return {
-				id: c.id, name: c.name, slug: c.slug, description: c.description, website: c.website,
-				custom_logo_url: c.custom_logo_url, sector: c.primary_sector, city: c.hq_city, country: c.hq_country,
-				total_funding_usd: c.total_funding_usd, latest_round: c.latest_round ?? null,
-				...flags, match_count: Object.values(flags).filter(Boolean).length,
+				id: c.id, name: c.name, slug: c.slug, description: c.description, website: c.website, custom_logo_url: null,
+				sector: c.sector, city: c.city, country, total_funding_usd: String(fundingOf(c)), latest_round: latest?.round ?? null,
+				...flags, match_activity, match_count: Object.values(flags).filter(Boolean).length,
 			};
 		})
 		.filter((r) => r.match_count > 0)
-		.sort((a, b) => b.match_count - a.match_count || a.name.localeCompare(b.name));
+		.sort((a, b) => b.match_count - a.match_count || Number(b.match_activity) - Number(a.match_activity) || a.name.localeCompare(b.name));
 }
 
-/** scout.controller.ts:162-169 — 403 until a row exists. */
-async function recommendedRoute(ctx: SandboxCtx) {
+function recommendedRoute(ctx: SandboxCtx) {
 	const state = readState(ctx);
 	if (!state.profile) return notSetUp();
-	const limit = Number(ctx.url.searchParams.get('limit') ?? RECOMMENDED_CAP);
-	const offset = Number(ctx.url.searchParams.get('offset') ?? 0);
-	const take = Math.min(RECOMMENDED_CAP, Number.isFinite(limit) && limit > 0 ? limit : RECOMMENDED_CAP);
-	const start = Number.isFinite(offset) && offset > 0 ? offset : 0;
-	return { data: (await recommendations(ctx, state.thesis ?? EMPTY_THESIS)).slice(start, start + take) };
+	const limit = Math.max(1, Math.min(24, Number(ctx.url.searchParams.get('limit')) || 24));
+	const offset = Math.max(0, Number(ctx.url.searchParams.get('offset')) || 0);
+	return { data: recommendations(state).slice(offset, offset + limit) };
+}
+
+function dismiss(ctx: SandboxCtx, on: boolean) {
+	const state = readState(ctx);
+	const rest = state.dismissed.filter((id) => id !== ctx.params.id);
+	writeState(ctx, { ...state, dismissed: on ? [...rest, ctx.params.id] : rest });
+	return on ? { ok: true } : new Response(null, { status: 204 });
 }
 
 // ─── Home ────────────────────────────────────────────────────────────────────
 
-/** scout-home.service.ts:51-67 — the no-row read-model, verbatim. */
-const HOME_NO_ROW = {
-	needs_setup: true,
-	verification: 'unverified',
-	scout: null,
-	thesis_set: false,
-	snapshot: { watchlist_companies: 0, thesis_dimensions: 0 },
-	attention: [{
-		id: 'onboarding',
-		title: 'Complete your investment thesis',
-		why: 'Tell Atlas what you are looking for to personalise Scout.',
-		cta_label: 'Set up thesis',
-		cta_href: '/thesis',
-	}],
-	prompts: HOME_PROMPTS,
-};
-
-/** `new_matches` server-side: fundraising signals in the last 7 days (scout.repository.ts homeCounts). */
-async function newMatchCount(ctx: SandboxCtx): Promise<number> {
-	try {
-		const res = await mockFetch(new URL('/api/signals?type=fundraising&limit=100', ctx.url.origin), undefined, { quiet: true });
-		if (!res.ok) return 0;
-		const body: unknown = await res.json();
-		const rows = isRecord(body) && Array.isArray(body.data) ? body.data : [];
-		const since = Date.now() - NEW_MATCH_WINDOW_MS;
-		return rows.filter((r) => isRecord(r) && Date.parse(String(r.occurred_at)) >= since).length;
-	} catch {
-		return 0;
-	}
+/** Companies across the visitor's watchlists, read through the shared watchlist route. */
+async function watchlistCompanyCount(): Promise<number> {
+	const body = await mockJson<unknown>('/api/user-watchlists');
+	const lists = Array.isArray(body) ? body : isRecord(body) && Array.isArray(body.data) ? body.data : [];
+	return lists.reduce((n: number, l) => n + (isRecord(l) && typeof l.company_count === 'number' ? l.company_count : 0), 0);
 }
 
-/**
- * Companies across the user's watchlists. Read through the app's own
- * `/api/user-watchlists`, which the sandbox's core routes answer with the sample
- * watchlists, so the count matches the Watchlists page. 0 on failure.
- */
-async function watchlistCompanyCount(ctx: SandboxCtx): Promise<number> {
-	try {
-		const res = await mockFetch(new URL('/api/user-watchlists', ctx.url.origin), undefined, { quiet: true });
-		if (!res.ok) return 0;
-		const body: unknown = await res.json();
-		const lists = isRecord(body) && Array.isArray(body.data) ? body.data : [];
-		return lists.reduce((n: number, l) => n + (isRecord(l) && typeof l.company_count === 'number' ? l.company_count : 0), 0);
-	} catch {
-		return 0;
-	}
-}
-
-/** `ScoutHomeService.build` + `attention()` (scout-home.service.ts:49-171) for a row that exists. */
+/** `ScoutHomeService.build` + `attention()`: at most three cards, server-ranked. */
 async function home(ctx: SandboxCtx) {
-	const { profile, thesis } = readState(ctx);
-	if (!profile) return HOME_NO_ROW;
-	const t = thesis ?? EMPTY_THESIS;
+	const state = readState(ctx);
+	const { profile } = state;
+	if (!profile) return notSetUp();
+	const t = state.thesis ?? EMPTY_THESIS;
 	const dimensions = t.sectors.length + t.sports.length + t.round_types.length + t.geo.length;
-	// Sandbox choice: when the live feed has no fundraising signal this week,
-	// fall back to the thesis matches so the "new matches" card (the tour's
-	// first step) is always there.
-	const [signalMatches, watchlistCompanies] = await Promise.all([newMatchCount(ctx), watchlistCompanyCount(ctx)]);
-	const newMatches = signalMatches || (dimensions > 0 ? (await recommendations(ctx, t)).length : 0);
-	const verification = profile.investor_id ? 'verified' : profile.claim_id ? 'pending' : 'unverified';
+	const strong = recommendations(state).filter((r) => r.match_count >= 3).length;
+	const watchlistCompanies = await watchlistCompanyCount();
 	const attention = [
-		...(!profile.setup_completed_at ? [{
-			id: 'finish-setup', title: 'Finish setting up',
-			why: 'A few more details and Atlas can start matching companies to you.',
-			cta_label: 'Finish setup', cta_href: '/home',
-		}] : []),
-		...(dimensions === 0 ? [{
-			id: 'thesis', title: 'Complete your investment thesis',
-			why: 'Tell Atlas what you are looking for to personalise Scout.',
-			cta_label: 'Set up thesis', cta_href: '/thesis',
-		}] : []),
-		...(dimensions > 0 && newMatches > 0 ? [{
-			id: 'new-matches',
-			title: `${newMatches} ${newMatches === 1 ? 'company matches' : 'companies match'} your thesis`,
+		...(strong > 0 ? [{
+			id: 'new-matches', count: strong,
+			title: `${strong} ${strong === 1 ? 'company matches' : 'companies match'} your thesis`,
 			why: 'Companies identified as actively raising since last week.',
-			cta_label: 'Review matches', cta_href: '/recommended', count: newMatches,
+			cta_label: 'Review matches', cta_href: '/recommended',
 		}] : []),
-		...(dimensions > 0 && watchlistCompanies === 0 ? [{
+		...(watchlistCompanies > 0 ? [{
+			id: 'watchlist-signals', count: 2,
+			title: '2 companies you track have news',
+			why: 'A new round and a fundraising signal on your watchlists this week.',
+			cta_label: 'See signals', cta_href: '/signals',
+		}] : [{
 			id: 'first-watchlist', title: 'Start a watchlist',
 			why: 'Track the companies you are following and Atlas will tell you when they move.',
 			cta_label: 'Browse companies', cta_href: '/companies',
-		}] : []),
+		}]),
+		{
+			id: 'deal-flow', count: SAMPLE_DEALS.length,
+			title: `${SAMPLE_DEALS.length} live raises in Deal Flow`,
+			why: 'Verified raises and deals shared by Investor Circle members.',
+			cta_label: 'Open Deal Flow', cta_href: '/deal-flow',
+		},
 	].slice(0, 3);
 	return {
 		needs_setup: !profile.setup_completed_at,
-		verification,
+		verification: profile.investor_id ? 'verified' : profile.claim_id ? 'pending' : 'unverified',
 		scout: { full_name: profile.full_name, fund_name: profile.fund_name, investor_type: profile.investor_type },
 		thesis_set: dimensions > 0,
 		snapshot: { watchlist_companies: watchlistCompanies, thesis_dimensions: dimensions },
 		attention,
 		prompts: HOME_PROMPTS,
 	};
-}
-
-/** Same rows as the public feed; un-gated by setup server-side (scout.controller.ts:146-157). */
-async function signals(ctx: SandboxCtx) {
-	try {
-		const res = await mockFetch(new URL(`/api/signals${ctx.url.search}`, ctx.url.origin), undefined, { quiet: true });
-		if (!res.ok) throw new Error(String(res.status));
-		return await res.json();
-	} catch {
-		return { data: [] };
-	}
 }
 
 // ─── Deal Flow ───────────────────────────────────────────────────────────────
@@ -558,87 +328,114 @@ const DEAL_BASE: Omit<DealRow, 'id' | 'source' | 'company_name' | 'company_descr
 	disclosed: false, interest_status: null,
 };
 
-/** The featured listing (Stridewise); the guided tour opens it. */
-export const SANDBOX_FEATURED_DEAL_ID = 'd1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a01';
+/** A listing for a world company: name, site, HQ and sector come from fixtures/world.ts. */
+function listing(id: string, name: string, deal: Partial<DealRow>): DealRow {
+	const c = companyByName(name);
+	return {
+		...DEAL_BASE, id, source: 'verified_raise',
+		company_name: c.name, company_website: c.website, company_id: c.id,
+		company_hq: `${c.city}, ${countryByCode(c.country).name}`, sector: c.sector, company_description: c.description,
+		...deal,
+	};
+}
 
-/** Fictional live listings. Money is `::text` on the server, so strings here. */
+/** The featured listing (Matchday Loop); the guided tour opens it. */
+export const SCOUT_FEATURED_DEAL_ID = 'd1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a01';
+
+/** Live listings. Money is `::text` on the server, so strings here. */
 const SAMPLE_DEALS: DealRow[] = [
-	{
-		...DEAL_BASE, id: SANDBOX_FEATURED_DEAL_ID, source: 'verified_raise', is_featured: true,
-		company_name: 'Stridewise', company_website: 'stridewise.example',
-		company_hq: 'Copenhagen, Denmark', sector: 'Tracking & Analytics',
-		company_description: 'Gait analysis for runners from a phone camera, sold to running clubs and physio chains on a per-seat subscription.',
-		round_type: 'Series A', target_amount: '4000000', committed_amount: '2600000',
-		ticket_min: '250000', ticket_max: '1000000', valuation: '€18m pre-money',
-		target_close_date: isoDate(54), lead_status: 'confirmed', lead_investor: 'Nordbrook Capital',
-		member_perspective: '42 paying clubs across four Nordic markets, €1.1m ARR growing 14% month on month. The round funds a German launch and a clinical-grade injury-risk model.',
+	listing(SCOUT_FEATURED_DEAL_ID, 'Matchday Loop', {
+		is_featured: true, round_type: 'Series A extension', currency_code: 'GBP',
+		target_amount: '2500000', committed_amount: '1600000', ticket_min: '250000', ticket_max: '1000000',
+		valuation: '£24m pre-money', valuation_amount: '24000000', valuation_basis: 'pre_money',
+		target_close_date: isoDate(54), lead_status: 'confirmed', lead_investor: 'Brightpost Ventures',
+		member_perspective: '62 lower-league clubs live and 410k monthly active fans. The extension funds a launch in Germany and a sponsor marketplace.',
 		has_deck: true, has_one_pager: true, materials_access: 'immediate',
-	},
-	{
-		...DEAL_BASE, id: 'd1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a02', source: 'verified_raise',
-		company_name: 'Courtline', company_website: 'courtline.example',
-		company_hq: 'Madrid, Spain', sector: 'Booking & Discovery',
-		company_description: 'Booking, payments and league software for padel clubs, live in 310 venues across Spain and Portugal.',
-		target_amount: '1500000', committed_amount: '900000', ticket_min: '100000', ticket_max: '400000',
-		valuation: '€7m pre-money', target_close_date: isoDate(38), lead_status: 'confirmed', lead_investor: 'Sierra Norte Partners',
-		member_perspective: 'Profitable unit economics at club level; 68% of revenue is SaaS. Raising to enter Italy and the UK.',
+	}),
+	listing('d1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a02', 'Courtline', {
+		round_type: 'Series A', target_amount: '4000000', committed_amount: '2200000', ticket_min: '250000', ticket_max: '1000000',
+		valuation: '€16m pre-money', valuation_amount: '16000000', valuation_basis: 'pre_money',
+		target_close_date: isoDate(38), lead_status: 'confirmed', lead_investor: 'Halfway Line Partners',
+		member_perspective: 'Running 300+ padel clubs in Spain with 68% of revenue from software. Raising to enter Italy and the UK.',
 		has_deck: true, materials_access: 'immediate',
-	},
-	{
-		...DEAL_BASE, id: 'd1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a03', source: 'verified_raise',
-		company_name: 'Matchday Loop', company_website: 'matchdayloop.example',
-		company_hq: 'Manchester, United Kingdom', sector: 'Fan Engagement',
-		company_description: 'White-label loyalty and matchday rewards for second-tier football clubs, paid per active fan.',
-		target_amount: '2000000', committed_amount: '1150000',
-		valuation: 'Not disclosed', target_close_date: isoDate(71), lead_status: 'seeking',
-		member_perspective: '19 clubs signed, 240k monthly active fans. Seeking a lead for the remaining €850k.',
+	}),
+	listing('d1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a03', 'Goalsight', {
+		round_type: 'Series A', target_amount: '3000000', committed_amount: '900000',
+		valuation: 'Not disclosed', valuation_undisclosed: true, target_close_date: isoDate(71), lead_status: 'seeking',
+		member_perspective: 'Used by 40 academies in Portugal and Spain. Seeking a lead for a €3m Series A to expand into the UK.',
 		has_deck: true, has_one_pager: true, materials_access: 'on_request',
-	},
+	}),
 	{
-		...DEAL_BASE, id: 'd1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a04', source: 'circle',
-		company_name: null, company_anonymous: true,
-		company_hq: 'Munich, Germany', sector: 'Tracking & Analytics',
+		...DEAL_BASE, id: 'd1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a04', source: 'circle', company_name: null, company_anonymous: true,
+		company_hq: 'Munich, Germany', sector: 'Wearables',
 		company_description: 'Wearable load monitoring built for women’s football, with cycle-aware training recommendations.',
-		target_amount: '2500000', committed_amount: '1400000',
-		target_close_date: isoDate(46), lead_status: 'confirmed',
+		target_amount: '2500000', committed_amount: '1400000', target_close_date: isoDate(46), lead_status: 'confirmed',
 		submitter_anonymous: true, member_relationship: 'investing_this_round', member_commitment: '300000',
-		member_perspective: 'Working with three Frauen-Bundesliga clubs and one national federation. We are taking €300k of the round.',
+		member_perspective: 'Working with three top-flight women’s clubs and one national federation. We are taking €300k of the round.',
 		has_deck: true, materials_access: 'immediate',
 	},
-	{
-		...DEAL_BASE, id: 'd1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a05', source: 'circle',
-		company_name: 'Kitroom', company_website: 'kitroom.example',
-		company_hq: 'Amsterdam, Netherlands', sector: 'Team & Club Management',
-		company_description: 'B2B marketplace for grassroots teamwear: clubs design kits, suppliers bid, members order direct.',
-		round_type: 'Pre-seed', instrument: 'safe', target_amount: '750000', committed_amount: '480000',
-		valuation: '€4.5m cap', target_close_date: isoDate(29), lead_status: 'not_required',
+	listing('d1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a05', 'Kitroom', {
+		source: 'circle', round_type: 'Seed extension', instrument: 'safe', target_amount: '1000000', committed_amount: '650000',
+		valuation: '€12m cap', valuation_amount: '12000000', valuation_basis: 'cap', target_close_date: isoDate(29), lead_status: 'not_required',
 		submitter_name: 'Maren Holt', member_relationship: 'existing_investor', member_commitment: '75000',
-		member_perspective: 'I backed the angel round. GMV tripled in the last two quarters with no paid acquisition.',
+		member_perspective: 'I backed the pre-seed. Clubs on Kitroom see 9% higher season-ticket renewals; the extension funds two more leagues.',
 		has_one_pager: true, materials_access: 'on_request',
-	},
-	{
-		...DEAL_BASE, id: 'd1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a06', source: 'circle',
-		company_name: 'Tidepool Sport', company_website: 'tidepoolsport.example',
-		company_hq: 'Lisbon, Portugal', sector: 'Media Production',
-		company_description: 'Automated multi-camera production for surf and open-water events, licensed to organisers and broadcasters.',
-		target_amount: '1200000', target_close_date: isoDate(63), lead_status: 'seeking',
+	}),
+	listing('d1f0a3b2-4c5d-4e6f-8a7b-9c0d1e2f3a06', 'Stridewise', {
+		source: 'circle', round_type: 'Series A', target_amount: '2000000', committed_amount: '800000',
+		target_close_date: isoDate(63), lead_status: 'seeking',
 		submitter_name: 'Tomás Reis', member_relationship: 'advisor_or_board',
-		member_perspective: 'Advisor since 2025. Strong pipeline with two world-tour events; needs a sector-specialist lead.',
+		member_perspective: 'Advisor since the seed. Strong pull from running clubs in the Netherlands; needs a lead who knows consumer hardware.',
 		materials_access: 'on_request',
-	},
+	}),
 ];
 
+/** The listing as this visitor sees it: their watch and intro request folded in. */
+function forViewer(d: DealRow, state: ScoutState): DealRow {
+	return { ...d, is_watched: state.watched.includes(d.id), interest_status: state.interests.includes(d.id) ? 'received' : null };
+}
+
+function dealList(ctx: SandboxCtx) {
+	const state = readState(ctx);
+	const tab = ctx.url.searchParams.get('tab') ?? 'all';
+	const limit = Math.min(50, Math.max(1, Number(ctx.url.searchParams.get('limit')) || 20));
+	const offset = Math.max(0, Number(ctx.url.searchParams.get('offset')) || 0);
+	const rows = SAMPLE_DEALS.filter((d) => (
+		tab === 'featured' ? d.is_featured : tab === 'verified' ? d.source === 'verified_raise' : tab === 'circle' ? d.source === 'circle' : true
+	));
+	return { data: rows.slice(offset, offset + limit).map((d) => forViewer(d, state)) };
+}
+
+const findDeal = (id: string | undefined) => SAMPLE_DEALS.find((d) => d.id === id);
+
+/** Documents open the bundled sample PDF — only those the real server would release. */
+function documentRoute(ctx: SandboxCtx, which: 'deck' | 'one_pager') {
+	const d = findDeal(ctx.params.id);
+	const present = which === 'deck' ? d?.has_deck : d?.has_one_pager;
+	const allowed = !!d && (d.disclosed || (d.materials_access === 'immediate' && !d.company_anonymous));
+	if (!d || !present || !allowed) return notFound();
+	return { url: '/sample/sample-deck.pdf' };
+}
+
+function setWatch(ctx: SandboxCtx, on: boolean) {
+	if (!findDeal(ctx.params.id)) return notFound();
+	const state = readState(ctx);
+	const rest = state.watched.filter((id) => id !== ctx.params.id);
+	writeState(ctx, { ...state, watched: on ? [...rest, ctx.params.id] : rest });
+	return { watched: on };
+}
+
+/** Every column `toPayload` (components/scout/deal-draft-codec.ts) sends. */
 const DEAL_KEYS = [
 	'company_id', 'company_name', 'company_website', 'company_description', 'company_hq', 'sector_id',
 	'founder_contact_name', 'founder_contact_email', 'founder_contact_phone',
 	'round_type', 'instrument', 'currency_code', 'target_amount', 'committed_amount',
-	'ticket_min', 'ticket_max', 'valuation', 'target_close_date', 'lead_status', 'lead_investor',
+	'valuation', 'valuation_amount', 'valuation_basis', 'valuation_undisclosed', 'target_close_date', 'lead_status', 'lead_investor',
 	'member_relationship', 'member_commitment', 'member_perspective',
-	'submitter_anonymous', 'company_anonymous', 'materials_access', 'deck_path', 'one_pager_path',
-	'founder_consent',
+	'materials_access', 'deck_path', 'one_pager_path', 'founder_consent',
 ] as const;
 
-/** `POST /api/scout/dealflow` (id = null) and `PATCH /:id`: 403 without a row, then write only the keys present. */
+/** `POST /dealflow` (id null) and `PATCH /dealflow/:id`: drafts and returned deals only. */
 function upsertDraft(ctx: SandboxCtx, id: string | null) {
 	const state = readState(ctx);
 	if (!state.profile) return notSetUp();
@@ -657,36 +454,48 @@ function upsertDraft(ctx: SandboxCtx, id: string | null) {
 		return row;
 	}
 	const existing = state.drafts.find((m) => m.id === id);
-	// The server scopes the UPDATE by owner and status; anything else is a 404.
 	if (!existing || !['draft', 'changes_requested'].includes(existing.status)) return notFound();
 	const updated: DraftDeal = { ...existing, ...changes, updated_at: now };
 	writeState(ctx, { ...state, drafts: state.drafts.map((m) => (m.id === id ? updated : m)) });
 	return updated;
 }
 
-/** Readable without a row — the server uses `scoutIdOrNull` (scout-dealflow.controller.ts:50-53). */
-function dealList(ctx: SandboxCtx) {
-	const tab = ctx.url.searchParams.get('tab') ?? 'all';
-	const limit = Math.min(50, Math.max(1, Number(ctx.url.searchParams.get('limit')) || 20));
-	const offset = Math.max(0, Number(ctx.url.searchParams.get('offset')) || 0);
-	const rows = SAMPLE_DEALS.filter((d) => (
-		tab === 'featured' ? d.is_featured
-			: tab === 'verified' ? d.source === 'verified_raise'
-				: tab === 'circle' ? d.source === 'circle'
-					: true
-	));
-	return { data: rows.slice(offset, offset + limit) };
+/** `POST /:id/submit`: a draft with founder consent goes to review (`pending`). */
+function submitDraft(ctx: SandboxCtx) {
+	const state = readState(ctx);
+	if (!state.profile) return notSetUp();
+	const row = state.drafts.find((m) => m.id === ctx.params.id);
+	if (!row) return notFound();
+	if (!row.founder_consent) return badRequest('founder consent is required');
+	const now = daysFromNow(0);
+	const submitted: DraftDeal = { ...row, status: 'pending', submitted_at: now, updated_at: now };
+	writeState(ctx, { ...state, drafts: state.drafts.map((m) => (m.id === row.id ? submitted : m)) });
+	return submitted;
 }
 
-const findDeal = (id: string | undefined) => SAMPLE_DEALS.find((d) => d.id === id);
+/** `PATCH /:id/live`: committed amount, lead status and close date of your own live deal; blank = no change. */
+function patchLive(ctx: SandboxCtx) {
+	const state = readState(ctx);
+	const row = state.drafts.find((m) => m.id === ctx.params.id);
+	if (!row || row.status !== 'live' || !isRecord(ctx.body)) return notFound();
+	const b = ctx.body;
+	const updated: DraftDeal = {
+		...row,
+		committed_amount: (b.committed_amount as MyDealRow['committed_amount']) ?? row.committed_amount,
+		lead_status: (b.lead_status as string | null) ?? row.lead_status,
+		target_close_date: (b.target_close_date as string | null) ?? row.target_close_date,
+		updated_at: daysFromNow(0),
+	};
+	writeState(ctx, { ...state, drafts: state.drafts.map((m) => (m.id === row.id ? updated : m)) });
+	return updated;
+}
 
-/** Documents open the bundled sample PDF — only for documents the real server would release. */
-function documentRoute(ctx: SandboxCtx, which: 'deck' | 'one_pager') {
-	const d = findDeal(ctx.params.id);
-	const present = which === 'deck' ? d?.has_deck : d?.has_one_pager;
-	const allowed = !!d && (d.disclosed || (d.materials_access === 'immediate' && !d.company_anonymous));
-	if (!d || !present || !allowed) return notFound();
-	return { url: '/sample/sample-deck.pdf' };
+function requestIntro(ctx: SandboxCtx) {
+	if (!findDeal(ctx.params.id)) return notFound();
+	const state = readState(ctx);
+	writeState(ctx, { ...state, interests: [...new Set([...state.interests, ctx.params.id])] });
+	// Requesting an introduction grants nothing: `disclosed` stays false.
+	return { deal_id: ctx.params.id, status: 'received', disclosed: false };
 }
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
@@ -695,40 +504,42 @@ function documentRoute(ctx: SandboxCtx, which: 'deck' | 'one_pager') {
 export const scoutSandboxRoutes: SandboxRoute[] = [
 	// Profile & thesis — the wizard's requests (use-thesis.ts `save`)
 	['GET', '/api/scout', (ctx) => json(readState(ctx).profile)],
-	['POST', '/api/scout', (ctx) => upsertProfile(ctx)],
-	['PATCH', '/api/scout', (ctx) => upsertProfile(ctx)],
-	['GET', '/api/scout/thesis', (ctx) => getThesis(ctx)],
-	['PUT', '/api/scout/thesis', (ctx) => putThesis(ctx)],
+	['POST', '/api/scout', upsertProfile],
+	['PATCH', '/api/scout', upsertProfile],
+	['GET', '/api/scout/thesis', (ctx) => readState(ctx).thesis ?? EMPTY_THESIS],
+	['PUT', '/api/scout/thesis', putThesis],
 
 	// Discover
-	['GET', '/api/scout/home', (ctx) => home(ctx)],
-	['GET', '/api/scout/recommended', (ctx) => recommendedRoute(ctx)],
-	['GET', '/api/scout/signals', (ctx) => signals(ctx)],
+	['GET', '/api/scout/home', home],
+	['GET', '/api/scout/recommended', recommendedRoute],
+	['POST', '/api/scout/recommended/:id/dismiss', (ctx) => dismiss(ctx, true)],
+	['DELETE', '/api/scout/recommended/:id/dismiss', (ctx) => dismiss(ctx, false)],
+	// Same rows as the public feed (shared core-routes.ts), Scout-tier only on the server.
+	['GET', '/api/scout/signals', async (ctx) => (await mockJson(`/api/signals${ctx.url.search}`)) ?? { data: [] }],
 
-	// Deal Flow — reads work without a row (server parity); writes need one
-	['GET', '/api/scout/dealflow', (ctx) => dealList(ctx)],
+	// Deal Flow
+	['GET', '/api/scout/dealflow', dealList],
 	['GET', '/api/scout/dealflow/mine', (ctx) => ({ data: readState(ctx).drafts })],
-	['GET', '/api/scout/dealflow/interest', (ctx) => ({ data: (readState(ctx).interests ?? []).map((deal_id) => ({ deal_id, status: 'requested', created_at: daysFromNow(0) })) })],
-	// Sandbox choice: eligible once a workspace exists, so drafting can be tried.
-	['GET', '/api/scout/dealflow/can-submit', (ctx) => ({ can_submit: !!readState(ctx).profile })],
+	['GET', '/api/scout/dealflow/interest', (ctx) => ({ data: readState(ctx).interests.map((deal_id) => ({ deal_id, status: 'received', created_at: daysFromNow(0) })) })],
+	['GET', '/api/scout/dealflow/can-submit', (ctx) => ({ can_submit: !!readState(ctx).profile?.investor_id })],
 	['POST', '/api/scout/dealflow', (ctx) => upsertDraft(ctx, null)],
-	['GET', '/api/scout/dealflow/:id', (ctx) => findDeal(ctx.params.id) ?? notFound()],
+	['GET', '/api/scout/dealflow/:id', (ctx) => {
+		const d = findDeal(ctx.params.id);
+		return d ? forViewer(d, readState(ctx)) : notFound();
+	}],
 	['PATCH', '/api/scout/dealflow/:id', (ctx) => upsertDraft(ctx, ctx.params.id)],
+	['PATCH', '/api/scout/dealflow/:id/live', patchLive],
+	['PUT', '/api/scout/dealflow/:id/watch', (ctx) => setWatch(ctx, true)],
+	['DELETE', '/api/scout/dealflow/:id/watch', (ctx) => setWatch(ctx, false)],
 	['GET', '/api/scout/dealflow/:id/deck-url', (ctx) => documentRoute(ctx, 'deck')],
 	['GET', '/api/scout/dealflow/:id/one-pager-url', (ctx) => documentRoute(ctx, 'one_pager')],
-	['POST', '/api/scout/dealflow/:id/interest', (ctx) => {
-		if (!findDeal(ctx.params.id)) return notFound();
-		const state = readState(ctx);
-		writeState(ctx, { ...state, interests: [...new Set([...(state.interests ?? []), ctx.params.id])] });
-		return { deal_id: ctx.params.id, status: 'requested' };
-	}],
-	['POST', '/api/scout/dealflow/:id/submit', (ctx) => {
-		const state = readState(ctx);
-		if (!state.profile) return notSetUp();
-		const row = state.drafts.find((m) => m.id === ctx.params.id);
-		if (!row) return notFound();
-		const submitted: DraftDeal = { ...row, status: 'submitted', submitted_at: daysFromNow(0), updated_at: daysFromNow(0) };
-		writeState(ctx, { ...state, drafts: state.drafts.map((m) => (m.id === row.id ? submitted : m)) });
-		return submitted;
-	}],
+	['POST', '/api/scout/dealflow/:id/interest', requestIntro],
+	['POST', '/api/scout/dealflow/:id/submit', submitDraft],
 ];
+
+/** Used by core-routes until the shared fork drops it. Kept compatible: the world's companies, in the old shape. */
+export const FALLBACK_COMPANIES = COMPANIES.map((c) => ({
+	id: c.id, name: c.name, slug: c.slug, description: c.description, website: c.website, custom_logo_url: null,
+	sector_id: sectorByName(c.sector).id, primary_sector: c.sector, hq_city: c.city, hq_country: countryByCode(c.country).name,
+	total_funding_usd: String(fundingOf(c)), latest_round: roundsOf(c)[0]?.round ?? null, founded_year: c.founded, business_model: c.model,
+}));

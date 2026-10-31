@@ -127,7 +127,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 			<style>{AI_MD_CSS}</style>
 
 			<div className="raise-chatpage-main">
-				<div className="raise-chatpage-transcript" ref={bodyRef}>
+				<div className="raise-chatpage-transcript" ref={bodyRef} data-tour="chat-thread">
 					<div className="raise-chatpage-thread">
 						{loading
 							? <div className="raise-chatpage-loading" role="status">Loading conversation…</div>
@@ -137,7 +137,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 								rewritePath={isScout ? scoutRewritePath : founderRewritePath}
 							/>}
 						{!hasThread && (
-							<div className="raise-chatpage-suggest">
+							<div className="raise-chatpage-suggest" data-tour="chat-suggestions">
 								{(isScout ? SCOUT_SUGGESTIONS : tier === 'raise' ? RAISE_SUGGESTIONS : EXPLORE_SUGGESTIONS).map((s) => (
 									<button key={s} type="button" className="atlas-composer-chip" onClick={() => void send(s)}>{s}</button>
 								))}
@@ -145,7 +145,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 						)}
 					</div>
 				</div>
-				<div className="raise-chatpage-composer">
+				<div className="raise-chatpage-composer" data-tour="chat-composer">
 					<RaiseSearch
 						value={input}
 						onChange={setInput}
@@ -159,7 +159,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 				</div>
 			</div>
 
-			<aside className="raise-chatpage-rail">
+			<aside className="raise-chatpage-rail" data-tour="chat-history">
 				<div className="raise-chatpage-railhead">
 					<Button variant="primary" className="raise-chatpage-new" onClick={newChat}>
 						<Plus strokeWidth={1.5} /> New chat

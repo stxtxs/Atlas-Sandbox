@@ -75,6 +75,7 @@ function RoundCard({ r }: { r: Round }) {
 
 	return (
 		<FeedCard
+			data-tour="raise-home-round"
 			tag={roundName ?? 'Your round'}
 			icon={Hourglass}
 			title={title}
@@ -126,14 +127,14 @@ export function RaiseHome() {
 				<div className="raise-hero-inner">
 					<H1 className="raise-hero-title">{greeting}, {greetName}</H1>
 					<p className="raise-hero-sub">What would you like to work on?</p>
-					<RaiseSearch value={q} onChange={setQ} onSubmit={() => goChat(q)} suggestions={RAISE_SUGGESTIONS} onSuggestion={goChat} />
+					<div data-tour="raise-home-composer"><RaiseSearch value={q} onChange={setQ} onSubmit={() => goChat(q)} suggestions={RAISE_SUGGESTIONS} onSuggestion={goChat} /></div>
 				</div>
 			</section>
 
 			<section className="raise-attn">
 				<SectionHead title="What needs your attention" />
 				{(showRound || data.attention.length > 0) && (
-					<div className="atlas-feed-grid">
+					<div className="atlas-feed-grid" data-tour="raise-home-attention">
 						{showRound && <RoundCard r={data.raise!} />}
 						{data.attention.map((a) => {
 							const t = ATTENTION_TAG[a.id] ?? DEFAULT_TAG;

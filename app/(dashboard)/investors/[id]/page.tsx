@@ -97,7 +97,7 @@ export default function InvestorProfilePage() {
 					</div>
 				</div>
 				{(record || isRaise) && (
-					<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+					<div style={{ display: 'flex', alignItems: 'center', gap: 12 }} data-tour="investor-save">
 						{record && <Badge tone="navy">{STAGE_LABEL[record.stage] ?? record.stage}</Badge>}
 						{isRaise && <SaveInvestorToWatchlist investorId={inv.id} investorName={inv.name} align="end" />}
 					</div>
@@ -109,7 +109,7 @@ export default function InvestorProfilePage() {
 			{record && <PipelineRecord key={`${record.id}:${record.stage}`} record={record} onChanged={() => void refreshPipeline()} />}
 
 			<div className="atlas-eyebrow" style={{ margin: record ? '32px 0 14px' : '0 0 14px' }}>{record ? 'About this investor' : ''}</div>
-			<div className="atlas-kpis" style={{ marginBottom: 24 }}>
+			<div className="atlas-kpis" style={{ marginBottom: 24 }} data-tour="investor-kpis">
 				<Tile label="Stages" value={stages} />
 				<Tile label="Typical cheque size" value="Not confirmed" muted />
 				<Tile label="Geography" value={geoText} />
@@ -163,24 +163,24 @@ function PipelineRecord({ record, onChanged }: { record: Pipe; onChanged: () => 
 	};
 
 	return (
-		<Card focus glow="blue" style={{ padding: '22px 23px 24px' }}>
+		<div data-tour="investor-record"><Card focus glow="blue" style={{ padding: '22px 23px 24px' }}>
 			<div style={{ fontSize: 18, fontFamily: 'var(--a-font)', fontWeight: 700, marginBottom: 20 }}>Your watchlist record</div>
 			<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
 				<Field label="Stage"><Select value={f.stage} onChange={(e) => set('stage', e.target.value)} options={STAGES} /></Field>
-				<Field label="Relevant contact"><Input value={f.contact_name ?? ''} onChange={(e) => set('contact_name', e.target.value)} /></Field>
+				<Field label="Relevant contact"><Input data-tour="investor-record-contact" value={f.contact_name ?? ''} onChange={(e) => set('contact_name', e.target.value)} /></Field>
 				<Field label="Potential investment"><Input type="number" min={0} value={(f.potential_amount as string) ?? ''} onChange={(e) => set('potential_amount', e.target.value)} /></Field>
 				<Field label="Next step"><Input value={f.next_step ?? ''} onChange={(e) => set('next_step', e.target.value)} /></Field>
 				<Field label="Next step due"><DatePicker value={f.next_step_due ?? ''} onChange={(v) => set('next_step_due', v)} /></Field>
 				<Field label="Notes"><Input value={f.notes ?? ''} onChange={(e) => set('notes', e.target.value)} /></Field>
 			</div>
 			<div style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
-				<Button size="sm" disabled={busy} onClick={() => void save({ stage: f.stage, contact_name: f.contact_name || null, potential_amount: f.potential_amount || null, next_step: f.next_step || null, next_step_due: f.next_step_due || null, notes: f.notes || null })}>{busy ? <Loader2 className="animate-spin" size={13} /> : 'Save changes'}</Button>
+				<Button size="sm" data-tour="investor-record-save" disabled={busy} onClick={() => void save({ stage: f.stage, contact_name: f.contact_name || null, potential_amount: f.potential_amount || null, next_step: f.next_step || null, next_step_due: f.next_step_due || null, notes: f.notes || null })}>{busy ? <Loader2 className="animate-spin" size={13} /> : 'Save changes'}</Button>
 				<Button size="sm" variant="danger" disabled={busy} onClick={() => void save({ is_archived: true })}><Archive size={13} /> Archive investor</Button>
 			</div>
 
 			<hr className="atlas-divider" style={{ margin: '22px 0 16px' }} />
 			<div className="atlas-eyebrow" style={{ marginBottom: 6 }}>Activity history</div>
-			<div>
+			<div data-tour="investor-activity">
 				{(act?.data ?? []).map((a, i) => (
 					<div key={i} style={{ fontSize: 12, color: 'var(--a-muted)', display: 'flex', justifyContent: 'space-between', gap: 10, padding: '11px 0', borderTop: i === 0 ? 'none' : '1px solid var(--a-border)' }}>
 						<span>{describe(a)}</span><span style={{ color: 'var(--a-faint)', fontFamily: 'var(--a-mono)', fontSize: 10, letterSpacing: '0.05em' }}>{new Date(a.occurred_at).toLocaleDateString()}</span>
@@ -188,7 +188,7 @@ function PipelineRecord({ record, onChanged }: { record: Pipe; onChanged: () => 
 				))}
 				{(act?.data?.length ?? 0) === 0 && <div style={{ fontSize: 12, color: 'var(--a-faint)', padding: '11px 0' }}>No activity yet.</div>}
 			</div>
-		</Card>
+		</Card></div>
 	);
 }
 

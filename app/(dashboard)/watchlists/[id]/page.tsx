@@ -42,7 +42,7 @@ export default function Page() {
 		<Screen>
 			<SectionHeader
 				actions={isScout
-					? <Seg ariaLabel="Watchlist view" value={view} onChange={setView} options={[{ key: 'list', label: 'List' }, { key: 'board', label: 'Board' }]} />
+					? <Seg ariaLabel="Watchlist view" data-tour="watchlist-view-toggle" value={view} onChange={setView} options={[{ key: 'list', label: 'List' }, { key: 'board', label: 'Board' }]} />
 					: undefined}
 			/>
 			{board

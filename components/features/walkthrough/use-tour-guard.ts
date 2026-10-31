@@ -46,6 +46,9 @@ export function useTourGuard(allowed: string[], pointerOnly: boolean, dropOn?: s
 		// `dragFrom` can be picked up (press + drag) but not clicked — its links stay dead.
 		const dragOk = dragFrom ? [dragFrom] : [];
 		const onPointer = (e: Event) => {
+			// The app's own programmatic clicks (an export's or a download's
+			// `a.click()`) aren't the visitor acting — let them through.
+			if (!e.isTrusted) return;
 			if (within(e.target, pointerOk)) return;
 			if (DRAG_EVENTS.has(e.type) && within(e.target, dragOk)) return;
 			swallow(e);

@@ -56,7 +56,7 @@ export function SaveToWatchlist({ companyId, companyName }: { companyId: string;
 	};
 
 	return (
-		<div className="atlas-fbar__anchor" ref={ref}>
+		<div className="atlas-fbar__anchor" ref={ref} data-tour="company-save">
 			<button type="button" className="atlas-action atlas-action--save" aria-haspopup="dialog" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
 				<span className="atlas-action__icon"><Bookmark fill={inCount ? 'currentColor' : 'none'} /></span>
 				<span className="atlas-action__label">{inCount ? `In ${inCount} watchlist${inCount === 1 ? '' : 's'}` : 'Add to watchlist'}</span>

@@ -10,8 +10,10 @@ import { PICK_LISTS } from './sample-data';
  * chip sets (single / multi select) and the full-list picker behind "+ Add".
  */
 
-export function ChipSet({ options, value, onToggle, wide }: {
+export function ChipSet({ options, value, onToggle, wide, 'data-tour': dataTour }: {
 	options: string[];
+	/** Guided-tour anchor (lib/sandbox/tours). */
+	'data-tour'?: string;
 	/** Selected option(s). */
 	value: string | string[];
 	onToggle: (option: string) => void;
@@ -20,9 +22,9 @@ export function ChipSet({ options, value, onToggle, wide }: {
 }) {
 	const on = (o: string) => (Array.isArray(value) ? value.includes(o) : value === o);
 	return (
-		<div className={cx('scout-chips', wide && 'scout-chips--wide')}>
+		<div className={cx('scout-chips', wide && 'scout-chips--wide')} data-tour={dataTour}>
 			{options.map((o) => (
-				<button key={o} type="button" className={cx('scout-chip', on(o) && 'on')} aria-pressed={on(o)} onClick={() => onToggle(o)}>{o}</button>
+				<button key={o} type="button" data-value={o} className={cx('scout-chip', on(o) && 'on')} aria-pressed={on(o)} onClick={() => onToggle(o)}>{o}</button>
 			))}
 		</div>
 	);

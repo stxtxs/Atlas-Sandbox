@@ -70,12 +70,12 @@ export function MyMarket() {
 	return (
 		<>
 			<div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-				<Button variant="outline" size="sm" disabled={recomputing} onClick={() => void recompute()}>
+				<Button variant="outline" size="sm" data-tour="my-market-recompute" disabled={recomputing} onClick={() => void recompute()}>
 					{recomputing ? <Loader2 className="animate-spin" size={13} /> : <RefreshCw size={13} />} Recompute
 				</Button>
 			</div>
 
-			<div className="atlas-kpis">
+			<div className="atlas-kpis" data-tour="my-market-kpis">
 				<Kpi label="Total market (TAM)" value={eur(data.tam)} note={sizeNote(data.tam)} />
 				<Kpi label="Addressable market (SAM)" value={eur(data.sam)} note={sizeNote(data.sam)} />
 				<Kpi label="Market growth" value={data.cagr != null ? `${Number(data.cagr).toFixed(1)}% CAGR` : '—'} />
@@ -83,17 +83,17 @@ export function MyMarket() {
 				<Kpi label="Total funding raised" value={usd(g?.total_funding_usd)} />
 			</div>
 
-			<div style={{ marginTop: 36 }}>
+			<div style={{ marginTop: 36 }} data-tour="my-market-tabs">
 				<Tabs tabs={[{ key: 'size', label: 'Market size' }, { key: 'competitors', label: 'Competitors' }]} value={tab} onChange={setTab} />
 			</div>
 
 			{tab === 'size' ? (
 				<div style={{ marginTop: 27, display: 'grid', gap: 20 }}>
 					{data.classification && (
-						<Card glow="blue">
+						<div data-tour="my-market-classification"><Card glow="blue">
 							<div className="atlas-eyebrow">Your market classification</div>
 							<div style={{ fontSize: 18, fontFamily: 'var(--a-font)', fontWeight: 700, marginTop: 12 }}>{data.classification}</div>
-						</Card>
+						</Card></div>
 					)}
 					{data.insight_md && (
 						<Card>
@@ -121,7 +121,7 @@ export function MyMarket() {
 			) : (
 				<div style={{ marginTop: 27 }}>
 					{competitors.length === 0 ? <Empty>No competitors mapped yet.</Empty> : (
-						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))', gap: 16 }}>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))', gap: 16 }} data-tour="my-market-competitors">
 							{competitors.map((c) => (
 								<Link key={c.id} href={companyHref(c.id)} className="atlas-card atlas-entity-card" style={{ minHeight: 120, textDecoration: 'none', color: 'inherit' }}>
 									<div className="atlas-entity-card__head" style={{ marginBottom: 12 }}>

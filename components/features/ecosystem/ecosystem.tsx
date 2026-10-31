@@ -122,7 +122,7 @@ export function ProgramsList() {
 				: view === 'cards'
 					? <CardGrid>{rows.map((e) => <EcoCard key={e.id} e={e} onOpen={() => setProgramId(e.id)} />)}</CardGrid>
 					: (
-					<div className="atlas-table" role="table">
+					<div className="atlas-table" role="table" data-tour="programs-table">
 						<div className="atlas-table__head">
 							<span className="atlas-table__name">Program</span>
 							<span className="atlas-table__col hide-sm" style={{ width: 120 }}>Type</span>
@@ -325,7 +325,7 @@ function ViewToggle({ view, onChange }: { view: EventView; onChange: (v: EventVi
 		{ key: 'cards', icon: LayoutGrid, label: 'Cards' },
 	];
 	return (
-		<div className="ecal-view-toggle">
+		<div className="ecal-view-toggle" data-tour="events-view">
 			{views.map(({ key, icon: Icon, label }) => (
 				<button
 					key={key}
@@ -350,7 +350,7 @@ function CalendarNav({ year, month, onPrev, onNext, onToday }: {
 	year: number; month: number; onPrev: () => void; onNext: () => void; onToday: () => void;
 }) {
 	return (
-		<div className="ecal-nav">
+		<div className="ecal-nav" data-tour="events-calendar-nav">
 			<button type="button" className="atlas-btn atlas-btn--outline ecal-nav__today" onClick={onToday}>Today</button>
 			<button type="button" className="ecal-nav__arrow" onClick={onPrev} aria-label="Previous month"><ChevronLeft size={18} /></button>
 			<button type="button" className="ecal-nav__arrow" onClick={onNext} aria-label="Next month"><ChevronRight size={18} /></button>
@@ -414,7 +414,7 @@ function CalendarGrid({ year, month, events }: { year: number; month: number; ev
 	const [expanded, setExpanded] = useState<number | null>(null);
 
 	return (
-		<div className="ecal">
+		<div className="ecal" data-tour="events-calendar">
 			<div className="ecal__header">
 				{DAY_HEADERS.map((d) => <div key={d} className="ecal__dow">{d}</div>)}
 			</div>
@@ -467,7 +467,7 @@ function CalendarEvent({ event }: { event: Eco }) {
 function EventsTable({ rows }: { rows: Eco[] }) {
 	const open = useContext(OpenEvent);
 	return (
-		<div className="ecal-table-wrap">
+		<div className="ecal-table-wrap" data-tour="events-table">
 			<table className="ecal-table">
 				<thead>
 					<tr>

@@ -69,11 +69,11 @@ export default function RaiseSettingsPage() {
 			<PageHead
 				title="Raise settings"
 				sub="The underlying information Atlas uses to run your raise."
-				actions={!needsSetup && <Button onClick={() => openRaiseSetup({ edit: true })}><Pencil size={13} /> Edit raise</Button>}
+				actions={!needsSetup && <Button data-tour="raise-edit" onClick={() => openRaiseSetup({ edit: true })}><Pencil size={13} /> Edit raise</Button>}
 			/>
 			<AccountTabs />
 
-			<div style={{ display: 'grid', gap: 18 }}>
+			<div style={{ display: 'grid', gap: 18 }} data-tour="raise-summary">
 				{needsSetup ? (
 					<Card>
 						<div style={{ textAlign: 'center', padding: '28px 16px', display: 'grid', gap: 12, placeItems: 'center' }}>

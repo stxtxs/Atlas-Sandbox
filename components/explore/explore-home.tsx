@@ -92,9 +92,9 @@ export function ExploreHome() {
 				<H1>{greeting}, {first}</H1>
 				<div className="explore-home__sub">
 					<span>Here&apos;s what has changed across the sports-tech market.</span>
-					<Link href={hrefOf('interests')} className="explore-home__interests"><SlidersHorizontal size={12} aria-hidden="true" />Interests <b>{picked.length}</b></Link>
+					<Link href={hrefOf('interests')} className="explore-home__interests" data-tour="home-interests"><SlidersHorizontal size={12} aria-hidden="true" />Interests <b>{picked.length}</b></Link>
 				</div>
-				<div className="explore-home__search">
+				<div className="explore-home__search" data-tour="home-ask">
 					<AgentComposer
 						value={q}
 						onChange={setQ}
@@ -108,7 +108,7 @@ export function ExploreHome() {
 
 			<section className="explore-home__attn">
 				<SectionHead title="What needs your attention" meta="Based on your interests · updated today" />
-				<div className="atlas-feed-grid">
+				<div className="atlas-feed-grid" data-tour="home-feed">
 					{latestNews && (
 						<FeedCard tag="Newsletter" icon={Newspaper} title={latestNews.title} body={`${fmt(latestNews.pubDate)} · ${latestNews.description}`} href={hrefOf('newsletter')} actionLabel="Read" />
 					)}

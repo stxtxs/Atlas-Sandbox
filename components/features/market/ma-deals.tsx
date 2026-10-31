@@ -225,7 +225,7 @@ export function MaDeals() {
 			{(res.isLoading || !filtersReady) && rows.length === 0 ? <Loading />
 				: rows.length === 0 ? <Empty>No acquisitions match your filters.</Empty>
 				: (
-				<div className="atlas-table" role="table">
+				<div className="atlas-table" role="table" data-tour="ma-table">
 					<div className="atlas-table__head">
 						<span className="atlas-table__name">Company</span>
 						<span className="atlas-table__col hide-sm" style={{ width: 150 }}>Sector</span>

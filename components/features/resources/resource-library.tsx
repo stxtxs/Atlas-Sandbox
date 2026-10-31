@@ -82,7 +82,7 @@ export function ResourceLibrary({ items, kind, intro, featuredLabel, libraryTitl
 		<>
 			{intro && <p className="atlas-res-intro">{intro}</p>}
 
-			<FeaturedPost
+			<div data-tour="resources-featured"><FeaturedPost
 				cover={featured.cover}
 				metaIcon={<MetaIcon size={12} strokeWidth={1.5} aria-hidden="true" />}
 				meta={<>{featuredLabel} · Published {featured.dateLabel ?? fmtLongDate(featured.date)} · <span className={featured.access === 'Premium' ? 'is-premium' : undefined}>{featured.access}</span></>}
@@ -90,7 +90,7 @@ export function ResourceLibrary({ items, kind, intro, featuredLabel, libraryTitl
 				desc={featured.desc}
 				tags={featured.tags}
 				actions={actionsFor(featured)}
-			/>
+			/></div>
 
 			<div className="atlas-res-head">
 				<h2 className="atlas-h2">{libraryTitle}</h2>
@@ -105,7 +105,7 @@ export function ResourceLibrary({ items, kind, intro, featuredLabel, libraryTitl
 			/>
 			<div className="atlas-res-rule" />
 			{rows.length === 0 ? <Empty>No {noun}s match your filters.</Empty> : (
-				<div className="atlas-post-grid">
+				<div className="atlas-post-grid" data-tour="resources-grid">
 					{rows.map((r) => (
 						<PostCard key={r.id} cover={r.cover} meta={metaFor(r)} title={r.title} desc={r.desc} tags={r.tags} actions={actionsFor(r)} />
 					))}

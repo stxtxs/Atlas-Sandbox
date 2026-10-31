@@ -28,7 +28,7 @@ export function WatchlistDetail({ id, backHref, companyHref }: { id: string; bac
 
 	return (
 		<>
-			<div className="atlas-wl-head">
+			<div className="atlas-wl-head" data-tour="watchlist-head">
 				<div>
 					<h2 className="atlas-h2">{list.name}</h2>
 					<div className="atlas-eyebrow" style={{ marginTop: 8 }}>{companies.length} compan{companies.length === 1 ? 'y' : 'ies'}</div>
