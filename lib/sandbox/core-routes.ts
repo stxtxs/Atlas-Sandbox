@@ -1,23 +1,16 @@
 /**
- * Practice routes shared by Raise and Scout: deck analysis, AI chat, exports,
- * API keys / webhooks, company contacts, list caps and company watchlists
- * (watchlist-routes.ts). Product-specific data lives in raise-routes.ts and
- * scout-routes.ts.
+ * Sample-data routes shared by every tier: companies, signals, deck analysis,
+ * AI chat, exports, claims and company watchlists (watchlist-routes.ts).
+ * Tier-specific data lives in explore-routes.ts, raise-routes.ts and
+ * scout-routes.ts, which are matched first.
  */
 import type { DeckScorecard } from '@/lib/deck-analysis';
-import { previewBasePath } from '@/lib/preview-mode';
-import { daysFromNow, gated, json, sse, type SandboxRoute } from './types';
+import { daysFromNow, json, sse, type SandboxRoute } from './types';
 import { watchlistSandboxRoutes, FALLBACK as FALLBACK_WATCHLIST_COMPANIES } from './watchlist-routes';
 import { FALLBACK_COMPANIES as FALLBACK_SCOUT_COMPANIES } from './scout-routes';
 
-/** Free AI chat messages in practice before the upgrade prompt. */
-export const SANDBOX_CHAT_LIMIT = 3;
-/** Rows shown in Raise/Scout-only lists (investors, recently funded…). */
-export const SANDBOX_LIST_CAP = 10;
-
 /** The one sample deck (Fanloop's), at `/deck/<id>`. */
 export const SAMPLE_DECK_ID = 'sandbox-deck';
-const PRODUCT_NAME = { raise: 'Atlas Raise', scout: 'Atlas Scout' } as const;
 
 const SCORECARD: DeckScorecard = {
 	overall_score: 71,
@@ -46,31 +39,12 @@ const SCORECARD: DeckScorecard = {
 const ANALYSIS_MD = `## Overall\n\n${SCORECARD.verdict}\n\n## Strengths\n\n${SCORECARD.strengths.map((s) => `- ${s}`).join('\n')}\n\n## Main investor concerns\n\n${SCORECARD.risks.map((s) => `- ${s}`).join('\n')}\n`;
 const sampleDeck = () => ({ id: SAMPLE_DECK_ID, filename: 'Sample — Fanloop Seed Deck.pdf', status: 'done', overall_score: SCORECARD.overall_score, created_at: daysFromNow(-3) });
 
+/** The co-pilot's canned answer per tier — sample data, written like a real reply. */
 const CHAT_ANSWERS = {
-	raise: 'In practice mode I answer with sample data. With **Atlas Raise** I would rank investors who have backed fan-engagement companies at seed in Europe, check their recent cheques, and draft your outreach for the top ten.',
-	scout: 'In practice mode I answer with sample data. With **Atlas Scout** I would screen companies against your thesis, surface new rounds and signals in your sectors, and brief you on any deal before a first call.',
+	explore: 'Here is a quick read on **fan engagement in Europe** (sample data):\n\n- **42 companies** tracked, most of them seed stage\n- Funding is up **18%** on last year, led by Germany and the UK\n- Ones to watch: **Kitroom**, **Matchday Loop** and **Courtline**\n\nWant me to open the list in Companies?',
+	raise: 'Based on your round (sample data), these investors fit best:\n\n1. **Kestrel Field Ventures** — leads seed rounds in fan engagement, cheques of $500k–2M\n2. **Tidepool Sport** — backed two club-tech companies this year\n3. **Northline Capital** — follows on at Series A in Europe\n\nI can add them to your pipeline or draft an intro note.',
+	scout: 'Against your thesis (sample data), three new companies match:\n\n- **Stridewise** — wearables for recovery, raising a $2M seed\n- **Courtline** — padel club software, 3x revenue in a year\n- **Matchday Loop** — fan engagement, verified on Atlas\n\nShall I open their profiles or add them to a watchlist?',
 } as const;
-
-// Strip the preview prefix (app/preview/[product]/, lib/preview-mode.ts) before
-// comparing: real browser pathnames there are `/preview/<product>/investors`,
-// not `/investors`, and this is a plain string match with no other normalisation.
-function onPage(path: string): boolean {
-	if (typeof window === 'undefined') return false;
-	const { pathname } = window.location;
-	const base = previewBasePath();
-	const here = base && pathname.startsWith(base) ? pathname.slice(base.length) || '/' : pathname;
-	return here === path;
-}
-
-/** Keep the first SANDBOX_LIST_CAP rows of a public list and drop further pages. */
-async function capList(res: Response): Promise<Response> {
-	if (!res.ok) return res;
-	const body = (await res.json()) as unknown;
-	if (Array.isArray(body)) return json(body.slice(0, SANDBOX_LIST_CAP));
-	const b = body as { data?: unknown[]; totalPages?: number };
-	if (!Array.isArray(b?.data)) return json(body);
-	return json({ ...b, data: b.data.slice(0, SANDBOX_LIST_CAP), totalPages: 1, page: 1, sandboxCapped: true });
-}
 
 interface SlimCompany {
 	id: string; name: string; slug: string | null; description: string | null;
@@ -187,59 +161,49 @@ export const coreSandboxRoutes: SandboxRoute[] = [
 	// Company watchlists: seeded sample lists; the visitor's real lists are never touched.
 	...watchlistSandboxRoutes,
 
-	// Deck analysis / Deck Screener: one sample deck with a full analysis; own uploads are a paid feature.
+	// Deck analysis / Deck Screener: one sample deck with a full analysis. An upload "analyses" into it.
 	['GET', '/api/deck-analysis', () => [sampleDeck()]],
-	['POST', '/api/deck-analysis', ({ product }) => gated(product, `Analysing your own deck is part of ${PRODUCT_NAME[product]}. In practice you can explore the sample analysis.`)],
+	['POST', '/api/deck-analysis', () => ({ id: SAMPLE_DECK_ID })],
 	['GET', '/api/deck-analysis/:id', () => ({ ...sampleDeck(), analysis_md: ANALYSIS_MD, result_json: SCORECARD })],
-	['GET', '/api/deck-analysis/:id/file', ({ product }) => gated(product, `Opening deck files is part of ${PRODUCT_NAME[product]}.`)],
-	['POST', '/api/deck-analysis/:id/reanalyze', ({ product }) => gated(product, `Re-running analyses is part of ${PRODUCT_NAME[product]}.`)],
+	['GET', '/api/deck-analysis/:id/file', () => ({ url: '/sample/sample-deck.pdf' })],
+	['POST', '/api/deck-analysis/:id/reanalyze', () => ({ ok: true })],
 	['POST', '/api/deck-analysis/:id/stream', () => sse([
 		...ANALYSIS_MD.match(/[\s\S]{1,60}/g)!.map((text) => ({ event: 'delta', data: { text } })),
 		{ event: 'done', data: { scorecard: SCORECARD } },
 	])],
 
-	// AI chat: a few canned answers, then the upgrade prompt (shown inline by the chat UI).
-	['POST', '/api/chat', ({ product, state, save }) => {
-		const used = Number(state.chatUsed ?? 0);
-		if (used >= SANDBOX_CHAT_LIMIT) return gated(product, `You've used the ${SANDBOX_CHAT_LIMIT} practice questions. Get ${PRODUCT_NAME[product]} for unlimited AI answers on live data.`);
-		state.chatUsed = used + 1; save();
-		const left = SANDBOX_CHAT_LIMIT - used - 1;
-		const text = `${CHAT_ANSWERS[product]}\n\n_Practice: ${left} free question${left === 1 ? '' : 's'} left._`;
-		return sse([
-			{ event: 'conversation', data: { id: 'sandbox-chat' } },
-			...text.match(/[\s\S]{1,40}/g)!.map((t) => ({ event: 'content_delta', data: { text: t } })),
-			{ event: 'done', data: {} },
-		]);
-	}],
+	// AI chat: a canned, tier-specific answer streamed like the real co-pilot.
+	['POST', '/api/chat', ({ product }) => sse([
+		{ event: 'conversation', data: { id: 'sample-chat' } },
+		...CHAT_ANSWERS[product].match(/[\s\S]{1,40}/g)!.map((t) => ({ event: 'content_delta', data: { text: t } })),
+		{ event: 'done', data: {} },
+	])],
 	['GET', '/api/chat/conversations', () => []],
-	['GET', '/api/chat/conversations/:id', () => json({ error: { code: 'NOT_FOUND', message: 'Not available in practice' } }, 404)],
-	['GET', '/api/chat/conversations/:id/export', ({ product }) => gated(product, `Exporting chats is part of ${PRODUCT_NAME[product]}.`)],
+	['GET', '/api/chat/conversations/:id', () => json({ error: { code: 'NOT_FOUND', message: 'Not in the tutorial' } }, 404)],
+	['GET', '/api/chat/conversations/:id/export', ({ product }) => new Response(`# Atlas co-pilot
 
-	// Exports, API keys and webhooks are paid features.
-	['POST', '/api/exports/:entity', ({ product }) => gated(product, `Exports are part of ${PRODUCT_NAME[product]}.`)],
-	['GET', '/api/me/api-keys', () => []],
-	['POST', '/api/me/api-keys', ({ product }) => gated(product, `API keys are part of ${PRODUCT_NAME[product]}.`)],
-	['GET', '/api/me/webhooks', () => []],
-	['POST', '/api/me/webhooks', ({ product }) => gated(product, `Webhooks are part of ${PRODUCT_NAME[product]}.`)],
+${CHAT_ANSWERS[product]}
+`, { headers: { 'Content-Type': 'text/markdown', 'Content-Disposition': 'attachment; filename="atlas-chat.md"' } })],
 
-	// Global providers (app/providers.tsx → FeatureAccessProvider) fetch these
-	// on EVERY page, sandbox or not — including the pre-signup preview
-	// (app/preview/), where there is no real backend call to fall through to.
-	// No grants and no extra unlocked features: a practice account is Explore,
-	// same as the real one it mirrors.
+	// Exports: a small sample CSV, whatever was asked for.
+	['POST', '/api/exports/:entity', ({ params }) => new Response(SAMPLE_CSV, { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="atlas-${params.entity}-sample.csv"` } })],
+
+	// No grants, nothing locked: the tutorial has no paywall (contexts/feature-access-context.tsx).
 	['GET', '/api/features', () => []],
 	['GET', '/api/me/feature-grants', () => ({ data: [] })],
 
-	// Verification claims and data corrections are real submissions: locked.
-	['POST', '/api/claims/:kind', ({ product }) => gated(product, `Getting verified is available once you're on ${PRODUCT_NAME[product]}. Nothing was submitted from practice.`)],
-	['POST', '/api/data-change-requests', ({ product }) => gated(product, `Suggesting corrections is available once you're on ${PRODUCT_NAME[product]}.`)],
+	// Verification claims and data corrections: accepted for review, nothing leaves the browser.
+	['POST', '/api/claims/:kind', () => ({ id: 'sample-claim', status: 'pending' })],
+	['POST', '/api/data-change-requests', () => ({ id: 'sample-correction', status: 'pending' })],
 
-	// Contact details stay hidden in the sandbox (the UI also shows them as locked).
 	['GET', '/api/companies/:id/contacts', () => null],
-
-	// Raise/Scout-only list pages on public data: first rows only. Keyed to the
-	// page being viewed, so free pages that share these endpoints (Monthly
-	// Roundup, company funding history) are untouched.
-	['GET', '/api/investors', async ({ passthrough }) => (onPage('/investors') ? capList(await passthrough()) : undefined)],
-	['GET', '/api/deals', async ({ passthrough }) => (onPage('/recently-funded') ? capList(await passthrough()) : undefined)],
 ];
+
+const SAMPLE_CSV = [
+	'name,sector,country,total_funding_usd',
+	'Kitroom,Fan Engagement,Germany,2400000',
+	'Matchday Loop,Fan Engagement,United Kingdom,5100000',
+	'Courtline,Facility Management,Spain,1800000',
+	'Stridewise,Wearables,Netherlands,3200000',
+	'',
+].join('\n');

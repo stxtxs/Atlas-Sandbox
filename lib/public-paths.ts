@@ -18,7 +18,7 @@
  * Entries match as an exact path or a path prefix (`/w` covers `/w/<token>`).
  *
  * Now that the signed-in product is all under `/app`, this could invert into
- * "gate `/app`, `/onboarding` and `/billing`" — shorter, and a new public page
+ * "gate `/app` and `/billing`" — shorter, and a new public page
  * could no longer be private by accident. It deliberately hasn't: the failure
  * directions are not symmetric. Forgetting to add a public page here makes that
  * page ask for a login, which someone notices immediately. Forgetting to list a
@@ -45,12 +45,9 @@ export const PUBLIC_PATHS = [
   '/confirm',
   '/privacy-policy',
   '/terms-of-service',
+  '/plans', // public pricing page (app/plans) — viewable signed in or out
+  '/report-preview', // admin editor's report preview frame — renders only content the admin panel posts in
   '/w', // /w/[token] — public read-only shared watchlist pages
-  // Pre-signup "The Warm-Up" (app/preview/) — the real app's pages,
-  // reached with no session at all. Never gated the way PRIVATE_PREFIXES
-  // gates their real counterparts: lib/preview-mode.ts + the sandbox
-  // interceptor are what keep it on sample data, not the edge gate.
-  '/preview',
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {
@@ -92,14 +89,14 @@ export function isPublicPath(pathname: string): boolean {
  */
 export const PRIVATE_PREFIXES = [
   // Dashboard routes — mirrors `ROUTES` in lib/routes.ts (nav.check enforces it).
-  '/account', '/analytics', '/billing', '/chat', '/companies', '/deal-flow',
+  '/account', '/analytics', '/billing', '/chat', '/companies', '/credits', '/deal-flow',
   '/deck', '/events', '/framework', '/home', '/interests',
-  '/investors', '/my-market', '/newsletter', '/pipeline', '/plans', '/programs',
-  '/recently-funded', '/recommended', '/reports', '/roundup', '/settings',
+  '/investors', '/ma', '/my-market', '/newsletter', '/pipeline', '/programs',
+  '/recently-funded', '/recommended', '/reports', '/resources', '/roundup', '/settings',
   '/signals', '/strategy', '/thesis', '/verify', '/watchlists',
-  // Not in ROUTES: the onboarding tree, the integration docs, and the
-  // verified-company report (reached from an email, not the sidebar).
-  '/onboarding', '/docs', '/verified-reports',
+  // Not in ROUTES: the integration docs and the verified-company report
+  // (reached from an email, not the sidebar).
+  '/docs', '/verified-reports',
 ] as const;
 
 export function isPrivatePath(pathname: string): boolean {

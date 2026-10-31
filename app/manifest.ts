@@ -1,13 +1,10 @@
 import type { MetadataRoute } from 'next';
-import { SITE_URL } from './layout';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Atlas by SportsTechX',
-    short_name: 'Atlas',
-    description:
-      'Market intelligence, investor tracking and warm introductions for founders raising in sports tech.',
-    id: SITE_URL,
+    name: 'Atlas Tutorial by SportsTechX',
+    short_name: 'Atlas Tutorial',
+    description: 'A guided tour of Atlas Explore, Raise and Scout on sample data.',
     start_url: '/',
     display: 'standalone',
     background_color: '#060a17',

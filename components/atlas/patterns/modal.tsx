@@ -18,7 +18,7 @@ import type { ReactNode } from 'react';
  * into that order. The credits modal it replaces was inline too, so this is no
  * worse and is one place instead of two.
  */
-export function Modal({ open, onOpenChange, icon, title, children, footer, width = 440 }: {
+export function Modal({ open, onOpenChange, icon, title, children, footer, width = 440, nonModal = false }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	/** Small tinted glyph above the title. */
@@ -28,23 +28,37 @@ export function Modal({ open, onOpenChange, icon, title, children, footer, width
 	/** Buttons, laid out bottom-right. */
 	footer?: ReactNode;
 	width?: number;
+	/**
+	 * Drop Radix's focus trap + scroll lock. Required when the modal hosts a
+	 * portalled dropdown (Combobox/CityInput): a modal Dialog traps focus inside
+	 * its content, so the dropdown's search input can't be focused and its list
+	 * can't be scrolled. The overlay still blocks clicks to the page behind.
+	 */
+	nonModal?: boolean;
 }) {
 	return (
-		<DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+		<DialogPrimitive.Root open={open} onOpenChange={onOpenChange} modal={!nonModal}>
 			<DialogPrimitive.Portal>
 				<DialogPrimitive.Overlay
-					style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)', zIndex: 200 }}
+					// Keep the page behind visible through the scrim (a heavier black read as a flat void on the dark theme). 40% + blur, with the -webkit- prefix so Safari applies it.
+					style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', WebkitBackdropFilter: 'blur(6px)', backdropFilter: 'blur(6px)', zIndex: 200 }}
 				/>
 				{/* `.atlas` because the portal renders outside the shell, so the
 				    design-system scope would not otherwise apply to it. */}
 				<DialogPrimitive.Content
 					className="atlas"
 					aria-describedby={undefined}
+					onInteractOutside={(e) => {
+						const t = e.target as HTMLElement;
+						if (t.closest('.atlas-combo-panel')) e.preventDefault();
+					}}
 					style={{
 						position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
 						width: `min(92vw, ${width}px)`, background: 'var(--a-surface)',
 						border: '1px solid var(--a-border)', borderRadius: 'var(--a-radius)', padding: '26px 28px',
 						boxShadow: '0 20px 60px rgba(0,0,0,0.4)', zIndex: 201, color: 'var(--a-ink)',
+						// Tall content scrolls inside the dialog instead of spilling off a phone.
+						maxHeight: '88dvh', overflowY: 'auto',
 					}}
 				>
 					{icon && (

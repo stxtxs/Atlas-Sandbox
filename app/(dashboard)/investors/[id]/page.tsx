@@ -7,10 +7,14 @@ import { toast } from 'sonner';
 import { ArrowLeft, Loader2, Archive } from 'lucide-react';
 import { qk } from '@/lib/query-keys';
 import { hrefOf } from '@/lib/routes';
+import { getUserType, useUserProfile } from '@/hooks/use-user-profile';
 import type { Deal, Investor, PipelineActivity as Activity, PipelineStage, PipelineUpdate } from '@/types/api';
 import { apiRequest } from '@/lib/query-client';
+import { refreshPipeline } from '@/lib/invalidate';
 import { Screen, Card, Badge, Button, Field, Input, Select, Loading, Empty, Logo, Flag } from '@/components/atlas';
 import { DatePicker } from '@/components/atlas/ui/date-picker';
+import { SaveInvestorToWatchlist } from '@/components/raise/save-investor-to-watchlist';
+import { categoryLabel } from '@/components/raise/investors';
 
 /**
  * Atlas Raise — Investor profile (mock-ups 12/13 / canvas isProfileBaseline &
@@ -57,10 +61,16 @@ const geoOf = (i: Investor) => [i.hq_country, i.hq_region].filter(Boolean)[0] ??
 export default function InvestorProfilePage() {
 	const id = String(useParams().id);
 	const router = useRouter();
+	const { data: profile } = useUserProfile();
+	// The pipeline/watchlist is Atlas Raise only (a founder tracking investors to
+	// pitch). `/api/raise/pipeline` is `@RequireTier('raise')`, so fetching it for
+	// a Scout viewer 402s and pops the global "different plan" modal — hence the
+	// key is null for anyone but Raise, and the pipeline UI below is hidden too.
+	const isRaise = getUserType(profile) === 'raise';
 	const { data: inv, isLoading, error } = useSWR<Investor>(qk.investors.detail(id));
 	const { data: bundle } = useSWR<ThesisBundle>(qk.investors.thesis(id));
 	const { data: deals } = useSWR<{ data: Deal[] }>(qk.deals.list({ investor_id: id, sort: '-announced_date', limit: 12 }));
-	const pipe = useSWR<{ data: Pipe[] }>(qk.raise.pipeline());
+	const pipe = useSWR<{ data: Pipe[] }>(isRaise ? qk.raise.pipeline() : null);
 	const record = useMemo(() => (pipe.data?.data ?? []).find((r) => r.investor_id === id) ?? null, [pipe.data, id]);
 
 	if (error) return <Screen><Empty>Investor not found. <button onClick={() => router.push(hrefOf('investors'))} style={{ background: 'none', border: 'none', color: 'var(--a-navy)', cursor: 'pointer', font: 'inherit' }}>Back to investors</button></Empty></Screen>;
@@ -79,26 +89,31 @@ export default function InvestorProfilePage() {
 					<div style={{ minWidth: 0 }}>
 						<h1 className="atlas-h1" style={{ fontSize: 30, lineHeight: 1.15 }}>{inv.name}</h1>
 						<div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, fontFamily: 'var(--a-mono)', fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--a-muted)', marginTop: 10 }}>
-							{inv.category && <span>{inv.category}</span>}
+							{inv.category && <span>{categoryLabel(inv.category)}</span>}
 							{inv.category && geoOf(inv) !== '—' && <span>·</span>}
 							{inv.hq_country && <Flag cc={inv.hq_country} size={15} />}
 							{geoOf(inv) !== '—' && <span>{geoOf(inv)}</span>}
 						</div>
 					</div>
 				</div>
-				{record
-					? <Badge tone="navy">{STAGE_LABEL[record.stage] ?? record.stage}</Badge>
-					: <AddButton investorId={inv.id} onAdded={() => pipe.mutate()} />}
+				{(record || isRaise) && (
+					<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+						{record && <Badge tone="navy">{STAGE_LABEL[record.stage] ?? record.stage}</Badge>}
+						{isRaise && <SaveInvestorToWatchlist investorId={inv.id} investorName={inv.name} align="end" />}
+					</div>
+				)}
 			</div>
 
-			{record && <PipelineRecord record={record} onChanged={() => pipe.mutate()} />}
+			{/* Keyed: the form is a draft seeded from the record, so a re-added or
+			    moved record must start a fresh draft, not keep the old values. */}
+			{record && <PipelineRecord key={`${record.id}:${record.stage}`} record={record} onChanged={() => void refreshPipeline()} />}
 
 			<div className="atlas-eyebrow" style={{ margin: record ? '32px 0 14px' : '0 0 14px' }}>{record ? 'About this investor' : ''}</div>
 			<div className="atlas-kpis" style={{ marginBottom: 24 }}>
 				<Tile label="Stages" value={stages} />
 				<Tile label="Typical cheque size" value="Not confirmed" muted />
 				<Tile label="Geography" value={geoText} />
-				<Tile label="Website" value={inv.website ? <a href={inv.website} target="_blank" rel="noreferrer" style={{ color: 'var(--a-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Visit</a> : '—'} />
+				<Tile label="Website" value={inv.website ? <a href={/^https?:\/\//i.test(inv.website) ? inv.website : `https://${inv.website}`} target="_blank" rel="noreferrer" style={{ color: 'var(--a-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Visit</a> : '—'} />
 			</div>
 
 			{inv.description && <Section title="Overview">{inv.description}</Section>}
@@ -134,17 +149,6 @@ export default function InvestorProfilePage() {
 	);
 }
 
-function AddButton({ investorId, onAdded }: { investorId: string; onAdded: () => void }) {
-	const [busy, setBusy] = useState(false);
-	const add = async () => {
-		setBusy(true);
-		try { await apiRequest('POST', '/api/raise/pipeline', { investor_id: investorId, stage: 'target' }); toast.success('Added to pipeline'); onAdded(); }
-		catch (e) { toast.error((e as Error).message); }
-		finally { setBusy(false); }
-	};
-	return <Button data-tour="raise-add-to-pipeline" disabled={busy} onClick={() => void add()}>{busy ? <Loader2 className="animate-spin" size={14} /> : 'Add to watchlist'}</Button>;
-}
-
 function PipelineRecord({ record, onChanged }: { record: Pipe; onChanged: () => void }) {
 	const [f, setF] = useState<Partial<Pipe>>(record);
 	const [busy, setBusy] = useState(false);
@@ -164,7 +168,7 @@ function PipelineRecord({ record, onChanged }: { record: Pipe; onChanged: () => 
 			<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
 				<Field label="Stage"><Select value={f.stage} onChange={(e) => set('stage', e.target.value)} options={STAGES} /></Field>
 				<Field label="Relevant contact"><Input value={f.contact_name ?? ''} onChange={(e) => set('contact_name', e.target.value)} /></Field>
-				<Field label="Potential investment (€)"><Input type="number" min={0} value={(f.potential_amount as string) ?? ''} onChange={(e) => set('potential_amount', e.target.value)} /></Field>
+				<Field label="Potential investment"><Input type="number" min={0} value={(f.potential_amount as string) ?? ''} onChange={(e) => set('potential_amount', e.target.value)} /></Field>
 				<Field label="Next step"><Input value={f.next_step ?? ''} onChange={(e) => set('next_step', e.target.value)} /></Field>
 				<Field label="Next step due"><DatePicker value={f.next_step_due ?? ''} onChange={(v) => set('next_step_due', v)} /></Field>
 				<Field label="Notes"><Input value={f.notes ?? ''} onChange={(e) => set('notes', e.target.value)} /></Field>

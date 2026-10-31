@@ -6,7 +6,9 @@ import useSWR from 'swr';
 import { toast } from 'sonner';
 import { Button, Empty, Field, Input, Loading, Progress, Select } from '@/components/atlas';
 import { DatePicker } from '@/components/atlas/ui/date-picker';
+import { useUrlSync, useUrlReader } from '@/hooks/use-url-state';
 import { apiRequest } from '@/lib/query-client';
+import { refreshPaths } from '@/lib/invalidate';
 import { qk } from '@/lib/query-keys';
 import { hrefOf } from '@/lib/routes';
 import {
@@ -47,8 +49,11 @@ export function useDealFlow(tab: DealTab) {
 export function DealFlow({ tab = 'all' }: { tab?: DealTab }) {
 	const { data, isLoading, error } = useDealFlow(tab);
 	// Valuation filter — purely client-side over the already-fetched page (≤50).
-	const [maxVal, setMaxVal] = useState('');
-	const [valCcy, setValCcy] = useState('EUR');
+	// Mirrored into the URL so it survives Back from a deal page and is shareable.
+	const url = useUrlReader();
+	const [maxVal, setMaxVal] = useState(() => url.str('maxVal', '', 20).replace(/[^0-9.]/g, ''));
+	const [valCcy, setValCcy] = useState<string>(() => url.oneOf('ccy', ['EUR', 'USD'] as const, 'EUR'));
+	useUrlSync({ maxVal, ccy: valCcy !== 'EUR' ? valCcy : undefined });
 
 	// Every Deal Flow route 403s without a `scout_profiles` row, and most Scout
 	// accounts do not have one — so this is the common path, not an edge case.
@@ -98,7 +103,7 @@ export function DealFlow({ tab = 'all' }: { tab?: DealTab }) {
 				<div className="scout-df__filter">
 					<span className="scout-df__filter-label">Max valuation</span>
 					<div style={{ width: 96 }}><Select value={valCcy} onChange={(e) => setValCcy(e.target.value)} options={[['EUR', 'EUR'], ['USD', 'USD']]} /></div>
-					<div style={{ width: 170 }}><Input type="number" min="0" value={maxVal} onChange={(e) => setMaxVal(e.target.value)} placeholder={`e.g. ${valCcy === 'USD' ? '$' : '€'}10000000`} /></div>
+					<div style={{ width: 170 }}><Input type="number" min="0" step={100000} value={maxVal} onChange={(e) => setMaxVal(e.target.value)} placeholder={`e.g. ${valCcy === 'USD' ? '$' : '€'}10000000`} /></div>
 					{valActive && <button type="button" className="scout-df__filter-clear" onClick={() => setMaxVal('')}>Clear</button>}
 				</div>
 			)}
@@ -197,8 +202,14 @@ function MySubmissions() {
 							)}
 							{m.status === 'live' && (
 								<>
+									<div className="scout-df-card__interest">
+										<strong>{m.interest_count}</strong> investor{m.interest_count === 1 ? '' : 's'} interested
+									</div>
+									{m.interest_count > 0 && (
+										<p className="scout-df-card__reachout">The Atlas team will reach out within 24 hours to coordinate introductions.</p>
+									)}
 									<Link href={dealHref(m.id)} className="scout-df-card__link">View listing →</Link>
-									<LiveEdit m={m} onSaved={() => void mutate()} />
+									<LiveEdit m={m} onSaved={() => { void mutate(); void refreshPaths('/api/scout/dealflow'); }} />
 								</>
 							)}
 						</article>
@@ -254,7 +265,7 @@ function LiveEdit({ m, onSaved }: { m: MyDealRow; onSaved: () => void }) {
 	return (
 		<div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
 			<Field label={`Committed to date (${m.currency_code ?? 'EUR'})`}>
-				<Input type="number" min="0" value={committed} onChange={(e) => setCommitted(e.target.value)} placeholder="500000" />
+				<Input type="number" min="0" step={1000} value={committed} onChange={(e) => setCommitted(e.target.value)} placeholder="500000" />
 			</Field>
 			<Field label="Lead status">
 				<Select value={lead} onChange={(e) => setLead(e.target.value)} options={Object.entries(LEAD_LABEL)} placeholder="No change" />
@@ -272,28 +283,33 @@ function LiveEdit({ m, onSaved }: { m: MyDealRow; onSaved: () => void }) {
 
 function FeaturedDeal({ d }: { d: DealRow }) {
 	const month = new Date().toLocaleDateString(undefined, { month: 'long' });
-	const terms: [string, string][] = [
-		['Round', d.round_type ?? '—'],
-		['Target', money(d.target_amount, d.currency_code) ?? '—'],
-		['Committed', money(d.committed_amount, d.currency_code) ?? '—'],
-		['Valuation', d.valuation ?? 'Not disclosed'],
-		['Sector', d.sector ?? '—'],
-		// HQ is returned even for an anonymous company — a region does not identify
-		// it — and the design shows only the country.
-		['Geography', d.company_hq?.split(', ').pop() ?? '—'],
-	];
+	// HQ is returned even for an anonymous company (a region doesn't identify it);
+	// the design shows only the country.
+	const geography = d.company_hq?.split(', ').pop();
+	// Only render terms we actually have — empty "—" cells read as unfinished.
+	const terms = ([
+		['Round', d.round_type],
+		['Target', money(d.target_amount, d.currency_code)],
+		['Committed', money(d.committed_amount, d.currency_code)],
+		['Valuation', d.valuation],
+		['Sector', d.sector],
+		['Geography', geography],
+	] as [string, string | null | undefined][]).filter((t): t is [string, string] => !!t[1] && t[1] !== '—');
+	const desc = d.company_description?.trim();
 	return (
 		<article className="scout-df-feat">
-			<div className="scout-df-feat__eyebrow">Featured deal · {month}</div>
+			<div className="scout-df-feat__eyebrow">★ Featured deal · {month}</div>
 			<div className="scout-df-feat__body">
 				<div className="scout-df-feat__main">
 					<h2 className="scout-df-feat__name">{companyLabel(d)}</h2>
-					<p className="scout-df-feat__desc">{d.company_description ?? ''}</p>
-					<Link href={dealHref(d.id)} className="scout-df-feat__btn" data-tour="scout-featured-deal">View opportunity →</Link>
+					{desc && <p className="scout-df-feat__desc">{desc}</p>}
+					<Link href={dealHref(d.id)} className="scout-df-feat__btn">View opportunity →</Link>
 				</div>
-				<div className="scout-df-feat__terms">
-					{terms.map(([k, v]) => <div key={k}><div className="scout-df-feat__k">{k}</div><div className="scout-df-feat__v">{v}</div></div>)}
-				</div>
+				{terms.length > 0 && (
+					<div className="scout-df-feat__terms">
+						{terms.map(([k, v]) => <div key={k}><div className="scout-df-feat__k">{k}</div><div className="scout-df-feat__v">{v}</div></div>)}
+					</div>
+				)}
 			</div>
 		</article>
 	);

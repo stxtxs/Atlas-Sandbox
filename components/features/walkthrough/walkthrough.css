@@ -1,8 +1,6 @@
 /*
- * The Warm-Up: coach panel, dim + highlight, confirmation, practice bar, entry buttons.
- * Atlas tokens only. The coach, dim, highlight and bar render inside the shell's
- * `.atlas` scope; `.wt-try` can also appear outside it (post-signup plan
- * chooser), hence the var() fallbacks on that one rule set.
+ * The Atlas tutorial: tour panel, dim + highlight, confirmation, tutorial bar.
+ * Atlas tokens only; everything renders inside the shell's `.atlas` scope.
  */
 
 /* ── Dim + highlight: the page dimmed, each highlighted element cut out of the
@@ -27,15 +25,14 @@
 }
 @media (prefers-reduced-motion: reduce) { .atlas .wt-ring { animation: none; transition: none; } }
 
-/* The practice bar (Exit) and the preview's "Get Atlas X" stay above the dim — they always work. */
-.atlas .wt-bar, .atlas .wt-preview-bar { position: relative; z-index: 142; }
+/* The tutorial bar (Get Atlas X, Exit) stays above the dim — it always works. */
+.atlas .wt-bar { position: relative; z-index: 142; }
 
 /* ── Simulated confirmation: a card over the dimmed page, beside the panel ── */
 .atlas .wt-confirm {
 	position: fixed; z-index: 146; inset: 0 var(--wt-panel-w) 0 0;
 	display: grid; place-items: center; padding: 24px; pointer-events: none;
 }
-.atlas .wt-confirm--left { inset: 0 0 0 var(--wt-panel-w); }
 .atlas .wt-confirm__card {
 	pointer-events: auto; display: grid; justify-items: start; gap: 12px; max-width: 420px; padding: 28px;
 	border-radius: var(--a-radius); border: 1px solid var(--a-border); background: var(--a-page); color: var(--a-ink);
@@ -53,18 +50,47 @@
 	display: flex; flex-direction: column; gap: 14px; padding: 26px 26px 18px; overflow-y: auto;
 	background: var(--a-primary); color: var(--a-primary-ink);
 }
-.atlas .wt-coach--left { right: auto; left: 0; }
 .atlas .wt-coach__eyebrow {
-	display: inline-flex; align-items: center; gap: 6px;
+	display: flex; align-items: center; justify-content: space-between; gap: 6px;
 	font-family: var(--a-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
 	color: color-mix(in srgb, var(--a-primary-ink) 60%, transparent);
 }
+.atlas .wt-coach__eyebrow > span { display: inline-flex; align-items: center; gap: 6px; }
+.atlas .wt-coach__contents-btn {
+	display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: var(--a-radius-pill); cursor: pointer;
+	border: 1px solid color-mix(in srgb, var(--a-primary-ink) 35%, transparent); background: transparent; color: var(--a-primary-ink);
+	font: inherit; letter-spacing: inherit; text-transform: inherit;
+}
+.atlas .wt-coach__contents-btn[aria-expanded="true"] { background: var(--a-primary-ink); color: var(--a-primary); }
+.atlas .wt-coach__chapters { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; overflow-y: auto; }
+.atlas .wt-coach__chapter {
+	display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: var(--a-radius-sm); cursor: pointer; text-align: left;
+	border: 0; background: transparent; color: var(--a-primary-ink); font-family: var(--a-body); font-size: 13px;
+}
+.atlas .wt-coach__chapter:hover, .atlas .wt-coach__chapter.is-current { background: color-mix(in srgb, var(--a-primary-ink) 12%, transparent); }
+.atlas .wt-coach__chapter-n {
+	display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%;
+	border: 1px solid color-mix(in srgb, var(--a-primary-ink) 35%, transparent); font-family: var(--a-mono); font-size: 10px;
+}
+.atlas .wt-coach__type {
+	display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--a-radius-sm);
+	background: color-mix(in srgb, var(--a-primary-ink) 10%, transparent); font-family: var(--a-body); font-size: 14px; color: var(--a-primary-ink);
+}
+.atlas .wt-coach__type kbd {
+	padding: 2px 8px; border-radius: var(--a-radius-xs); background: var(--a-primary-ink); color: var(--a-primary);
+	font-family: var(--a-mono); font-size: 13px; user-select: all;
+}
+.atlas .wt-coach__cta {
+	display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 16px; border-radius: var(--a-radius-pill);
+	background: var(--a-primary-ink); color: var(--a-primary); font-family: var(--a-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none;
+}
+.atlas .wt-coach__cta:hover { filter: brightness(1.1); }
 .atlas .wt-coach__body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
 .atlas .wt-coach__progress {
-	display: flex; align-items: center; gap: 10px; font-family: var(--a-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+	display: grid; gap: 6px; font-family: var(--a-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
 	color: color-mix(in srgb, var(--a-primary-ink) 55%, transparent);
 }
-.atlas .wt-coach__track { flex: 1; height: 3px; border-radius: var(--a-radius-pill); background: color-mix(in srgb, var(--a-primary-ink) 20%, transparent); overflow: hidden; }
+.atlas .wt-coach__track { height: 3px; border-radius: var(--a-radius-pill); background: color-mix(in srgb, var(--a-primary-ink) 20%, transparent); overflow: hidden; }
 .atlas .wt-coach__track > span { display: block; height: 100%; background: var(--a-primary-ink); transition: width 0.2s ease; }
 .atlas .wt-coach__title { margin: 0; font-family: var(--a-font); font-size: 19px; font-weight: 700; line-height: 1.25; color: var(--a-primary-ink); }
 .atlas .wt-coach__title--big { font-size: 27px; line-height: 1.15; letter-spacing: -0.01em; }
@@ -99,25 +125,24 @@
 :root { --wt-panel-w: 360px; }
 body.wt-coach-open .atlas-shell { transition: margin 0.2s ease; }
 body.wt-coach-open--right .atlas-shell { margin-right: var(--wt-panel-w); }
-body.wt-coach-open--left .atlas-shell { margin-left: var(--wt-panel-w); }
 
 @media (max-width: 1024px) {
 	:root { --wt-panel-w: auto; }
-	body.wt-coach-open--right .atlas-shell, body.wt-coach-open--left .atlas-shell { margin: 0; }
-	.atlas .wt-coach, .atlas .wt-coach--left {
+	body.wt-coach-open--right .atlas-shell { margin: 0; }
+	.atlas .wt-coach {
 		inset: auto 0 0 0; height: auto; max-height: 60vh;
 		border-radius: var(--a-radius) var(--a-radius) 0 0; padding: 18px 18px 14px;
 	}
 	.atlas .wt-coach__body { justify-content: flex-start; }
 	.atlas .wt-coach__title--big { font-size: 22px; }
-	.atlas .wt-confirm, .atlas .wt-confirm--left { inset: 0 0 auto 0; padding-top: 72px; }
+	.atlas .wt-confirm { inset: 0 0 auto 0; padding-top: 72px; }
 	/* Room to scroll the last element on the page above the bottom-sheet coach. */
 	body.wt-coach-open .atlas-content { padding-bottom: 60vh; }
 	/* A target scrolled to the top stops below the sticky bars, not under them. */
 	body.wt-coach-open [data-tour] { scroll-margin-top: 150px; }
 }
 
-/* ── Practice bar (above the navbar while in practice) ────────────────────── */
+/* ── Tutorial bar (the top bar while touring) ─────────────────────────────── */
 .atlas .wt-bar {
 	display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding: 8px 20px;
 	background: var(--a-primary); color: var(--a-primary-ink);
@@ -134,25 +159,10 @@ body.wt-coach-open--left .atlas-shell { margin-left: var(--wt-panel-w); }
 	border: 1px solid color-mix(in srgb, var(--a-primary-ink) 40%, transparent); background: transparent; color: var(--a-primary-ink);
 	font-family: var(--a-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
 }
-.atlas .wt-bar__btn--solid { border-color: transparent; background: var(--a-primary-ink); color: var(--a-primary); }
+.atlas .wt-bar__btn--solid { border-color: transparent; background: var(--a-primary-ink); color: var(--a-primary); text-decoration: none; }
 @media (max-width: 640px) { .atlas .wt-bar { padding: 8px 16px; } .atlas .wt-bar__text { display: none; } }
 
-/* ── Entry: "Try the Warm-Up →" pill (Plans page, plan chooser) ────────────── */
-.wt-try {
-	display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 34px; padding: 0 14px;
-	border-radius: var(--a-radius-pill, 35px); border: 1px dashed var(--a-border-strong, rgba(0,0,0,.25)); background: transparent; cursor: pointer;
-	font-family: var(--a-mono, ui-monospace, monospace); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--a-ink, #000);
-}
-.wt-try:hover:not(:disabled) { border-style: solid; border-color: var(--a-ink, #000); }
-.wt-try:disabled { opacity: 0.5; cursor: default; }
 
-/* ── Explore Home: first-visit chooser ────────────────────────────────────── */
-.atlas .wt-choices { display: grid; gap: 10px; margin-top: 16px; }
-.atlas .wt-choice {
-	display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 14px 16px; text-align: left; cursor: pointer;
-	border-radius: var(--a-radius-sm); border: 1px solid var(--a-border); background: var(--a-field); color: var(--a-ink);
-	transition: border-color 0.15s;
-}
-.atlas .wt-choice:hover, .atlas .wt-choice:focus-visible { border-color: var(--a-ink); }
-.atlas .wt-choice__title { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-family: var(--a-font); font-size: 15px; font-weight: 700; }
-.atlas .wt-choice__body { font-family: var(--a-body); font-size: 12px; line-height: 1.5; color: var(--a-muted); }
+/* ── No sidebar: the tour does the navigating, so the rail and its menu button are gone. ── */
+.atlas.atlas-shell, .atlas.atlas-shell.is-collapsed { grid-template-columns: minmax(0, 1fr); }
+.atlas-shell .atlas-rail, .atlas-shell .atlas-hamburger, .atlas-shell .atlas-backdrop, .atlas-shell .atlas-tip { display: none; }

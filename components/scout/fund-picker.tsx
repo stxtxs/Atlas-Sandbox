@@ -8,6 +8,8 @@ import { VerifyButton, useVerifyState } from '@/components/features/verify/verif
 import { useClaimSearch, type ClaimSearchResult } from '@/components/claim/use-claim-search';
 import { openClaim } from '@/lib/claim-events';
 import type { Thesis } from './sample-data';
+import { claimFromThesis } from './claim-thesis';
+import { canonicalCountry } from '@/lib/catalog-options';
 
 /**
  * The fund identity on the thesis — a directory picker, not free text.
@@ -45,28 +47,37 @@ function FundSearch({ t, patch }: Props) {
 	const [selected, setSelected] = useState<ClaimSearchResult | null>(null);
 	const [active, setActive] = useState(0);
 	const [pos, setPos] = useState<{ left: number; width: number; top?: number; bottom?: number; maxH: number } | null>(null);
-	const { results } = useClaimSearch('investor', q);
+	const { results, isLoading, enabled, query: searched, failed } = useClaimSearch('investor', q);
 	const wrapRef = useRef<HTMLDivElement>(null);
 	const panelRef = useRef<HTMLDivElement>(null);
 
 	const query = q.trim();
 	const chosen = selected?.name ?? t.fundName;
 	const showPanel = open && !chosen && query.length >= 2;
-	// Nav items: each result, then "Add" and "Use as entered".
-	const navCount = results.length + 2;
+	// "Add" unlocks only once the search for exactly this text came back without a
+	// fund of that name — a fund not in the directory is added by claiming it.
+	const canAdd = enabled && !isLoading && searched === query
+		&& !results.some((r) => r.name.trim().toLowerCase() === query.toLowerCase());
+	// Nav items: each result, then "Add" when it's available.
+	const navCount = results.length + (canAdd ? 1 : 0);
 
 	const pick = (r: ClaimSearchResult) => {
 		setSelected(r);
-		patch({ fundName: r.name, website: r.website ?? t.website, country: r.hq ?? t.country });
+		// City → City, country → Country (it used to put the city in Country).
+		patch({
+			fundName: r.name, website: r.website ?? t.website,
+			city: r.hq ?? t.city,
+			country: r.country ? canonicalCountry(r.country) : t.country,
+		});
 		setQ(''); setOpen(false);
 	};
-	const useTyped = () => { setSelected(null); patch({ fundName: q.trim() }); setQ(''); setOpen(false); };
 	const clear = () => { setSelected(null); patch({ fundName: '' }); };
-	const addNew = () => { openClaim(null, 'investor', { name: query }); setOpen(false); };
+	// A target without an id = "this is a new listing": the claim opens on the
+	// form, not a second search (the user just searched here).
+	const addNew = () => { openClaim({ role: 'investor' }, 'investor', { ...claimFromThesis(t), name: query }); setOpen(false); };
 	const activate = (i: number) => {
-		if (i < results.length) pick(results[i]);
-		else if (i === results.length) addNew();
-		else useTyped();
+		if (i >= 0 && i < results.length) pick(results[i]);
+		else if (i === results.length && canAdd) addNew();
 	};
 
 	// Position the portalled panel under the input, flipping up when there's no
@@ -90,7 +101,7 @@ function FundSearch({ t, patch }: Props) {
 		};
 		const onKey = (e: KeyboardEvent) => {
 			if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); }
-			else if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(navCount - 1, i + 1)); }
+			else if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.max(0, Math.min(navCount - 1, i + 1))); }
 			else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(0, i - 1)); }
 			else if (e.key === 'Enter') { e.preventDefault(); activate(active); }
 		};
@@ -118,7 +129,7 @@ function FundSearch({ t, patch }: Props) {
 				<div className="fundpicker__selected">
 					{selected?.verified && <VerifiedBadge size={15} />}
 					<span className="fundpicker__selname">{chosen}</span>
-					{selected?.hq && <span className="fundpicker__selmeta">{selected.hq}</span>}
+					{(selected?.hq || selected?.country) && <span className="fundpicker__selmeta">{[selected.hq, selected.country].filter(Boolean).join(', ')}</span>}
 					<button type="button" className="fundpicker__change" onClick={clear}>Change</button>
 				</div>
 			) : (
@@ -153,14 +164,14 @@ function FundSearch({ t, patch }: Props) {
 								{r.hq && <span className="fundpicker__optmeta">{r.hq}{r.kind ? ` · ${r.kind}` : ''}</span>}
 							</button>
 						))}
-						<button type="button" data-ci={results.length} className={`fundpicker__add${active === results.length ? ' is-active' : ''}`}
-							onMouseEnter={() => setActive(results.length)} onClick={addNew}>
-							<Plus size={15} aria-hidden="true" /> Add “{query}” to the directory — we’ll verify it
-						</button>
-						<button type="button" data-ci={results.length + 1} className={`fundpicker__usetyped${active === results.length + 1 ? ' is-active' : ''}`}
-							onMouseEnter={() => setActive(results.length + 1)} onClick={useTyped}>
-							Use “{query}” as entered
-						</button>
+						{canAdd ? (
+							<button type="button" data-ci={results.length} className={`fundpicker__add${active === results.length ? ' is-active' : ''}`}
+								onMouseEnter={() => setActive(results.length)} onClick={addNew}>
+								<Plus size={15} aria-hidden="true" /> Add “{query}” and claim it — we’ll verify it
+							</button>
+						) : !results.length && (
+							<div className="fundpicker__usetyped" aria-live="polite">{failed ? 'Search isn’t responding — try again in a moment.' : 'Searching…'}</div>
+						)}
 					</div>
 				</div>,
 				document.body,
@@ -171,6 +182,7 @@ function FundSearch({ t, patch }: Props) {
 					role="investor"
 					target={selected ? { role: 'investor', id: selected.id, name: selected.name, website: selected.website } : null}
 					label="Verify ownership"
+					prefill={claimFromThesis(t)}
 				/>
 				<span className="fundpicker__verifynote">Optional — required only to submit deals.</span>
 			</div>

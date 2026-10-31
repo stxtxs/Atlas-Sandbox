@@ -3,28 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSWRConfig } from 'swr';
-import { ArrowLeft, ArrowRight, CheckCircle2, Footprints, LifeBuoy, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Compass, Keyboard, LifeBuoy, ListOrdered, RotateCcw, Shuffle } from 'lucide-react';
 import { Button } from '@/components/atlas';
 import { recordStepPath, restoreStepSnapshot, saveStepSnapshot, setTourStep, stepPath, usePractice } from '@/lib/sandbox/store';
 import { matchPath } from '@/lib/sandbox/match-path';
+import { ATLAS_SIGNUP_URL } from '@/lib/sandbox/signup';
 import type { Tour, TourStep } from '@/lib/sandbox/tour-types';
 import type { SandboxProduct } from '@/lib/sandbox/types';
-import { hrefOf } from '@/lib/routes';
-import { previewBasePath } from '@/lib/preview-mode';
-import { track } from '@/lib/analytics';
 import { CoachText } from './coach-text';
 import { leavePractice, restartPractice } from './practice-actions';
-import { PRODUCT_NAME, TOURS, stepNumbers } from './tours';
+import { PRODUCT_NAME, TOURS, flatten } from './tours';
 import { useTourAdvance } from './use-tour-advance';
 import { useTourGuard } from './use-tour-guard';
 import { mergeAdjacent, tourSelector, useTourTargets, type TargetBox } from './use-tour-target';
 import './walkthrough.css';
 
-const HELP_HREF = 'mailto:hello@sportstechx.com?subject=The%20Warm-Up%20question';
-/** Full-height panel width (desktop) — keep in sync with --wt-panel-w in walkthrough.css. */
-const PANEL_WIDTH = 360;
-/** A target under the docked panel flips it to the other side. */
-const PANEL_CLEARANCE = PANEL_WIDTH + 40;
+const HELP_HREF = 'mailto:hello@sportstechx.com?subject=Atlas%20tutorial%20question';
 const SPOTLIGHT_PAD = 6;
 const NO_SELECTORS: string[] = [];
 
@@ -36,38 +30,38 @@ function isTyping(el: EventTarget | null): boolean {
 }
 
 /**
- * The Warm-Up coach: the guided demo over the real app (lib/sandbox/tours).
- * Mounted by the shell only while practice is in its `tour` phase.
+ * The tour panel: the guided, controlled tutorial over the real app
+ * (lib/sandbox/tours), docked on the right. Mounted by TutorialShell.
  *
- * Welcome → steps → completion. Each step opens on its page, dims the rest of
- * the screen around its highlighted element, lets only that element be used
- * (use-tour-guard.ts) and waits for its advance condition. Back reopens the
- * previous step's page with the sample data as it was then; Skip goes straight
- * to the completion screen, which offers only "Get Atlas X" or a replay.
+ * Welcome → chapters of steps → completion. Each step opens on its page, dims
+ * the rest of the screen around its highlighted element, lets only that
+ * element be used (use-tour-guard.ts) and waits for its advance condition —
+ * a click, a typed value, a request or a page. Back reopens the previous
+ * step with the sample data as it was then; Contents jumps to any chapter.
+ * A chapter's first step must have a concrete path (no `:param`), so a jump
+ * can always open it.
  */
 export function WalkthroughCoach() {
-	const { active, phase, step } = usePractice();
-	if (!active || phase !== 'tour') return null;
+	const { active, step } = usePractice();
+	if (!active) return null;
 	return <Coach product={active} tour={TOURS[active]} step={step} />;
 }
 
 function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; step: number }) {
 	const router = useRouter();
 	const { mutate } = useSWRConfig();
-	const rawPathname = usePathname() ?? '';
-	// Tour step paths (lib/sandbox/tours/*) are canonical, un-prefixed paths —
-	// frozen into the Tour object at module load, long before a preview base
-	// path could exist. Strip it back off here so every comparison below stays
-	// the same in both contexts; only the actual navigation re-adds it.
-	const base = previewBasePath();
-	const pathname = base && rawPathname.startsWith(base) ? rawPathname.slice(base.length) || '/' : rawPathname;
+	const pathname = usePathname() ?? '';
+	const { steps, chapterOf, chapterStart } = flatten(tour);
 	const [introDone, setIntroDone] = useState(step > 0);
-	const count = tour.steps.length;
-	const { total, numberOf } = stepNumbers(tour);
+	const [contents, setContents] = useState(false);
+	const count = steps.length;
 	const showIntro = step === 0 && !introDone;
 	const isFinale = step >= count;
-	const current: TourStep | null = showIntro || isFinale ? null : tour.steps[step];
+	const current: TourStep | null = showIntro || isFinale ? null : steps[step];
 	const stepKey = current ? `${step}:${current.id}` : showIntro ? 'intro' : 'finale';
+	const chapter = current ? chapterOf[step] : -1;
+	const chapterSteps = chapter >= 0 ? tour.chapters[chapter].steps.length : 0;
+	const inChapter = chapter >= 0 ? step - chapterStart[chapter] + 1 : 0;
 
 	// Where each step actually ran, so Back can reopen a `:param` page.
 	useEffect(() => {
@@ -81,8 +75,8 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 		navigatedFor.current = stepKey;
 		if (matchPath(current.path, pathname)) return;
 		const dest = hasParams(current.path) ? stepPath(product, step) : current.path;
-		if (dest) router.push(base ? `${base}${dest}` : dest);
-	}, [current, stepKey, step, pathname, router, base, product]);
+		if (dest) router.push(dest);
+	}, [current, stepKey, step, pathname, router, product]);
 
 	// The workspace as this step found it, for Back.
 	useEffect(() => {
@@ -95,16 +89,22 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 
 	const highlightSelectors = (current?.highlights ?? []).map(tourSelector);
 	const extra = current ? [...highlightSelectors, ...(current.allow ?? [])] : NO_SELECTORS;
-	const { boxes: found, primary, extraBoxes, missing } = useTourTargets(current?.target ? tourSelector(current.target) : undefined, extra, stepKey);
-	// Orientation highlights (e.g. consecutive sidebar sections) read as one block.
+	const { boxes: found, missing } = useTourTargets(current?.target ? tourSelector(current.target) : undefined, extra, stepKey);
 	const boxes = current?.highlights ? mergeAdjacent(found) : found;
+
+	const goTo = useCallback((to: number) => {
+		setContents(false);
+		setIntroDone(true);
+		// Going back: put the sample data as that step found it, then refetch everything on screen.
+		if (to < step && restoreStepSnapshot(product, to)) void mutate(() => true);
+		setTourStep(to);
+	}, [step, product, mutate]);
 
 	const advance = useCallback(() => {
 		if (!current) return;
-		track(`walkthrough:${product}:${current.id}:done`);
 		if (current.pause) window.setTimeout(() => setTourStep(step + 1), current.pause);
 		else setTourStep(step + 1);
-	}, [current, product, step]);
+	}, [current, step]);
 	useTourAdvance(current, pathname, advance);
 
 	const back = useCallback(() => {
@@ -113,24 +113,9 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 		// Back lands on the start of the previous numbered step: the second half
 		// of a two-part step (`continues`) needs the first half's result on screen.
 		let prev = step - 1;
-		while (prev > 0 && tour.steps[prev].continues) prev -= 1;
-		// Put the sample data back as that step found it, then refetch
-		// everything on screen from it.
-		if (restoreStepSnapshot(product, prev)) void mutate(() => true);
-		setTourStep(prev);
-	}, [showIntro, isFinale, step, product, mutate, tour]);
-
-	const skip = () => {
-		track(`walkthrough:${product}:${current?.id ?? (showIntro ? 'intro' : 'finale')}:skip`);
-		setTourStep(count);
-	};
-	const finish = (choice: 'signup' | 'replay') => {
-		track(`walkthrough:${product}:finish`, { choice });
-		// In preview there is no real account: "Get Atlas X" goes to signup, and
-		// a replay lands back on the preview's own home, not the real (gated) one.
-		if (choice === 'signup') leavePractice(base ? '/signup' : hrefOf('plans'));
-		else restartPractice(base ? `${base}/home` : undefined);
-	};
+		while (prev > 0 && steps[prev].continues) prev -= 1;
+		goTo(prev);
+	}, [showIntro, isFinale, step, steps, goTo]);
 
 	const adv = current?.advance.kind;
 	const canNext = !!current && (adv === 'next' || missing);
@@ -142,34 +127,21 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 
 	useCoachKeys(back, primaryAction, showIntro || canNext);
 
-	// The panel docks on whichever side keeps the action clear: an allowed
-	// element on screen (e.g. a drawer that slid in from the right) wins over
-	// the target, since it is what the visitor has to use next.
-	const allowBoxes = extraBoxes.slice(highlightSelectors.length).flat();
-	const focus = allowBoxes.length ? allowBoxes : primary ? [primary] : [];
-	const side = focus.length && focus.some((b) => b.left + b.width > window.innerWidth - PANEL_CLEARANCE) && focus.every((b) => b.left > PANEL_CLEARANCE) ? 'left' : 'right';
-	const label = PRODUCT_NAME[product];
-
-	// Full-height panel takes real screen width — give the app room beside it
-	// instead of sitting on top of it, so nothing on the page is hidden behind it.
+	// The panel takes real screen width on the right — the app gets the rest.
 	useEffect(() => {
-		document.body.classList.add('wt-coach-open', `wt-coach-open--${side}`);
-		return () => document.body.classList.remove('wt-coach-open', 'wt-coach-open--left', 'wt-coach-open--right');
-	}, [side]);
+		document.body.classList.add('wt-coach-open', 'wt-coach-open--right');
+		return () => document.body.classList.remove('wt-coach-open', 'wt-coach-open--right');
+	}, []);
 
-	const progress = (n: number) => (
-		<div className="wt-coach__progress">
-			<span>Step {n} of {total}</span>
-			<span className="wt-coach__track" aria-hidden="true"><span style={{ width: `${(n / total) * 100}%` }} /></span>
-		</div>
-	);
+	const label = PRODUCT_NAME[product];
+	const done = (c: number) => (chapterStart[c + 1] ?? count) <= step;
 
 	return (
 		<>
 			<Dim boxes={boxes} />
 			{boxes.map((b, i) => <Ring key={i} box={b} />)}
 			{current?.confirm && (
-				<div className={`wt-confirm wt-confirm--${side}`}>
+				<div className="wt-confirm wt-confirm--right">
 					<div className="wt-confirm__card" role="status" aria-live="polite">
 						<CheckCircle2 className="wt-confirm__icon" size={28} aria-hidden="true" />
 						<h2 className="wt-confirm__title">{current.confirm.title}</h2>
@@ -178,18 +150,41 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 					</div>
 				</div>
 			)}
-			<aside className={`wt-coach wt-coach--${side}`} aria-label={`The Warm-Up: Atlas ${label}`}>
-				<div className="wt-coach__eyebrow"><Footprints size={12} aria-hidden="true" /> The Warm-Up · {label}</div>
-				{showIntro ? (
+			<aside className="wt-coach wt-coach--right" aria-label={`Atlas ${label} tutorial`}>
+				<div className="wt-coach__eyebrow">
+					<span><Compass size={12} aria-hidden="true" /> Atlas {label} tutorial</span>
+					{!isFinale && (
+						<button type="button" className="wt-coach__contents-btn" aria-expanded={contents} onClick={() => setContents((v) => !v)}>
+							<ListOrdered size={12} aria-hidden="true" /> Contents
+						</button>
+					)}
+				</div>
+				{contents ? (
+					<div className="wt-coach__body">
+						<h2 className="wt-coach__title">Contents</h2>
+						<p className="wt-coach__note">Jump to any chapter.</p>
+						<ol className="wt-coach__chapters">
+							{tour.chapters.map((c, i) => (
+								<li key={c.id}>
+									<button type="button" className={`wt-coach__chapter${i === chapter ? ' is-current' : ''}`} onClick={() => goTo(chapterStart[i])}>
+										<span className="wt-coach__chapter-n">{done(i) ? <Check size={12} aria-label="done" /> : i + 1}</span>
+										<span>{c.title}</span>
+									</button>
+								</li>
+							))}
+						</ol>
+						<div className="wt-coach__actions">
+							<Button variant="ghost" size="sm" onClick={() => setContents(false)}><ArrowLeft size={13} aria-hidden="true" /> Back to the tour</Button>
+						</div>
+					</div>
+				) : showIntro ? (
 					<div className="wt-coach__body" aria-live="polite">
-						{progress(1)}
 						<h2 className="wt-coach__title wt-coach__title--big">{tour.intro.title}</h2>
 						<p className="wt-coach__text"><CoachText text={tour.intro.body} /></p>
 						{tour.intro.points && <Points points={tour.intro.points} />}
-						<p className="wt-coach__note">Explore with sample data. No account required.</p>
+						<p className="wt-coach__note">{tour.chapters.length} short chapters, all on sample data. No account needed.</p>
 						<div className="wt-coach__actions">
-							<Button variant="ghost" size="sm" onClick={skip}>Skip tour</Button>
-							<Button size="sm" onClick={() => setIntroDone(true)}>Start Warm-Up <ArrowRight size={13} aria-hidden="true" /></Button>
+							<Button size="sm" onClick={() => setIntroDone(true)}>Start the tour <ArrowRight size={13} aria-hidden="true" /></Button>
 						</div>
 					</div>
 				) : isFinale ? (
@@ -197,20 +192,28 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 						<h2 className="wt-coach__title wt-coach__title--big">{tour.finale.title}</h2>
 						{tour.finale.body.split('\n\n').map((p) => <p key={p} className="wt-coach__text"><CoachText text={p} /></p>)}
 						<div className="wt-coach__stack">
-							<Button size="sm" onClick={() => finish('signup')}>Get Atlas {label} <ArrowRight size={13} aria-hidden="true" /></Button>
-							<Button variant="outline" size="sm" onClick={() => finish('replay')}><RotateCcw size={13} aria-hidden="true" /> Replay Warm-Up</Button>
+							<a className="wt-coach__cta" href={ATLAS_SIGNUP_URL} target="_blank" rel="noopener">Get Atlas {label} <ArrowRight size={13} aria-hidden="true" /></a>
+							<Button variant="outline" size="sm" onClick={() => restartPractice()}><RotateCcw size={13} aria-hidden="true" /> Replay this tour</Button>
+							<Button variant="ghost" size="sm" onClick={() => leavePractice()}><Shuffle size={13} aria-hidden="true" /> Try another tier</Button>
 						</div>
 					</div>
 				) : current && (
 					<div className="wt-coach__body" aria-live="polite">
-						{progress(numberOf(step))}
+						<div className="wt-coach__progress">
+							<span>Chapter {chapter + 1} of {tour.chapters.length} · {tour.chapters[chapter].title}</span>
+							<span className="wt-coach__track" aria-hidden="true"><span style={{ width: `${((step + 1) / count) * 100}%` }} /></span>
+							<span>Step {inChapter} of {chapterSteps}</span>
+						</div>
 						<h2 className="wt-coach__title wt-coach__title--big">{current.title}</h2>
 						<p className="wt-coach__text wt-coach__text--lead"><CoachText text={current.body} /></p>
+						{current.advance.kind === 'type' && (
+							<p className="wt-coach__type"><Keyboard size={14} aria-hidden="true" /> Type <kbd>{current.advance.value}</kbd></p>
+						)}
 						{current.points && <Points points={current.points} />}
 						{missing && <p className="wt-coach__note">Can&apos;t spot it on this page? Carry on with Next.</p>}
 						<div className="wt-coach__actions">
 							<Button variant="ghost" size="sm" onClick={back}><ArrowLeft size={13} aria-hidden="true" /> Back</Button>
-							<Button variant="ghost" size="sm" onClick={skip}>Skip tour</Button>
+							<Button variant="ghost" size="sm" onClick={() => goTo(chapterStart[chapter + 1] ?? count)}>Skip chapter</Button>
 							{/* A confirmation carries its own button on the card. */}
 							{canNext && !current.confirm && <Button size="sm" onClick={advance}>{nextLabel} <ArrowRight size={13} aria-hidden="true" /></Button>}
 						</div>

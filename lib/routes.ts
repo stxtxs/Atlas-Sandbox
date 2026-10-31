@@ -36,7 +36,6 @@
  */
 
 import { access, type Tier, type TierReq } from './access.ts';
-import { previewBasePath } from './preview-mode.ts';
 
 /** One value, or a different value per tier. */
 export type PerTier<T> = T | Partial<Record<Tier, T>>;
@@ -113,6 +112,10 @@ export const ROUTES: RouteDef[] = [
 		id: 'recently-funded', icon: 'nav-funded', name: 'Recently Funded',
 		path: '/recently-funded', tier: ['raise', 'scout'],
 	},
+	// M&A tracker — a tabulated list of acquisitions (acquirer ↔ acquiree),
+	// ported from the hub's /ma page. Sits beside Recently Funded in both paid
+	// products; Explore is not shown it (not in its nav, `['raise','scout']`).
+	{ id: 'ma', icon: 'nav-ma', name: 'M&A', path: '/ma', tier: ['raise', 'scout'] },
 	{
 		id: 'watchlists', icon: 'nav-list', name: 'All watchlists',
 		path: '/watchlists',
@@ -140,42 +143,51 @@ export const ROUTES: RouteDef[] = [
 		path: '/account',
 	},
 	{ id: 'billing', icon: 'nav-subscription', name: 'Subscription', path: '/billing' },
+	// STX credits (AI + exports) — its own page, every tier, so Explore can top
+	// up too. Reached from the account tab strip and the out-of-credits modal.
+	{ id: 'credits', icon: 'nav-subscription', name: 'Credits', path: '/credits' },
 	// Deliberately untiered. Claiming your company or fund is how the
 	// directory stays accurate, so a free user must be able to do it — the
 	// API never gated it and the UI used to have no door at all.
 	{ id: 'verify', icon: 'nav-onboarding', name: 'Get verified', path: '/verify' },
-	// Reachable from the sidebar upgrade cards, the tier gate and billing, but
-	// never listed in a sidebar — it is a destination, not a section.
-	{ id: 'plans', icon: 'nav-subscription', name: 'Plans', path: '/plans' },
+	// Plans moved to a PUBLIC, chrome-less route (app/plans) so it can be viewed
+	// signed-out and shown in onboarding without the shell. It is therefore NOT a
+	// ROUTES entry any more (those are all edge-gated); link to it via PLANS_PATH.
 	{
 		// Both paid products include this: a founder checks their own pitch, an
 		// investor screens someone else's. Same backend and component, different
 		// copy and a different name in each sidebar.
-		// Explore is included because the feature is bounded by credits, not by
-		// tier: the welcome grant pays for about four analyses. It used to resolve
-		// to `upsell` here while the service refused base-tier callers outright,
-		// so a free user got a sales page for something their credits covered.
+		// Paid-only (Raise + Scout): the deck analyser is a paid feature again, so
+		// Explore gets the upsell (TierGate) rather than spending its welcome grant
+		// on it. The server mirrors this — DeckAnalysisService refuses base-tier
+		// callers (admins exempt). Both sides are `['raise','scout']`.
 		id: 'deck', icon: 'nav-screener',
 		name: { explore: 'Pitch Deck', raise: 'Pitch Deck', scout: 'Deck Screener' },
 		// The Deck Screener is live now: Scout runs the same engine in investor
-		// mode (snapshot, thesis fit, red flags, diligence questions). It carried
-		// a `placeholder: { scout: true }` "Not connected" flag while that was
-		// still a founder critique; the flag is gone with the real feature.
-		path: '/deck', tier: ['explore', 'raise', 'scout'],
+		// mode (snapshot, thesis fit, red flags, diligence questions).
+		path: '/deck', tier: ['raise', 'scout'],
 	},
 	{ id: 'interests', icon: 'nav-interests', name: 'Interests', path: '/interests', tier: 'explore' },
 
 	// ── Raise ───────────────────────────────────────────────────────────────
-	{ id: 'investors', icon: 'nav-circle', name: 'Investors', path: '/investors', tier: 'raise' },
-	{ id: 'programs', icon: 'nav-dealflow', name: 'Programs', path: '/programs', tier: 'raise' },
-	{ id: 'my-market', icon: 'nav-analysis', name: 'My Market', path: '/my-market', tier: 'raise' },
+	// Both paid products get the ecosystem directories (Scout browses them, Raise
+	// targets them). Explore keeps Investors as an upsell via its own nav entry.
+	{ id: 'investors', icon: 'nav-circle', name: 'Investors', path: '/investors', tier: ['raise', 'scout'] },
+	// Every plan: Programs is a public directory like Events (same component, same
+	// public endpoint), so Explore lists it under Market beside Events.
+	{ id: 'programs', icon: 'nav-dealflow', name: 'Programs', path: '/programs' },
+	{ id: 'my-market', icon: 'nav-market', name: 'My Market', path: '/my-market', tier: 'raise' },
 	{ id: 'pipeline', icon: 'nav-list', name: 'Main watchlist', path: '/pipeline', tier: 'raise' },
 	{ id: 'raise-settings', icon: 'nav-thesis', name: 'Thesis Settings', path: '/settings', tier: 'raise' },
 	// No tier: every plan gets the assistant, bounded by credits rather than by a
 	// locked door (see chat.controller.ts). Still unlisted in NAV_LAYOUT — it is
 	// reached from the home composer and the FAB.
-	{ id: 'chat', icon: 'nav-watchlist', name: 'Chat', path: '/chat' },
+	{ id: 'chat', icon: 'nav-chat', name: 'Chat', path: '/chat' },
 	{ id: 'strategy', icon: 'nav-onboarding', name: 'Strategy', path: '/strategy', tier: 'raise' },
+	// Guides, templates and checklists across Prepare → Connect → Close (content in
+	// raise_resources, edited in admin). Back with real content after the October
+	// removal of the "Coming soon" placeholder.
+	{ id: 'guide', icon: 'nav-onboarding', name: 'Fundraising Guide', path: '/resources', tier: 'raise' },
 
 	// ── Scout ───────────────────────────────────────────────────────────────
 	{ id: 'deal-flow', icon: 'nav-dealflow', name: 'All', path: '/deal-flow', tier: 'scout' },
@@ -186,6 +198,9 @@ export const ROUTES: RouteDef[] = [
 ];
 
 export const ROUTE_BY_ID = new Map(ROUTES.map((r) => [r.id, r]));
+
+/** The public pricing page. Not a gated ROUTES entry — link to it directly. */
+export const PLANS_PATH = '/plans';
 
 /** A sidebar group. `title: null` renders its items at the top, ungrouped. */
 export interface NavGroup {
@@ -211,28 +226,34 @@ export const NAV_LAYOUT: Record<Tier, NavGroup[]> = {
 		// Interests sits with Home, per the Figma Side Nav (31:15195). The HTML
 		// mockup puts it in the bottom group with Account; Figma is the newer
 		// file and the one named as the UI source, so it wins.
-		{ title: null, items: ['home', 'interests', 'deck'] },
+		{ title: null, items: ['home', 'chat', 'interests', 'deck'] },
 		{ title: 'Intelligence', items: ['framework', 'reports', 'newsletter'] },
 		// Investors is a Raise feature listed in Explore's sidebar on purpose —
 		// the design surfaces it unlocked-looking and lets the page do the
 		// selling (ATLAS Base.dc.html `navMarket`, which has a lock flag
 		// available and deliberately does not pass it). `buildNav` keeps
 		// upsellable items; only `hidden` ones are dropped.
-		{ title: 'Market', items: ['analytics', 'roundup', 'companies', 'events', 'investors'] },
+		{ title: 'Market', items: ['analytics', 'roundup', 'companies', 'events', 'programs', 'investors'] },
 	],
 	raise: [
-		{ title: null, items: ['home'] },
+		{ title: null, items: ['home', 'chat'] },
 		{ title: 'Raise', items: ['deck', 'investors', 'programs'] },
 		{ title: 'Discover', items: ['companies', 'recommended', 'signals'] },
-		{ title: 'Intelligence', items: ['analytics', 'roundup', 'my-market', 'recently-funded'] },
+		{ title: 'Intelligence', items: ['analytics', 'roundup', 'my-market', 'recently-funded', 'ma'] },
 		{ title: 'Watchlists', items: ['pipeline', 'watchlists'] },
-		{ title: 'Resources', items: ['framework', 'reports', 'events', 'newsletter'] },
+		{ title: 'Resources', items: ['guide', 'framework', 'reports', 'events', 'newsletter'] },
 	],
 	scout: [
-		{ title: null, items: ['home'] },
-		{ title: 'Discover', items: ['companies', 'recommended', 'signals'] },
-		{ title: 'Intelligence', items: ['analytics', 'roundup', 'recently-funded'] },
-		{ title: 'Watchlists', items: ['watchlists'] },
+		{ title: null, items: ['home', 'chat'] },
+		// Scout has a single watchlist link (no pipeline), so a standalone
+		// "Watchlists" section collapsed to one headerless item. Fold it into
+		// Discover instead — saved lists still splice in before "All watchlists".
+		{ title: 'Discover', items: ['companies', 'recommended', 'signals', 'watchlists'] },
+		// Ecosystem directories — investors and accelerator/VC programs. In the hub
+		// these are their own "Ecosystem" category; a scout browses them to map a
+		// market, so both products now carry them (Raise lists them under "Raise").
+		{ title: 'Ecosystem', items: ['investors', 'programs'] },
+		{ title: 'Intelligence', items: ['analytics', 'roundup', 'recently-funded', 'ma'] },
 		{ title: 'Deal Flow', items: ['deal-flow', 'deal-flow-featured', 'deal-flow-verified', 'deal-flow-circle', 'deck'] },
 		{ title: 'Resources', items: ['framework', 'reports', 'events', 'newsletter'] },
 	],
@@ -262,18 +283,6 @@ export const SECTION_SUBS: Record<Tier, Record<string, string>> = {
 };
 
 /**
- * Prefixes a canonical path for the pre-signup `/preview/[product]/*` tour
- * (app/preview/, lib/preview-mode.ts) so every link generated while it's
- * running — sidebar nav, in-page links, breadcrumbs — stays inside the
- * preview tree instead of bouncing an anonymous visitor to /login. A no-op
- * (returns `p` unchanged) everywhere else, including the entire real app.
- */
-const withPreview = (p: string): string => {
-	const base = previewBasePath();
-	return base ? `${base}${p}` : p;
-};
-
-/**
  * A route's canonical path.
  *
  * Throws while that route still carries per-tier paths, which is the guard an
@@ -284,25 +293,6 @@ const withPreview = (p: string): string => {
 export function hrefOf(id: string): string {
 	const p = ROUTE_BY_ID.get(id)?.path;
 	if (typeof p !== 'string') throw new Error(`route '${id}' still has per-tier paths`);
-	return withPreview(p);
-}
-
-/**
- * `hrefOf`, deliberately NOT preview-aware — for the one caller that must
- * never be: lib/sandbox/tours/*.ts, which calls this at module scope to build
- * each TourStep's `path`/pattern once, the first time the module loads. That
- * first load always happens while already inside `/preview/<product>/*` (the
- * coach only ever mounts there or in the real signed-in app), so a preview-
- * aware `hrefOf('home')` bakes `/preview/raise/home` into the step forever —
- * then the coach's own navigation effect prefixes it a second time on every
- * push, landing on `/preview/raise/preview/raise/home`, a 404. The coach
- * (components/features/walkthrough/walkthrough-coach.tsx) already strips and
- * re-adds the prefix itself at render time; it needs the canonical path here,
- * not a prefix baked in at the wrong moment.
- */
-export function canonicalHrefOf(id: string): string {
-	const p = ROUTE_BY_ID.get(id)?.path;
-	if (typeof p !== 'string') throw new Error(`route '${id}' still has per-tier paths`);
 	return p;
 }
 
@@ -311,7 +301,7 @@ export const companyHref = (idOrSlug: string) => `${hrefOf('companies')}/${encod
 
 /** The route a product's logo and account badge point at. */
 export const pathOf = (id: string, tier: Tier): string =>
-	withPreview(forTier(ROUTE_BY_ID.get(id)?.path, tier) ?? '/');
+	forTier(ROUTE_BY_ID.get(id)?.path, tier) ?? '/';
 
 /**
  * The route a URL belongs to, by longest-prefix match — so

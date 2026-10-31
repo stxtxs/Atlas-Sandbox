@@ -23,7 +23,7 @@
 /* ── Button (Figma "Inspect Button" / filter pills) ─────────────────────── */
 .atlas-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  height: 29px; padding: 0 15px;
+  height: 34px; padding: 0 15px;
   border-radius: var(--a-radius-pill);
   font-family: var(--a-mono); font-size: 11px; font-weight: 400; line-height: 1;
   letter-spacing: 0.1em; text-transform: uppercase;
@@ -74,7 +74,7 @@
 
 /* ── Segmented switch (Figma "Select UX bar": FUNDING | M&A | TOTAL) ────── */
 .atlas-seg {
-  display: inline-flex; align-items: stretch; height: 29px;
+  display: inline-flex; align-items: stretch; height: 34px;
   border: 1px solid var(--a-border-strong); border-radius: var(--a-radius-pill);
   background: var(--a-field); overflow: hidden;
 }
@@ -88,6 +88,36 @@
 
 /* ── Field ──────────────────────────────────────────────────────────────── */
 .atlas-label { display: block; font-family: var(--a-mono); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--a-muted); margin-bottom: 7px; }
+.atlas-label-row { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+.atlas-label-row > .atlas-label, .atlas-label-row > .cm-label { margin-bottom: 0; }
+
+/* InfoTip — (i) beside a label; bubble is portalled (z above the claim modal's 1200). */
+.atlas-infotip {
+  /* Just the icon: Lucide's Info is already a circle, so no border (it read as
+     two concentric rings), and a normal pointer, not the "?" help cursor. */
+  display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; padding: 0;
+  border: 0; border-radius: 50%; background: transparent;
+  color: var(--a-muted); cursor: pointer; transition: color .15s;
+  /* Taller than the 10px label: don't let it grow the row, or side-by-side inputs misalign. */
+  margin-block: -3px;
+}
+.atlas-infotip:hover, .atlas-infotip:focus-visible, .atlas-infotip[data-state$="open"] { color: var(--a-ink); }
+.atlas-infotip:focus-visible { outline: 2px solid var(--a-ink); outline-offset: 2px; }
+/* A bigger touch target without a bigger icon. */
+/* Wider, not taller: a taller area reached over the input under the label. */
+@media (pointer: coarse) { .atlas-infotip { position: relative; } .atlas-infotip::after { content: ''; position: absolute; inset: -4px -12px; } }
+.atlas-infotip__bubble {
+  z-index: 1300; max-width: min(320px, calc(100vw - 24px)); padding: 9px 12px;
+  border-radius: 8px; background: var(--a-ink); color: var(--a-page);
+  font-family: var(--a-body); font-size: 12px; line-height: 1.5; text-transform: none; letter-spacing: 0;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+}
+.atlas-infotip__bubble p { margin: 0; }
+.atlas-infotip__bubble p + p, .atlas-infotip__bubble ul { margin-top: 6px; }
+.atlas-infotip__bubble ul { margin-bottom: 0; padding-left: 16px; }
+.atlas-infotip__bubble strong { font-weight: 700; }
+.atlas-infotip__arrow { fill: var(--a-ink); }
+.atlas-label__req { color: var(--a-danger); }
 .atlas-input, .atlas-select, .atlas-textarea {
   width: 100%; height: 38px; padding: 0 14px;
   background: var(--a-field); color: var(--a-ink);
@@ -136,6 +166,9 @@
   background: var(--a-surface); border: 1px solid var(--a-border-strong);
   border-radius: 10px; box-shadow: 0 14px 40px color-mix(in srgb, var(--a-ink) 16%, transparent);
   overflow: hidden;
+  /* A modal (Radix Dialog) sets pointer-events:none on <body>; this panel is
+     portalled to <body>, so re-enable them or it is visible but unclickable. */
+  pointer-events: auto;
 }
 .atlas-combo-search {
   display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 38px;
@@ -196,7 +229,7 @@
 .atlas-datepanel__clear:hover { background: var(--a-inset); color: var(--a-ink); }
 /* Pill dropdown (Figma "Sort Button": ⌄ JULY). */
 .atlas-select--pill {
-  height: 29px; border-radius: var(--a-radius-pill); padding: 0 14px 0 30px;
+  height: 34px; border-radius: var(--a-radius-pill); padding: 0 14px 0 30px;
   font-family: var(--a-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
   appearance: none; -webkit-appearance: none; cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='%23000' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -206,7 +239,7 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='%23fff' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 /* Pill search field (Figma "Search Field"). */
-.atlas-input--search { border-radius: var(--a-radius-pill); height: 32px; font-size: 13px; background: var(--a-inset); }
+.atlas-input--search { border-radius: var(--a-radius-pill); height: 38px; font-size: 13px; background: var(--a-inset); }
 
 /* ── Badge / tag (Figma "Suggestion tag") ───────────────────────────────── */
 .atlas-badge {
@@ -253,10 +286,10 @@
 .atlas-fbar__search { position: relative; flex: 1 1 380px; max-width: 480px; min-width: 220px; }
 .atlas-fbar__search svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--a-muted); pointer-events: none; }
 .atlas-fbar__search .atlas-input { padding-left: 34px; }
-.atlas-fbar .atlas-btn { height: 32px; }
+.atlas-fbar .atlas-btn { height: 38px; }
 .atlas-fbar__anchor { position: relative; }
 .atlas-fbar__pill {
-  display: inline-flex; align-items: center; height: 32px; max-width: 280px;
+  display: inline-flex; align-items: center; height: 38px; max-width: 280px;
   border: 1px solid var(--a-border-strong); border-radius: var(--a-radius-pill); background: var(--a-field);
 }
 .atlas-fbar__pill-main {
@@ -273,7 +306,7 @@ span.atlas-fbar__pill-main { cursor: default; }
 }
 .atlas-fbar__pill-x:hover { color: var(--a-ink); }
 .atlas-fbar__clear {
-  display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0 6px;
+  display: inline-flex; align-items: center; gap: 6px; height: 38px; background: none; border: none; cursor: pointer; padding: 0 6px;
   font-family: var(--a-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: color-mix(in srgb, var(--a-ink) 45%, transparent);
 }
 .atlas-fbar__clear:hover { color: var(--a-ink); }
@@ -282,14 +315,16 @@ span.atlas-fbar__pill-main { cursor: default; }
 
 /* Black popover menu (Figma filter dropdowns). Inverts in dark mode via the primary tokens. */
 .atlas-menu {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
-  min-width: 190px; max-width: min(92vw, 360px);
+  /* z-index above the Ask-Atlas scrim/panel (79/80) so a filter/sort/menu never
+     opens *behind* the chat; still below real modals (>=100). */
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 90;
+  min-width: 190px; max-width: min(92vw, 440px);
   background: var(--a-primary); color: var(--a-primary-ink);
   border-radius: var(--a-radius); padding: 14px 14px 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
 }
 .atlas-menu--end { left: auto; right: 0; }
-.atlas-menu--wide { min-width: min(92vw, 316px); }
+.atlas-menu--wide { min-width: min(92vw, 380px); }
 .atlas-menu__groups { display: grid; gap: 18px 26px; }
 .atlas-menu--wide .atlas-menu__groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .atlas-menu__label {
@@ -309,7 +344,7 @@ span.atlas-fbar__pill-main { cursor: default; }
   border-radius: var(--a-radius-pill);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--a-primary-ink) 22%, transparent);
   font-family: var(--a-mono); font-size: 10px; line-height: 1.2; letter-spacing: 0.1em;
-  text-transform: uppercase; color: inherit; white-space: nowrap;
+  text-transform: uppercase; color: inherit;
   transition: background 0.12s, box-shadow 0.12s;
 }
 .atlas-menu__item:hover, .atlas-menu__item:focus-visible {
@@ -354,16 +389,44 @@ span.atlas-fbar__pill-main { cursor: default; }
 .atlas-menu__locked svg { margin-top: 2px; flex-shrink: 0; }
 @media (max-width: 640px) {
   .atlas-fbar__search { flex-basis: 100%; }
-  .atlas-fbar__right { margin-left: 0; width: 100%; justify-content: space-between; }
+  /* Shares the Add-filter row when it fits (it used to take a full row of its
+     own, leaving "Sort by" alone on a line); wraps right-aligned when not. */
+  .atlas-fbar__right { margin-left: auto; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  /* Toolbar buttons beside the filters go icon-only — Export (download),
+     Sort (sliders). The words stay as the accessible name. "Add filter" keeps
+     its text: it is the bar's primary action. */
+  .atlas-fbar__right > .atlas-btn,
+  .atlas-fbar__right > .atlas-fbar__anchor > .atlas-btn { width: 38px; padding: 0; justify-content: center; gap: 0; }
+  .atlas-fbar__right > .atlas-btn .atlas-btn__label,
+  .atlas-fbar__right > .atlas-fbar__anchor > .atlas-btn .atlas-btn__label {
+    position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
   .atlas-menu--wide .atlas-menu__groups { grid-template-columns: 1fr; }
+  /* Filter / sort / watchlist menus (`--sheet`) stay dropdowns under their
+     button on phones — they used to become bottom sheets, which read as
+     detached from the control the user tapped. They are capped to the screen
+     width and to 70% of its height; useKeepInViewport nudges one back on-screen
+     sideways and trims its height to the room below. A flex column so the
+     header/search stay put and only the list scrolls. */
+  .atlas-menu.atlas-menu--sheet {
+    max-width: calc(100vw - 16px); max-height: min(70vh, 520px); overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .atlas-menu--sheet.atlas-menu--wide { min-width: min(calc(100vw - 16px), 340px); }
+  .atlas-menu--sheet .atlas-menu__head,
+  .atlas-menu--sheet .atlas-menu__search { flex: none; }
+  .atlas-menu--sheet .atlas-menu__groups,
+  .atlas-menu--sheet .atlas-menu__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  /* One scroll region inside the fixed frame, not a nested 280px scroller. */
+  .atlas-menu--sheet .atlas-menu__list--scroll { max-height: none; }
 }
 
 /* ── Investor card (Figma "Investor Card": 252×232, pink glow on hover) ─── */
-.atlas-entity-card { display: flex; flex-direction: column; padding: 11px 13px 14px; transition: background-image .2s; }
+.atlas-entity-card { display: flex; flex-direction: column; padding: 11px 13px 14px; transition: border-color 0.15s; }
 .atlas-entity-card:hover { background-image: var(--a-glow-pink); }
 .atlas-entity-card__head { display: flex; gap: 16px; margin-bottom: 16px; }
 .atlas-entity-card__eyebrow { font-family: var(--a-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--a-muted); margin-bottom: 7px; }
-.atlas-entity-card__name { font-family: var(--a-font); font-size: 15px; font-weight: 700; line-height: 1.25; color: var(--a-ink); }
+.atlas-entity-card__name { display: block; font-family: var(--a-font); font-size: 15px; font-weight: 700; line-height: 1.25; color: var(--a-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .atlas-entity-card__meta { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 10px; color: var(--a-faint); }
 .atlas-entity-card__desc {
   font-size: 11px; line-height: 1.4; color: var(--a-muted); margin: 0 3px 14px;
@@ -374,6 +437,17 @@ span.atlas-fbar__pill-main { cursor: default; }
   margin: auto 3px 0; padding-top: 16px; border-top: 1px solid var(--a-border);
 }
 .atlas-entity-card:hover .atlas-action__icon { background: var(--a-primary); color: var(--a-primary-ink); border-color: var(--a-primary); }
+.atlas-entity-card__foot {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: auto 3px 0; padding-top: 14px; border-top: 1px solid var(--a-border);
+}
+.atlas-entity-card__date { font-family: var(--a-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--a-muted); }
+.atlas-entity-card__link {
+  display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  color: var(--a-muted); border: 1px solid var(--a-border-strong); background: var(--a-field);
+  text-decoration: none; transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.atlas-entity-card__link:hover { color: var(--a-primary-ink); background: var(--a-primary); border-color: var(--a-primary); }
 
 /* ── Row list (hairline-separated rows in one card) ─────────────────────── */
 .atlas-rowlist {
@@ -403,15 +477,26 @@ span.atlas-fbar__pill-main { cursor: default; }
 .atlas .atlas-section-aside { font-family: var(--a-body); font-size: 12px; color: var(--a-muted); }
 
 /* ── Ranked table (Figma "Funding rounds" / "Largest acquisitions") ── */
-.atlas .atlas-table { display: flex; flex-direction: column; margin: 0 -23px; }
+.atlas .atlas-table { display: flex; flex-direction: column; margin: 0 -23px; overflow-x: auto; }
+/* A chart card has zero padding and clips overflow, so the -23px full-bleed
+   over-pulls and content lands flush on the border. Drop the bleed there — the
+   rows' own 23px padding then gives the first/last columns proper breathing room. */
+.atlas .atlas-chart-card .atlas-table { margin: 0; }
 .atlas .atlas-table__head, .atlas .atlas-table__row { display: flex; align-items: center; gap: 18px; padding: 14px 23px; }
+/* Phone: the screen gutter is 16px, so the 23px bleed ran 7px off both edges.
+   Bleed exactly to the gutter and pad rows to match. After the base row rule:
+   at equal specificity the later rule wins, and placed above it this lost. */
+@media (max-width: 640px) {
+	.atlas .atlas-table { margin: 0 -16px; }
+	.atlas .atlas-table__head, .atlas .atlas-table__row { padding-inline: 16px; }
+}
 .atlas .atlas-table__head {
 	border-top: 1px solid var(--a-border); border-bottom: 1px solid var(--a-border);
 	font-family: var(--a-mono); font-size: 11px; letter-spacing: 0; text-transform: uppercase; color: var(--a-faint);
 }
 .atlas .atlas-table__head > * { font-family: var(--a-mono); font-size: 11px; font-weight: 400; color: var(--a-faint); }
 .atlas .atlas-table__head .atlas-table__rank { height: auto; background: none; border: none; place-items: center start; padding-left: 4px; }
-.atlas .atlas-table__row { border-bottom: 1px solid var(--a-border); transition: background .15s; }
+.atlas .atlas-table__row { border-bottom: 1px solid var(--a-border); transition: background .15s; text-decoration: none; color: inherit; }
 .atlas .atlas-table__row:last-child { border-bottom: none; }
 .atlas .atlas-table__row:hover { background: linear-gradient(180deg, transparent, var(--a-navy-soft)); }
 .atlas .atlas-table__rank {
@@ -421,9 +506,29 @@ span.atlas-fbar__pill-main { cursor: default; }
 }
 .atlas .atlas-table__name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; }
 .atlas .atlas-table__name-main { min-width: 0; font-family: var(--a-font); }
-.atlas .atlas-table__col { font-family: var(--a-body); font-size: 13px; color: var(--a-muted); white-space: nowrap; }
+.atlas .atlas-table__col { font-family: var(--a-body); font-size: 13px; color: var(--a-muted); white-space: nowrap; flex: none; overflow: hidden; text-overflow: ellipsis; }
 .atlas .atlas-table__amount { font-family: var(--a-body); font-size: 13px; font-weight: 600; color: var(--a-ink); white-space: nowrap; text-align: right; min-width: 72px; }
 .atlas .atlas-ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Get-verified pill — clamp so a long "· <company name>" label (only shown in the
+   verified/pending state) can't grow past the viewport and shrink the whole page
+   on mobile. The label ellipsizes instead. */
+.atlas .atlas-verify-btn { gap: 7px; max-width: 100%; min-width: 0; }
+.atlas .atlas-verify-btn__label { min-width: 0; }
+/* Date-picker "jump to date" field — bumped to 16px on mobile below. */
+.atlas .atlas-datepanel__jump { font-size: 13px; }
+
+/* Mobile: 16px is iOS Safari's threshold below which focusing a field auto-zooms
+   the page. Every filter/search/form input was sub-16px, so tapping the country
+   filter (etc.) zoomed in. Desktop sizing is untouched. */
+@media (max-width: 640px) {
+  .atlas .atlas-input,
+  .atlas .atlas-textarea,
+  .atlas .atlas-input--search,
+  .atlas .atlas-menu__search,
+  .atlas .atlas-combo-search input,
+  .atlas .atlas-datepanel__jump { font-size: 16px; }
+}
 
 /* ── KPI strip (Figma "Detail Columns": one glowing card, hairline-separated columns) ── */
 .atlas .atlas-kpis {
@@ -449,12 +554,31 @@ span.atlas-fbar__pill-main { cursor: default; }
 	.atlas .atlas-kpis { grid-template-columns: 1fr 1fr; padding: 24px 0; }
 	.atlas .atlas-kpi { padding: 0 18px; }
 	.atlas .atlas-kpi:nth-child(odd) { border-left: none; }
-	.atlas .atlas-kpi__value { font-size: 28px; }
+	/* Let a very large number wrap instead of clipping in the narrow 2-col cell. */
+	.atlas .atlas-kpi__value { font-size: 28px; white-space: normal; overflow-wrap: anywhere; }
 }
 
 @media (max-width: 640px) {
 	.atlas .atlas-table__col.hide-sm { display: none; }
 }
+/* Tablets and small laptops (drawer up to 1024px, then a ~700–830px column
+   beside the rail): a full directory row is ~850px of fixed columns, so the
+   flexible name column was crushed to nothing. Secondary columns step out. */
+@media (max-width: 1200px) {
+	.atlas .atlas-table__col.hide-md { display: none; }
+}
+
+/* ── View toggle (cards / table) ── */
+.atlas .atlas-view-toggle {
+	display: inline-flex; border: 1px solid var(--a-border); border-radius: var(--a-radius); overflow: hidden;
+}
+.atlas .atlas-view-toggle__btn {
+	display: inline-flex; align-items: center; justify-content: center;
+	width: 34px; height: 34px; border: none; cursor: pointer; color: var(--a-muted);
+	background: var(--a-surface); transition: background .1s, color .1s;
+}
+.atlas .atlas-view-toggle__btn + .atlas-view-toggle__btn { border-left: 1px solid var(--a-border); }
+.atlas .atlas-view-toggle__btn.active { background: var(--a-inset); color: var(--a-ink); }
 
 /* ── Wordmark ─────────────────────────────────────────────────────────────*/
 .atlas-logo { position: relative; display: inline-flex; align-items: flex-end; color: var(--a-ink); line-height: 0; }
@@ -466,6 +590,13 @@ span.atlas-fbar__pill-main { cursor: default; }
   color: #4580EC; white-space: nowrap;
 }
 [data-theme="dark"] .atlas .atlas-logo__product { color: #7FA8F5; }
+
+/* Full-screen loading (auth check, then the tier). Same page colour as the app. */
+.atlas.auth-placeholder {
+  min-height: 100vh; display: grid; place-content: center; justify-items: center; gap: 16px;
+  background: var(--a-page); color: var(--a-muted);
+  font-family: var(--a-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+}
 
 /* ── Section header (Figma "Section Header": Satoshi 24 + meta, hairline below) ── */
 .atlas-sectionhead {
@@ -482,13 +613,18 @@ span.atlas-fbar__pill-main { cursor: default; }
 /* Room to breathe. At 20px padding and a 12px body the cards read as packed,
    and a long action label ("Complete setup") squeezed the tag beside it. */
 .atlas-feed-card {
+  /* The whole card is the target, not just the pill: the pill's ::after (below)
+     stretches over this box. One real link/button per card, so keyboard and
+     screen-reader behaviour stay exactly as before. */
+  position: relative; cursor: pointer;
   display: flex; flex-direction: column; min-height: 156px; padding: 22px 24px 24px;
   background-color: var(--a-surface);
   background-image: linear-gradient(160deg, transparent 50%, color-mix(in srgb, var(--a-pink) 14%, transparent) 100%);
   border: 1px solid var(--a-card-border); border-radius: var(--a-radius);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s;
 }
-.atlas-feed-card:hover { border-color: var(--a-border-strong); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05); }
+.atlas-feed-card:hover { border-color: var(--a-border-strong); }
+.atlas-feed-card:has(.atlas-feed-card__action:focus-visible) { outline: 2px solid var(--a-ink); outline-offset: 2px; }
 .atlas-feed-card__top { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 26px; }
 .atlas-feed-card__tag {
   display: inline-flex; align-items: center; gap: 7px; min-width: 0;
@@ -509,7 +645,12 @@ span.atlas-fbar__pill-main { cursor: default; }
   cursor: pointer;
   transition: opacity 0.15s, transform 0.15s;
 }
-.atlas-feed-card__action:hover { opacity: 0.88; transform: translateY(-1px); }
+/* Hover feedback hangs off the card. No transform on the pill itself: a
+   transformed element becomes the containing block for its ::after, which would
+   shrink the card-wide hit area back to the pill. */
+.atlas-feed-card:hover .atlas-feed-card__action { opacity: 0.88; }
+.atlas-feed-card__action::after { content: ''; position: absolute; inset: 0; border-radius: var(--a-radius); }
+.atlas-feed-card__action:focus-visible { outline: none; }
 .atlas-feed-card__action svg { flex-shrink: 0; }
 .atlas-feed-card__title { margin: 12px 0 0; font-family: var(--a-font); font-size: 19px; font-weight: 700; line-height: 1.3; color: var(--a-ink); }
 .atlas-feed-card__body { margin: 8px 0 0; font-family: var(--a-body); font-size: 13px; line-height: 1.6; color: var(--a-muted); max-width: 62ch; }
@@ -544,7 +685,14 @@ a.atlas-tab { text-decoration: none; }
   padding: 2px 6px; border-radius: 8px; border: 0.5px solid var(--a-border-strong);
   font-family: var(--a-mono); font-size: 7px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--a-muted);
 }
-@media (max-width: 640px) { .atlas-tabbed-head { margin-bottom: 27px; } .atlas-tabbed-head__tabs { margin-top: 24px; } }
+@media (max-width: 640px) {
+	.atlas-tabbed-head { margin-bottom: 27px; }
+	.atlas-tabbed-head__tabs { margin-top: 20px; }
+	/* The section's sub-line ("Your fundraise: pitch deck, investors and
+	   programs.") is a desktop nicety; on a phone the title and tabs say it and
+	   the line costs a screenful's worth of the first view. */
+	.atlas-tabbed-head .atlas-sub { display: none; }
+}
 
 /* Placeholder pill (SOON style) inside tabs / titles */
 .atlas-tab.has-pill { display: inline-flex; align-items: center; gap: 8px; }
@@ -619,10 +767,13 @@ h1 .atlas-soon--inline, h2 .atlas-soon--inline, .atlas-h1 .atlas-soon--inline, .
   position: relative; display: flex; gap: 22px;
   background-color: var(--a-surface);
   border: 1px solid var(--a-card-border); border-radius: var(--a-radius);
-  transition: border-color 0.15s, background-image 0.2s;
+  transition: border-color 0.15s;
 }
 .atlas-post--featured {
-  padding: 16px 24px 16px 16px; max-width: 980px;
+  /* Span the container (same width as the post grid below) so the hero isn't a
+     narrow block floating left with dead space on its right. Body text still
+     caps its own line length via .atlas-post__desc. */
+  padding: 16px 24px 16px 16px; width: 100%;
   background-image: linear-gradient(165deg, transparent 55%, color-mix(in srgb, var(--a-pink) 16%, transparent) 100%);
 }
 .atlas-post--card {
@@ -638,10 +789,17 @@ h1 .atlas-soon--inline, h2 .atlas-soon--inline, .atlas-h1 .atlas-soon--inline, .
   border: 1px solid var(--a-card-border); border-radius: var(--a-radius-sm);
 }
 .atlas-post__cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
-/* Featured cover: the whole document cover, never cropped. `contain` on the
-   page-coloured frame letterboxes a stray aspect rather than slicing the art. */
-.atlas-post__cover--tall { width: 240px; aspect-ratio: 3 / 4; align-self: flex-start; }
-.atlas-post__cover--tall img { object-fit: contain; }
+/* Featured cover: scales with the card (45%, 340–580px), height following the
+   image — wide enough that a ~2:1 cover still gives the hero real height. The old
+   fixed 4:3 frame letterboxed every report — all 33 covers are 1.7–2:1 — into
+   empty bands above and below. A portrait cover (a few newsletters) is capped
+   and centred rather than stretching the card. Until the image loads (or if it
+   never does, or there is none) the frame holds a 16:9 placeholder, so the
+   library below doesn't jump when the cover arrives — most covers are ~16:9. */
+.atlas-post__cover--tall { width: clamp(340px, 45%, 580px); align-self: flex-start; }
+.atlas-post__cover--tall img { height: auto; max-height: 420px; object-fit: contain; }
+.atlas-post__cover--tall:empty,
+.atlas-post__cover--tall:has(> img:not([data-loaded])) { aspect-ratio: 16 / 9; }
 /* Library card: a full-width band across the top ~half of the card. The card
    clips it to the corner radius (overflow:hidden), so no radius of its own. */
 .atlas-post__cover--banner {
@@ -686,25 +844,24 @@ h1 .atlas-soon--inline, h2 .atlas-soon--inline, .atlas-h1 .atlas-soon--inline, .
   margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--a-border);
 }
 .atlas-post__actions--card { margin-top: auto; padding-top: 14px; gap: 10px 18px; }
-.atlas-post--card .atlas-post__tags + .atlas-post__actions--card,
-.atlas-post--card .atlas-post__desc + .atlas-post__actions--card { margin-top: 16px; }
 /* Default card at rest: the action icon is the outline variant; the card's
    hover fills it, which is the "+ hover highlight" half of the component. */
 .atlas-post--card .atlas-action__icon { background: var(--a-field); color: var(--a-ink); border-color: var(--a-border-strong); }
 .atlas-post--card:hover .atlas-action__icon { background: var(--a-primary); color: var(--a-primary-ink); border-color: var(--a-primary); }
 
-.atlas-post-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; align-items: stretch; }
-.atlas-post-grid .atlas-post--card { height: 100%; }
+.atlas-post-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; align-items: stretch; }
+.atlas-post-grid .atlas-post--card { height: 100%; content-visibility: auto; contain-intrinsic-size: auto 380px; }
 
 @media (max-width: 640px) {
   .atlas-post--featured { flex-direction: column; padding: 14px; }
-  .atlas-post__cover--tall { width: 100%; aspect-ratio: 16 / 9; }
+  .atlas-post__cover--tall { width: 100%; }
+  .atlas-post__cover--tall img { max-height: 420px; }
 }
 
 /* ── Filter pills (mockup `pill(active)`) ─────────────────────────────────── */
 .atlas-pilltabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .atlas-pilltab {
-  display: inline-flex; align-items: center; height: 29px; padding: 0 13px;
+  display: inline-flex; align-items: center; height: 34px; padding: 0 13px;
   border: 0; border-radius: var(--a-radius-pill); cursor: pointer; white-space: nowrap;
   background: var(--a-field); color: var(--a-ink); box-shadow: inset 0 0 0 1px var(--a-border-strong);
   font-family: var(--a-mono); font-size: 10.5px; line-height: 1; letter-spacing: 0.1em; text-transform: uppercase;
@@ -745,3 +902,33 @@ h1 .atlas-soon--inline, h2 .atlas-soon--inline, .atlas-h1 .atlas-soon--inline, .
 .atlas-empty__title { font-family: var(--a-font); font-size: 15px; font-weight: 700; color: var(--a-ink); }
 .atlas-empty__text { font-family: var(--a-body); font-size: 13px; line-height: 1.6; color: var(--a-muted); max-width: 420px; }
 .atlas-empty__action { margin-top: 8px; }
+
+/* ── Phone: actions without chrome ──────────────────────────────────────────
+   Space is short on a phone, so an action is its glyph: no pill around the
+   icon. In repeated items (table rows, cards, watchlist rows) and on every save
+   button the label goes too — the bookmark alone says "save", and a row of
+   "ADD TO WATCHLIST · VIEW COMPANY" pills crowded out the content. The label
+   stays in the accessibility tree as the button's name. Standalone actions
+   (View report, Website, Return to results) keep their words. Placed last so it
+   beats the cards' hover fills at equal specificity. */
+@media (max-width: 640px) {
+	.atlas .atlas-action .atlas-action__icon,
+	.atlas .atlas-action:hover .atlas-action__icon {
+		width: auto; height: auto; background: none; border: 0; color: var(--a-ink);
+	}
+	.atlas .atlas-action .atlas-action__icon svg { width: 17px; height: 17px; }
+	/* Without the 24px pill the action shrank to its 17px label line — too small
+	   a target for a thumb. Keep a 40px tap height. */
+	.atlas .atlas-action { min-height: 40px; }
+	.atlas .atlas-action--save,
+	.atlas :is(.atlas-table__row, .atlas-entity-card__actions, .mkt-co-actions, .atlas-wl-actions, .atlas-sig__actions, .atlas-rec__actions) .atlas-action {
+		min-width: 40px; min-height: 40px; justify-content: center; gap: 0;
+	}
+	.atlas .atlas-action--save .atlas-action__label,
+	.atlas :is(.atlas-table__row, .atlas-entity-card__actions, .mkt-co-actions, .atlas-wl-actions, .atlas-sig__actions, .atlas-rec__actions) .atlas-action__label {
+		position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+	}
+	/* An action column shrinks to its icon; its header text goes with the label. */
+	.atlas .atlas-table__col--action { width: 40px !important; text-align: center; }
+	.atlas .atlas-table__head .atlas-table__col--action { font-size: 0; }
+}

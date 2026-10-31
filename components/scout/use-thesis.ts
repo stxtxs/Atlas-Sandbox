@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import useSWR from 'swr';
 import { useUserProfile } from '@/hooks/use-user-profile';
-import { usePlaceholderState } from '@/hooks/use-placeholder-state';
+import { clearLegacy, readLegacy } from '@/hooks/legacy-local';
 import { apiRequest } from '@/lib/query-client';
+import { refreshScout } from '@/lib/invalidate';
 import { qk } from '@/lib/query-keys';
 import { DEFAULT_THESIS, type Thesis } from './sample-data';
 import {
@@ -76,8 +77,20 @@ export function useThesisState(): ThesisState {
 		sports: indexByName(list(sports.data)),
 	}), [sectors.data, rounds.data, sports.data]);
 
-	// The attribute chips the schema has no column for.
-	const [extras, saveExtras] = usePlaceholderState<string[]>('scout-thesis-extras', []);
+	// The attribute chips with no taxonomy column — `scout_thesis.include_tags`.
+	const extras = useMemo(() => thesis.data?.include_tags ?? [], [thesis.data]);
+
+	// They used to live in this browser only — push any left there up once.
+	const { data: loaded, mutate: refetchThesis } = thesis;
+	useEffect(() => {
+		if (!loaded) return;
+		const legacy = readLegacy<string[]>('scout-thesis-extras');
+		if (!legacy) return;
+		if (!legacy.length || loaded.include_tags?.length) { clearLegacy('scout-thesis-extras'); return; }
+		void apiRequest('PUT', '/api/scout/thesis', { include_tags: legacy })
+			.then(() => { clearLegacy('scout-thesis-extras'); void refetchThesis(); })
+			.catch(() => { /* kept locally; retried next load */ });
+	}, [loaded, refetchThesis]);
 
 	const value = useMemo<Thesis>(() => {
 		const base = toForm(thesis.data, scout.data, {
@@ -85,7 +98,7 @@ export function useThesisState(): ThesisState {
 			name: profile?.full_name ?? profile?.display_name ?? '',
 			email: profile?.email ?? '',
 		});
-		return { ...base, email: profile?.email ?? base.email, include: [...base.include, ...extras] };
+		return { ...base, email: profile?.email ?? base.email, include: [...new Set([...base.include, ...extras])] };
 	}, [thesis.data, scout.data, profile, extras]);
 
 	/**
@@ -104,17 +117,19 @@ export function useThesisState(): ThesisState {
 	 * writing it early cannot be undone.
 	 */
 	const save = useCallback(async (next: Thesis, opts?: { complete?: boolean }) => {
-		saveExtras(splitLocal(next.include, idx.sports, MODEL_LABELS));
 		const complete = opts?.complete ?? true;
 		// Profile first, always: `PUT /api/scout/thesis` answers 403
 		// SCOUT_NOT_SET_UP until a `scout_profiles` row exists, and this PATCH is
 		// what creates it.
 		const p = await apiRequest('PATCH', '/api/scout', { ...toProfileDto(next), ...(complete ? { setup_completed: true } : {}) });
 		if (!p.ok) throw new Error(`profile save failed (${p.status})`);
-		const r = await apiRequest('PUT', '/api/scout/thesis', toThesisDto(next, idx));
+		const r = await apiRequest('PUT', '/api/scout/thesis', { ...toThesisDto(next, idx), include_tags: splitLocal(next.include, idx.sports, MODEL_LABELS) });
 		if (!r.ok) throw new Error(`thesis save failed (${r.status})`);
 		await Promise.all([scout.mutate(), thesis.mutate()]);
-	}, [idx, saveExtras, scout, thesis]);
+		// Home's setup card, recommendations, deal flow / can-submit and Signals
+		// are all built from the thesis.
+		void refreshScout();
+	}, [idx, scout, thesis]);
 
 	return {
 		thesis: value,

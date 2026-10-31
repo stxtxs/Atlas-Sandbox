@@ -15,6 +15,7 @@ import { tourSelector } from './use-tour-target';
  *               and carrying `body`'s values when given;
  *   - path    — the pathname matches the pattern, after having not matched
  *               (so going Back onto a page that already matches doesn't skip ahead);
+ *   - type    — the target field (or a field inside it) holds the step's text;
  *   - next    — nothing here; the coach's Next button.
  * A `click` step with `dropOn` also completes on a drop there (drag or pick,
  * either way the same move).
@@ -88,6 +89,20 @@ export function useTourAdvance(step: TourStep | null, pathname: string, onDone: 
 		window.addEventListener(PRACTICE_REQUEST_EVENT, onRequest);
 		return () => window.removeEventListener(PRACTICE_REQUEST_EVENT, onRequest);
 	}, [reqMethod, reqPattern, reqBody]);
+
+	// type — the target field holds the step's text
+	const typeWant = adv?.kind === 'type' ? adv.value.trim().toLowerCase() : null;
+	const typeOn = adv?.kind === 'type' && target ? tourSelector(target) : null;
+	useEffect(() => {
+		if (!typeWant || !typeOn) return;
+		const onInput = (e: Event) => {
+			const el = e.target;
+			if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) || !el.closest(typeOn)) return;
+			if (el.value.trim().toLowerCase() === typeWant) done.current();
+		};
+		document.addEventListener('input', onInput, true);
+		return () => document.removeEventListener('input', onInput, true);
+	}, [typeWant, typeOn]);
 
 	// path
 	const pathPattern = adv?.kind === 'path' ? adv.pattern : null;

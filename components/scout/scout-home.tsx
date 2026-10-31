@@ -11,7 +11,6 @@ import { useUserProfile } from '@/hooks/use-user-profile';
 import { qk } from '@/lib/query-keys';
 import { SETUP_CARD_WIZARD, openRaiseSetup, openScoutThesis } from '@/lib/setup-events';
 import { hrefOf } from '@/lib/routes';
-import { previewHref } from '@/lib/preview-mode';
 import { listText, thesisTags, useThesis } from './use-thesis';
 
 /**
@@ -70,9 +69,7 @@ export function ScoutHome() {
 		if (t) router.push(`${hrefOf('chat')}?q=${encodeURIComponent(t)}`);
 	};
 
-	// The Scout workspace's own name is the fallback — it is all the pre-signup
-	// Warm-Up has (Jordan Ellis), with no signed-in profile behind it.
-	const first = (profile?.display_name ?? profile?.full_name ?? data?.scout?.full_name ?? '').split(' ')[0] || 'there';
+	const first = (profile?.display_name ?? profile?.full_name ?? '').split(' ')[0] || 'there';
 	const hour = new Date().getHours();
 	const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 	const month = new Date(new Date().getFullYear(), new Date().getMonth() - 1)
@@ -125,9 +122,8 @@ export function ScoutHome() {
 							// on `cta_href` — the hrefs are the thing being retired.
 							{...(SETUP_CARD_WIZARD[c.id]
 								? { onAction: SETUP_CARD_WIZARD[c.id] === 'raise' ? openRaiseSetup : openScoutThesis }
-								: { href: previewHref(c.cta_href) })}
+								: { href: c.cta_href })}
 							actionLabel={c.cta_label}
-							data-tour={c.id === 'new-matches' ? 'scout-matches-card' : undefined}
 						/>
 					))}
 					{/* Two standing entry points the read-model does not emit. */}

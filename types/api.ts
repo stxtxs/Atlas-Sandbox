@@ -320,9 +320,11 @@ export interface RaiseUpsert {
 	company_category?: string[] | null;
 	company_sector_id?: string | null;
 	company_stage?: 'pre_seed' | 'seed' | 'series_a' | 'series_b_plus' | 'other' | null;
+	company_stage_other?: string | null;
 	revenue_status?: 'pre_revenue' | 'generating' | null;
 	fundraising_process?: 'exploring' | 'preparing' | 'approaching' | 'due_diligence' | 'negotiating' | null;
 	round_type?: 'pre_seed' | 'seed' | 'series_a' | 'series_b_plus' | 'bridge' | 'other' | null;
+	round_type_other?: string | null;
 	target_amount?: number | string | null;
 	committed_amount?: number | string | null;
 	currency_code?: string | null;
@@ -337,7 +339,6 @@ export interface RaiseUpsert {
 	paying_customers?: number | string | null;
 	monthly_burn?: number | string | null;
 	runway_months?: number | string | null;
-	strongest_traction?: string | null;
 	pitch_deck_status?: 'have' | 'later' | null;
 	financial_model_status?: 'ready' | 'in_progress' | 'not_started' | null;
 	data_room_status?: 'ready' | 'in_progress' | 'not_started' | null;
@@ -391,6 +392,8 @@ export interface PipelineUpdate {
 	next_step_due?: string | null;
 	notes?: string | null;
 	is_archived?: boolean;
+	/** Move to another investor watchlist; null = Main watchlist. */
+	watchlist_id?: string | null;
 }
 
 /**
@@ -416,6 +419,10 @@ export interface ReportListItem {
 	show_on_dashboard: boolean;
 	has_sections: boolean;
 	is_published: boolean;
+	/** Some edition has a PDF the server can serve. Optional: older API. */
+	has_pdf?: boolean;
+	/** …and one this caller's plan can open — Download only works then. */
+	can_download?: boolean;
 	created_at: string;
 	updated_at: string;
 	/** Topic facet labels. Never null (NOT NULL DEFAULT '{}'), but empty until

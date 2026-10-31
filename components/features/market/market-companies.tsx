@@ -2,16 +2,17 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { Globe, ArrowUpRight } from 'lucide-react';
+import { useUrlSync, useUrlReader, useUrlModal } from '@/hooks/use-url-state';
 import useSWR from 'swr';
 import { qk } from '@/lib/query-keys';
 import type { CompanyListItem as Company } from '@/types/api';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
-import { Loading, Empty, Action, FilterBar, type FilterDef, Logo, Flag, Pager, lockedFiltersNote } from '@/components/atlas';
+import { Loading, Empty, Action, FilterBar, type FilterDef, Logo, Flag, Pager, ViewToggle, type ViewMode, lockedFiltersNote } from '@/components/atlas';
+import { VerifiedBadge } from '@/components/atlas/icons/verified-badge';
 import { ExportButton } from '@/components/features/exports/export-button';
-import { COUNTRY_OPTIONS, FUNDING_BUCKETS, SINCE_YEARS } from '@/lib/catalog-options';
-import { useSectorTierData, useSportOptions, useLocationFacetOptions, useTechTagOptions } from '@/hooks/use-catalog-options';
+import { BUSINESS_MODELS, FUNDING_BUCKETS, SINCE_YEARS } from '@/lib/catalog-options';
+import { useSectorTierData, useSportOptions, useLocationFacetOptions, useTechTagOptions, useCountryOptions } from '@/hooks/use-catalog-options';
 import { fmtUsd } from './format';
 import { ResultCapNote } from './result-cap-note';
 import dynamic from 'next/dynamic';
@@ -25,8 +26,9 @@ import './market.css';
 
 
 const PAGE_SIZE = 24;
-const BUSINESS_MODELS: [string, string][] = [['b2b', 'B2B'], ['b2c', 'B2C'], ['b2b2c', 'B2B2C'], ['d2c', 'D2C'], ['b2g', 'B2G'], ['other', 'Other']];
 const COMPANY_SORTS: [string, string][] = [['-created_at', 'Newest'], ['name', 'Name A–Z'], ['-total_funding', 'Most funded']];
+// A faint em-dash for empty cells, so real values stand out against the many gaps.
+const DASH = <span className="atlas-dash">—</span>;
 
 /**
  * Market → Companies. The full sports-tech company database — the same search +
@@ -35,34 +37,53 @@ const COMPANY_SORTS: [string, string][] = [['-created_at', 'Newest'], ['name', '
  */
 /** `companyHref` → rows link to a company profile page; omitted → rows open the side drawer. */
 export function MarketCompanies({ companyHref }: { companyHref?: (idOrSlug: string) => string } = {}) {
-	// Deep links (e.g. from the framework or Scout) can preselect ?q=, ?sector=<pillar>&sub=<category>.
-	const searchParams = useSearchParams();
-	const [q, setQ] = useState(() => searchParams.get('q') ?? '');
+	// View-state lives in the URL so Back/Forward restore it (a profile visit
+	// unmounts this list; the URL is all the browser keeps) and so the page is
+	// shareable. Deep links (framework/Scout) can preselect ?q=, ?sector= etc.
+	const url = useUrlReader();
+	// List is the default for every database; a chosen view lives in the URL
+	// with the filters, so it survives Back/Forward, links and any remount.
+	const [view, setView] = useState<ViewMode>(() => url.oneOf('view', ['table', 'cards'] as const, 'table'));
+	const [q, setQ] = useState(() => url.str('q'));
 	const dq = useDebouncedValue(q);
-	const [model, setModel] = useState('');
-	const [sector, setSector] = useState(() => searchParams.get('sector') ?? '');
-	const [subSector, setSubSector] = useState(() => searchParams.get('sub') ?? '');
-	const [subSubSector, setSubSubSector] = useState(() => searchParams.get('subsub') ?? '');
-	const [sport, setSport] = useState('');
-	const [country, setCountry] = useState('');
-	const [city, setCity] = useState('');
-	const [continent, setContinent] = useState('');
-	const [region, setRegion] = useState('');
-	const [techTag, setTechTag] = useState('');
-	const [funding, setFunding] = useState('');
-	const [founded, setFounded] = useState('');
-	const [verified, setVerified] = useState(false);
-	const [raising, setRaising] = useState(false);
-	const [unicorn, setUnicorn] = useState(false);
-	const [sort, setSort] = useState('-created_at');
-	const [page, setPage] = useState(1);
-	const [openId, setOpenId] = useState<string | null>(null);
+	const [model, setModel] = useState(() => url.oneOf('model', BUSINESS_MODELS.map(([v]) => v), ''));
+	const [sector, setSector] = useState(() => url.str('sector'));
+	const [subSector, setSubSector] = useState(() => url.str('sub'));
+	const [subSubSector, setSubSubSector] = useState(() => url.str('subsub'));
+	const [sport, setSport] = useState(() => url.str('sport'));
+	const [country, setCountry] = useState(() => url.str('country'));
+	const [city, setCity] = useState(() => url.str('city'));
+	const [continent, setContinent] = useState(() => url.str('continent'));
+	const [region, setRegion] = useState(() => url.str('region'));
+	const [techTag, setTechTag] = useState(() => url.str('tech'));
+	const [funding, setFunding] = useState(() => url.str('funding'));
+	const [founded, setFounded] = useState(() => url.str('founded'));
+	const [verified, setVerified] = useState(() => url.bool('verified'));
+	const [raising, setRaising] = useState(() => url.bool('raising'));
+	const [unicorn, setUnicorn] = useState(() => url.bool('unicorn'));
+	const [sort, setSort] = useState(() => url.oneOf('sort', COMPANY_SORTS.map(([v]) => v), '-created_at'));
+	const [page, setPage] = useState(() => url.num('page', 1));
+	// The detail drawer is addressable: ?company=<slug> reopens it on load. The
+	// slug is format-validated (useUrlModal's default), so a junk param won't fire
+	// a fetch or open an empty drawer.
+	const [openId, setOpenId] = useUrlModal('company');
 	const reset = () => setPage(1);
+
+	// Mirror the whole view-state into the URL (defaults omitted to keep it short).
+	useUrlSync({
+		view: view !== 'table' ? view : undefined,
+		q: dq, model, sector, sub: subSector, subsub: subSubSector, sport, country,
+		city, continent, region, tech: techTag, funding, founded,
+		verified, raising, unicorn,
+		sort: sort !== '-created_at' ? sort : undefined,
+		page: page > 1 ? page : undefined,
+	});
 	const sectors = useSectorTierData();
 	const sportOptions = useSportOptions();
-	const loc = useLocationFacetOptions();
+	const countryOptions = useCountryOptions();
 	const techTags = useTechTagOptions();
 	const adv = useFeatureAccess('advanced_filters');
+	const loc = useLocationFacetOptions(adv.hasAccess);
 
 	const params = useMemo(() => {
 		const p: Record<string, unknown> = { page, limit: PAGE_SIZE, sort };
@@ -130,7 +151,7 @@ export function MarketCompanies({ companyHref }: { companyHref?: (idOrSlug: stri
 						sel('sport', 'Sport', sport, sportOptions, setSport),
 					] },
 					{ label: 'Geography & location', filters: [
-						sel('country', 'Country', country, COUNTRY_OPTIONS, setCountry),
+						sel('country', 'Country', country, countryOptions, setCountry),
 						...(adv.hasAccess ? [
 							sel('continent', 'Continent', continent, loc.continent, setContinent),
 							sel('region', 'Region', region, loc.region, setRegion),
@@ -163,9 +184,46 @@ export function MarketCompanies({ companyHref }: { companyHref?: (idOrSlug: stri
 						<div className="atlas-card atlas-chart-card" style={{ marginTop: 10 }}>
 							<div className="atlas-chart-card__head" style={{ padding: '17px 25px 16px', fontSize: 13, color: 'var(--a-muted)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
 								<span>{total.toLocaleString()} compan{total === 1 ? 'y' : 'ies'}{anyFilter ? ' match your filters' : ' · Filter to refine results'}</span>
-								<ExportButton entity="companies" search={dq} params={params} />
+								<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ViewToggle value={view} onChange={setView} /><ExportButton entity="companies" search={dq} params={params} /></div>
 							</div>
-							<div className="mkt-list">{rows.map((c) => <CompanyRow key={c.id} c={c} href={companyHref?.(c.slug ?? c.id)} onOpen={() => setOpenId(c.slug ?? c.id)} />)}</div>
+							{view === 'cards'
+								? <div className="mkt-list">{rows.map((c) => <CompanyRow key={c.id} c={c} href={companyHref?.(c.slug ?? c.id)} onOpen={() => setOpenId(c.slug ?? c.id)} />)}</div>
+								: (
+								<div className="atlas-table" role="table">
+									<div className="atlas-table__head">
+										<span className="atlas-table__name">Company</span>
+										<span className="atlas-table__col hide-sm" style={{ width: 160 }}>Sector</span>
+										<span className="atlas-table__col hide-sm" style={{ width: 140 }}>Location</span>
+										<span className="atlas-table__col hide-sm hide-md" style={{ width: 70 }}>Founded</span>
+										<span className="atlas-table__col hide-sm hide-md" style={{ width: 100 }}>Sport</span>
+										<span className="atlas-table__col hide-sm hide-md" style={{ width: 66 }}>Model</span>
+										<span className="atlas-table__col" style={{ width: 96, textAlign: 'right' }}>Funding</span>
+									</div>
+									{rows.map((c) => {
+										const href = companyHref?.(c.slug ?? c.id);
+										const hq = [c.hq_city, c.hq_country].filter(Boolean).join(', ');
+										const funding = fmtUsd(c.total_funding_usd == null ? null : Number(c.total_funding_usd));
+										const inner = <>
+											<div className="atlas-table__name">
+												<Logo co={{ name: c.name, website: c.website, custom_logo_url: c.custom_logo_url }} size={30} radius={6} />
+												<div className="atlas-table__name-main" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+													<span className="atlas-ellipsis" style={{ fontWeight: 600, minWidth: 0 }}>{c.name}</span>
+													{c.is_verified && <VerifiedBadge size={13} />}
+												</div>
+											</div>
+											<span className="atlas-table__col hide-sm" style={{ width: 160 }}>{c.primary_sector ?? DASH}</span>
+											<span className="atlas-table__col hide-sm" style={{ width: 140 }}>{hq || DASH}</span>
+											<span className="atlas-table__col hide-sm hide-md" style={{ width: 70 }}>{c.founded_year ?? DASH}</span>
+											<span className="atlas-table__col hide-sm hide-md" style={{ width: 100 }}>{c.primary_sport ?? DASH}</span>
+											<span className="atlas-table__col hide-sm hide-md" style={{ width: 66 }}>{c.business_model ? <span className="atlas-chip-sm">{c.business_model.toUpperCase()}</span> : DASH}</span>
+											<span className="atlas-table__col" style={{ width: 96, textAlign: 'right', fontWeight: funding === '—' ? 400 : 600, color: funding === '—' ? undefined : 'var(--a-ink)' }}>{funding === '—' ? DASH : funding}</span>
+										</>;
+										return href
+											? <Link key={c.id} className="atlas-table__row" href={href}>{inner}</Link>
+											: <div key={c.id} className="atlas-table__row" style={{ cursor: 'pointer' }} onClick={() => setOpenId(c.slug ?? c.id)}>{inner}</div>;
+									})}
+								</div>
+								)}
 						</div>
 					)}
 
@@ -186,7 +244,10 @@ function CompanyRow({ c, href, onOpen }: { c: Company; href?: string; onOpen: ()
 			<Logo co={{ name: c.name, website: c.website, custom_logo_url: c.custom_logo_url }} size={72} radius={9} />
 			<div className="mkt-co-body">
 				<div className="mkt-co-head">
-					{href ? <Link href={href} className="mkt-co-name mkt-co-name--link">{c.name}</Link> : <span className="mkt-co-name">{c.name}</span>}
+					<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+						{href ? <Link href={href} className="mkt-co-name mkt-co-name--link">{c.name}</Link> : <span className="mkt-co-name">{c.name}</span>}
+						{c.is_verified && <VerifiedBadge size={15} />}
+					</span>
 					<span className="mkt-co-meta">
 						{c.hq_country && <Flag cc={c.hq_country} size={11} />}
 						{hq}{hq && c.founded_year ? ' · ' : ''}{c.founded_year ? `Founded ${c.founded_year}` : ''}

@@ -31,35 +31,36 @@ const EXPECTED: Record<Tier, Shape> = {
 		// design shows it like any other item and lets the page sell. It is the
 		// one nav entry in any product that resolves to `upsell` rather than
 		// `allow`, which is why `buildNav` filters on `!== 'hidden'`.
-		// Pitch Deck joined Explore when the deck analyser stopped being tier-gated:
-		// credits pay for it, so the page has to be findable rather than sold.
-		top: ['Home', 'Interests', 'Pitch Deck'],
+		// Pitch Deck is a paid feature (Raise/Scout) and resolves to `upsell` for
+		// Explore, like Investors — shown in the nav (buildNav keeps everything
+		// `!== 'hidden'`) so the page can sell it; clicking it hits the TierGate.
+		top: ['Home', 'Chat', 'Interests', 'Pitch Deck'],
 		sections: [
 			['Intelligence', ['Framework', 'Reports', 'Newsletter']],
-			['Market', ['Analysis', 'Monthly Roundup', 'Companies', 'Events', 'Investors']],
+			['Market', ['Analysis', 'Monthly Roundup', 'Companies', 'Events', 'Programs', 'Investors']],
 		],
 		bottom: [],
 	},
 	raise: {
-		top: ['Home'],
+		top: ['Home', 'Chat'],
 		sections: [
 			['Raise', ['Pitch Deck', 'Investors', 'Programs']],
 			['Discover', ['Companies', 'Recommended', 'Signals']],
-			['Intelligence', ['Analytics', 'Monthly Roundup', 'My Market', 'Recently Funded']],
+			['Intelligence', ['Analytics', 'Monthly Roundup', 'My Market', 'Recently Funded', 'M&A']],
 			['Watchlists', ['Main watchlist', 'All watchlists']],
-			['Resources', ['Framework', 'Reports', 'Events', 'Newsletter']],
+			['Resources', ['Fundraising Guide', 'Framework', 'Reports', 'Events', 'Newsletter']],
 		],
 		bottom: [],
 	},
 	scout: {
-		// "All watchlists" is heading-less: its "Watchlists" section holds a single
-		// item until the user saves a list, and a one-item section collapses to a
-		// plain top-level item (see buildNav). The splice test below covers the
-		// section form, which reappears the moment a saved list joins it.
-		top: ['Home', 'All watchlists'],
+		// "All watchlists" lives inside Discover (Scout has no pipeline, so a
+		// standalone one-item Watchlists section looked orphaned). Saved lists
+		// splice in before it — covered by the splice test below.
+		top: ['Home', 'Chat'],
 		sections: [
-			['Discover', ['Companies', 'Recommended', 'Signals']],
-			['Intelligence', ['Market', 'Monthly Roundup', 'Recently Funded']],
+			['Discover', ['Companies', 'Recommended', 'Signals', 'All watchlists']],
+			['Ecosystem', ['Investors', 'Programs']],
+			['Intelligence', ['Market', 'Monthly Roundup', 'Recently Funded', 'M&A']],
 			['Deal Flow', ['All', 'Featured', 'Verified Raises', 'From the Circle', 'Deck Screener']],
 			['Resources', ['Framework', 'Reports', 'Events', 'Newsletter']],
 		],
@@ -107,10 +108,12 @@ for (const tier of ['explore', 'raise', 'scout'] as Tier[]) {
 	check(leaked.length === 0, `no cross-tier leakage${leaked.length ? ': ' + leaked.map((r) => r.id).join(', ') : ''}`);
 }
 
-// The watchlist splice: user lists land immediately before "All watchlists".
+// The watchlist splice: user lists land immediately before "All watchlists",
+// inside Raise's "Watchlists" section or Scout's "Discover" section.
 for (const tier of ['raise', 'scout'] as Tier[]) {
 	const { nav } = buildNav(tier, false, [{ id: 'w1', name: 'My list' }], ROUTES[0]!.icon);
-	const section = nav.filter(isSection).find((s) => s.title === 'Watchlists')!;
+	const title = tier === 'scout' ? 'Discover' : 'Watchlists';
+	const section = nav.filter(isSection).find((s) => s.title === title)!;
 	const names = section.items.map((i) => i.name);
 	check(names[names.length - 2] === 'My list' && names[names.length - 1] === 'All watchlists',
 		`[${tier}] watchlists splice: ${names.join(', ')}`);
@@ -151,7 +154,7 @@ for (const tier of ['explore', 'raise', 'scout'] as Tier[]) {
 
 	// And nothing stale: a prefix that matches no route and is not one of the two
 	// non-ROUTES trees is a leftover that would gate a URL we no longer serve.
-	const EXTRA = ['/onboarding', '/docs', '/verified-reports'];
+	const EXTRA = ['/docs', '/verified-reports'];
 	const allPaths = ROUTES.flatMap((r) => (['explore', 'raise', 'scout'] as Tier[]).map((t) => forTier(r.path, t)));
 	const stalePrefixes = PRIVATE_PREFIXES
 		.filter((p) => !EXTRA.includes(p))
@@ -191,7 +194,7 @@ check(access('scout', 'raise', false) === 'hidden', 'raise user is not shown Sco
 		.filter((f) => f.endsWith('layout.tsx'))
 		.filter((f) => readFileSync(`app/${f}`, 'utf8').includes('ProtectedRoute'));
 
-	// A layout's own path is NOT its URL prefix: `(onboarding)/layout.tsx` sits
+	// A layout's own path is NOT its URL prefix: a `(group)/layout.tsx` sits
 	// at a route-group root and contributes no segment, so it would read as `/`.
 	// Derive from the pages it actually wraps instead.
 	const urlOf = (f: string) =>
@@ -263,10 +266,17 @@ check(access('scout', 'raise', false) === 'hidden', 'raise user is not shown Sco
 {
 	check(navigable('companies', 'scout') && navigable('companies', 'raise'),
 		'navigable: a shared page is offered to both products');
-	check(!navigable('programs', 'scout') && navigable('programs', 'raise'),
+	check(!navigable('my-market', 'scout') && navigable('my-market', 'raise'),
 		'navigable: a Raise-only page is never offered to a Scout');
-	check(!navigable('pipeline', 'scout') && !navigable('investors', 'scout'),
-		'navigable: the other Raise-only chips are dropped too');
+	// Investors and Programs are shared by both products now, so a Scout may be
+	// handed those chips; pipeline / my-market stay genuinely Raise-only.
+	check(navigable('investors', 'scout') && navigable('programs', 'scout'),
+		'navigable: the ecosystem directories are offered to Scout');
+	// Programs is free like Events, so even Explore may be handed the chip.
+	check(navigable('programs', 'explore') && navigable('events', 'explore'),
+		'navigable: Programs is offered to Explore, like Events');
+	check(!navigable('pipeline', 'scout'),
+		'navigable: a genuinely Raise-only chip (pipeline) is still dropped for Scout');
 	check(navigable('thesis', 'scout') && !navigable('thesis', 'raise'),
 		'navigable: a Scout-only page is never offered to a founder');
 	// `upsell` is good enough for the sidebar and not for an action.

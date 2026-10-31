@@ -5,10 +5,13 @@ import type { ChangeEvent, ReactElement, ReactNode, InputHTMLAttributes, SelectH
 import { cx } from './cx';
 import { Combobox } from './combobox';
 import { DatePicker } from './date-picker';
+import { InfoTip } from './info-tip';
 
 /** Form fields — mono uppercase labels, rounded inputs. Add `className="atlas-input--search"` for a pill search box. */
 
-export function Field({ label, children }: { label?: string; children: ReactNode }) {
+/** `info` adds an (i) beside the label explaining it — kept outside the <label>
+ *  so it isn't read as part of the field's name. */
+export function Field({ label, required, info, children }: { label?: string; required?: boolean; info?: ReactNode; children: ReactNode }) {
 	const autoId = useId();
 	// Tie the label to a single Atlas control (screen readers + click-to-focus).
 	// Other children (button groups, read-only values) keep a plain label.
@@ -17,8 +20,15 @@ export function Field({ label, children }: { label?: string; children: ReactNode
 	const id = control ? (control.props.id ?? autoId) : undefined;
 	return (
 		<div>
-			{label && <label className="atlas-label" htmlFor={id}>{label}</label>}
-			{control ? cloneElement(control, { id }) : children}
+			{/* `required` shows a `*` up front, so a mandatory field reads as one before
+			    save rather than only erroring in a toast afterwards. */}
+			{label && (info ? (
+				<div className="atlas-label-row">
+					<label className="atlas-label" htmlFor={id}>{label}{required && <span className="atlas-label__req" aria-hidden="true"> *</span>}</label>
+					<InfoTip label={`About: ${label}`}>{info}</InfoTip>
+				</div>
+			) : <label className="atlas-label" htmlFor={id}>{label}{required && <span className="atlas-label__req" aria-hidden="true"> *</span>}</label>)}
+			{control ? cloneElement(control, { id, ...(required ? { 'aria-required': true } : {}) }) : children}
 		</div>
 	);
 }
@@ -31,8 +41,8 @@ export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
 	return <textarea {...props} className={cx('atlas-textarea', props.className)} />;
 }
 
-export function Select({ options, placeholder, value, onChange, disabled, id, className, 'aria-label': ariaLabel }:
-	SelectHTMLAttributes<HTMLSelectElement> & { options: [string, string][]; placeholder?: string }) {
+export function Select({ options, groups, placeholder, value, onChange, disabled, id, className, 'aria-label': ariaLabel }:
+	SelectHTMLAttributes<HTMLSelectElement> & { options: [string, string][]; groups?: { label: string; options: [string, string][] }[]; placeholder?: string }) {
 	// Custom combobox, not a native <select> — same controlled contract, so the
 	// call sites (all reading `e.target.value`) are untouched: we hand onChange a
 	// minimal synthetic event. A provided placeholder becomes a selectable empty
@@ -41,6 +51,10 @@ export function Select({ options, placeholder, value, onChange, disabled, id, cl
 	return (
 		<Combobox
 			options={opts}
+			// Grouped: the placeholder stays a selectable "clear" option on top, as
+			// it is for a flat list (an optional field must be clearable).
+			groups={groups && (placeholder !== undefined ? [{ label: '', options: [['', placeholder]] }, ...groups] : groups)}
+			searchGroupLabels={!!groups}
 			placeholder={placeholder ?? 'Select…'}
 			value={value == null ? '' : String(value)}
 			disabled={disabled}

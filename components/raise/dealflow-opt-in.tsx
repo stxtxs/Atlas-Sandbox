@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Users } from 'lucide-react';
 import { Badge, Button } from '@/components/atlas';
 import { apiRequest } from '@/lib/query-client';
+import { refreshRaise } from '@/lib/invalidate';
 import { qk } from '@/lib/query-keys';
 import { openRaiseSetup } from '@/lib/setup-events';
 
@@ -52,6 +53,7 @@ export function DealflowOptIn() {
 			if (!res.ok) throw new Error(String(res.status));
 			toast.success(okMsg);
 			void mutate();
+			void refreshRaise(); // Raise home's "share your round" card reads this too
 		} catch {
 			toast.error('That did not go through. Please try again.');
 		} finally { setBusy(false); }
@@ -67,7 +69,7 @@ export function DealflowOptIn() {
 				Set up your raise first and you can share it with the Investor Circle from here.{' '}
 				{/* `--a-accent` was the colour here and is defined nowhere, so this
 				    link rendered in the inherited body colour. */}
-				<button type="button" onClick={openRaiseSetup} style={LINK}>Set up your raise</button>
+				<button type="button" onClick={() => openRaiseSetup()} style={LINK}>Set up your raise</button>
 			</p>
 		);
 	}

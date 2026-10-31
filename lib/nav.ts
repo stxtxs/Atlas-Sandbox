@@ -8,8 +8,6 @@
  */
 
 import type { ShellNavEntry, ShellNavItem } from '@/components/atlas/shell/nav';
-// Relative + `.ts`: a value import, and `npm run check` runs this file under plain node.
-import { navTourId } from '../components/atlas/shell/nav.ts';
 import { access, type Tier } from './access.ts';
 import { NAV_LAYOUT, ROUTE_BY_ID, forTier, pathOf, type RouteDef } from './routes.ts';
 
@@ -24,8 +22,8 @@ export interface NavWatchlist { id: string; name: string }
  * chip or a programmatic push is an action, so it must only offer routes that
  * really open. Two ways one goes dead, and the chat agent can know neither:
  * the route belongs to the other product (Investors, Programs, Pipeline and the
- * Fundraising Guide are `tier: 'raise'`), or it is still coming soon (every Deal
- * Flow route, and Scout's view of the Deck Screener, are `placeholder`).
+ * Fundraising Guide are `tier: 'raise'`), or it is flagged
+ * `placeholder` (no backend yet — no route is today).
  *
  * `isAdmin` is not taken: an admin bypasses `access()` entirely, and a chip is a
  * suggestion for *this* workspace, not proof of what they may open directly.
@@ -88,16 +86,19 @@ export function buildNav(tier: Tier, isAdmin: boolean, lists: NavWatchlist[] = [
 
 		if (group.bottom) { bottomNav.push(...items); continue; }
 		if (group.title === null) { nav.push(...items); continue; }
-		const sectionItems = group.title === 'Watchlists' && watchlistIcon
-			? withWatchlists(items, tier, lists, watchlistIcon)
+		// Splice the viewer's saved lists into whichever section holds the
+		// "All watchlists" anchor — Raise's dedicated Watchlists section, or
+		// Scout's Discover section (which now owns the single watchlist link).
+		const hasWatchlistAnchor = !!watchlistIcon && items.some((i) => i.path === pathOf('watchlists', tier));
+		const sectionItems = hasWatchlistAnchor
+			? withWatchlists(items, tier, lists, watchlistIcon!)
 			: items;
 		// A heading over a single link reads as a mistake — it is Scout's
 		// "Watchlists" before the user has saved any list (then the section is
 		// just "All watchlists"). Render it as a plain top-level item, the way
 		// the heading-less Home group already renders. The section reappears the
 		// moment a second item does (a saved list splices in above the anchor).
-		// It keeps the section's tour anchor, so a tour can still point at "Watchlists".
-		if (sectionItems.length === 1) { nav.push({ ...sectionItems[0], tour: navTourId(group.title) }); continue; }
+		if (sectionItems.length === 1) { nav.push(sectionItems[0]); continue; }
 		nav.push({ title: group.title, items: sectionItems });
 	}
 

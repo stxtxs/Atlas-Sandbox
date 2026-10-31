@@ -1,15 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import useSWR from 'swr';
+import { useState } from 'react';
+import useSWR, { mutate } from 'swr';
 import { ArrowUpRight, Check, Minus } from 'lucide-react';
-import { Empty, Loading, Logo, cx } from '@/components/atlas';
+import { Empty, Loading, Logo, ViewToggle, type ViewMode, cx } from '@/components/atlas';
 import { SaveToWatchlist } from '@/components/features/watchlists/save-to-watchlist';
-import { usePlaceholderState } from '@/hooks/use-placeholder-state';
+import { apiRequest } from '@/lib/query-client';
 import { qk } from '@/lib/query-keys';
 import { companyHref, hrefOf } from '@/lib/routes';
 import { fmtUsd } from '@/components/features/market/format';
-import './recommended.css';
+import './recommended.css';
+import { toast } from 'sonner';
 
 /**
  * Discover → Recommended, from `GET /api/scout/recommended`.
@@ -24,9 +26,9 @@ import './recommended.css';
  * matched, and the chips claim exactly that"*. So each chip is backed by its
  * own boolean, not inferred from a total.
  *
- * "Not relevant" stays browser-local. The brief wants passed companies kept so
- * they are not re-recommended, but no endpoint records a pass yet — dismissing
- * server-side would be inventing a contract.
+ * "Not relevant" dismissals are persisted server-side via
+ * `POST /api/scout/recommended/:companyId/dismiss` and excluded from the
+ * recommended query.
  */
 interface Recommendation {
 	id: string;
@@ -62,35 +64,33 @@ const CHIPS: [label: string, key: MatchKey][] = [
 
 const place = (c: Recommendation) => [c.city, c.country].filter(Boolean).join(', ');
 
-const listOf = (words: string[]) => (words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`);
-
-/**
- * The chips in a sentence, saying what didn't match as plainly as what did —
- * "Matches 2 of 4" alone left a partial match reading as a weak one. Unmatched
- * dimensions are "not confirmed": false covers both a real mismatch and a
- * company whose stage or round we don't know yet.
- */
-function matchReason(c: Recommendation): string {
-	const hit = CHIPS.filter(([, key]) => c[key]).map(([label]) => label.toLowerCase());
-	const miss = CHIPS.filter(([, key]) => !c[key]).map(([label]) => label.toLowerCase());
-	if (miss.length === 0) return 'Matches every dimension of your thesis.';
-	if (hit.length === 0) return 'Doesn’t match your thesis dimensions yet.';
-	const rest = listOf(miss);
-	return `Matches your ${listOf(hit)}. ${rest[0].toUpperCase()}${rest.slice(1)} ${miss.length === 1 ? 'is' : 'are'} not confirmed.`;
-}
-
 export function Recommended() {
+	const [view, setView] = useState<ViewMode>('cards');
 	const { data, isLoading, error } = useSWR<{ data: Recommendation[] }>(qk.scout.recommended({ limit: 24 }));
 	// Recommending against a thesis that does not exist is meaningless, so this
 	// is the one Discover surface that stays gated — but "set yours up" is the
 	// answer, not an error. Browsing and Signals work without one.
 	const needsThesis = (error as { code?: string } | undefined)?.code === 'SCOUT_NOT_SET_UP';
-	const [dismissed, setDismissed] = usePlaceholderState<string[]>('dismissed-recs', []);
+	const [lastDismissed, setLastDismissed] = useState<{ id: string; name: string } | null>(null);
 
-	const all = data?.data ?? [];
-	const rows = all.filter((c) => !dismissed.includes(c.id));
-	const lastId = dismissed[dismissed.length - 1];
-	const lastName = all.find((c) => c.id === lastId)?.name;
+	const rows = data?.data ?? [];
+
+	const refresh = () => mutate((k: unknown) => Array.isArray(k) && typeof k[0] === 'string' && k[0].startsWith('/api/scout/recommended'));
+	const dismiss = async (id: string, name: string) => {
+		try {
+			await apiRequest('POST', `/api/scout/recommended/${id}/dismiss`);
+			setLastDismissed({ id, name });
+			void refresh();
+		} catch { toast.error("Couldn't dismiss that company. Please try again."); }
+	};
+	const undoDismiss = async () => {
+		if (!lastDismissed) return;
+		try {
+			await apiRequest('DELETE', `/api/scout/recommended/${lastDismissed.id}/dismiss`);
+			setLastDismissed(null);
+			void refresh();
+		} catch { toast.error("Couldn't undo. Please try again."); }
+	};
 
 	return (
 		<>
@@ -99,13 +99,16 @@ export function Recommended() {
 					<h2 className="atlas-h2">Recommended for you</h2>
 					<p className="scout-muted">Companies matching your investment thesis.</p>
 				</div>
-				<Link href={hrefOf('thesis')} className="scout-link">Edit thesis</Link>
+				<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+					<ViewToggle value={view} onChange={setView} />
+					<Link href={hrefOf('thesis')} className="scout-link">Edit thesis</Link>
+				</div>
 			</div>
 
-			{lastId && (
+			{lastDismissed && (
 				<div className="scout-undo">
-					<span>{lastName ?? 'Company'} marked not relevant{dismissed.length > 1 ? ` (+${dismissed.length - 1} more)` : ''}.</span>
-					<button type="button" className="scout-link" onClick={() => setDismissed(dismissed.slice(0, -1))}>Undo</button>
+					<span>{lastDismissed.name} marked not relevant.</span>
+					<button type="button" className="scout-link" onClick={() => void undoDismiss()}>Undo</button>
 				</div>
 			)}
 
@@ -117,16 +120,15 @@ export function Recommended() {
 					</Empty>
 				)
 				: error ? <Empty>Couldn&apos;t load your recommendations. Please try again.</Empty>
-				: all.length === 0 ? (
+				: rows.length === 0 ? (
 					<Empty>
 						No companies match your thesis yet. <Link href={hrefOf('thesis')} className="scout-link">Widen it</Link> — a narrow
 						thesis can match nothing at all.
 					</Empty>
-				) : rows.length === 0 ? (
-					<Empty>You&apos;ve dismissed every match. Undo above, or widen your thesis.</Empty>
 				) : (
+					view === 'cards' ? (
 					<div className="atlas-rec-list">
-						{rows.map((c, i) => (
+						{rows.map((c) => (
 							<article key={c.id} className="atlas-rec">
 								<div className="atlas-rec__top">
 									<Logo co={{ name: c.name, website: c.website, custom_logo_url: c.custom_logo_url }} size={72} radius={9} />
@@ -139,15 +141,13 @@ export function Recommended() {
 										<div className="atlas-rec__facts">
 											{c.sector && <span className="atlas-rec__chip">{c.sector}</span>}
 											<span className="atlas-rec__raised">
-												{fmtUsd(c.total_funding_usd == null ? null : Number(c.total_funding_usd))} raised
+												{c.total_funding_usd != null ? `${fmtUsd(Number(c.total_funding_usd))} raised` : 'Undisclosed'}
 												{c.latest_round ? ` · ${c.latest_round}` : ''}
 											</span>
 										</div>
 									</div>
 								</div>
 
-								{/* Indented under the identity, as in the mockup, so the reason
-								    reads as belonging to this company rather than the list. */}
 								<div className="atlas-rec__why">
 									<div className="atlas-rec__whyhead">
 										<span className="atlas-rec__whylabel">Why it matches</span>
@@ -164,20 +164,48 @@ export function Recommended() {
 										)}
 									</div>
 									<p className="atlas-rec__reason">
-										{matchReason(c)}{c.match_activity ? ' In line with your recent activity.' : ''}
+										Matches {CHIPS.filter(([, key]) => c[key]).length} of {CHIPS.length} thesis dimensions{c.match_activity ? ' · in line with your recent activity' : ''}.
 									</p>
 								</div>
 
 								<div className="atlas-rec__actions">
-									<button type="button" className="atlas-rec__dismiss" onClick={() => setDismissed([...dismissed, c.id])}>Not relevant</button>
+									<button type="button" className="atlas-rec__dismiss" onClick={() => void dismiss(c.id, c.name)}>Not relevant</button>
 									<SaveToWatchlist companyId={c.id} companyName={c.name} />
-									<Link className="atlas-action" href={companyHref(c.slug ?? c.id)} data-tour={i === 0 ? 'scout-open-company' : undefined}>
-										<span className="atlas-action__icon"><ArrowUpRight /></span>View company
+									<Link className="atlas-action" href={companyHref(c.slug ?? c.id)}>
+										<span className="atlas-action__icon"><ArrowUpRight /></span><span className="atlas-action__label">View company</span>
 									</Link>
 								</div>
 							</article>
 						))}
 					</div>
+					) : (
+					<div className="atlas-table" role="table">
+						<div className="atlas-table__head">
+							<span className="atlas-table__name">Company</span>
+							<span className="atlas-table__col hide-sm" style={{ width: 110 }}>Sector</span>
+							<span className="atlas-table__col hide-sm" style={{ width: 110 }}>Location</span>
+							<span className="atlas-table__col" style={{ width: 90 }}>Funding</span>
+							<span className="atlas-table__col hide-sm" style={{ width: 80 }}>Round</span>
+							<span className="atlas-table__col" style={{ width: 70 }}>Match</span>
+						</div>
+						{rows.map((c) => (
+							<Link key={c.id} className="atlas-table__row" href={companyHref(c.slug ?? c.id)}>
+								<div className="atlas-table__name">
+									<Logo co={{ name: c.name, website: c.website, custom_logo_url: c.custom_logo_url }} size={28} radius={5} />
+									<div className="atlas-table__name-main">
+										<div className="atlas-ellipsis" style={{ fontWeight: 600 }}>{c.name}</div>
+										{c.description && <div style={{ fontSize: 11, color: 'var(--a-muted)' }} className="atlas-ellipsis">{c.description}</div>}
+									</div>
+								</div>
+								<span className="atlas-table__col hide-sm" style={{ width: 110 }}>{c.sector ?? '—'}</span>
+								<span className="atlas-table__col hide-sm" style={{ width: 110 }}>{place(c) || '—'}</span>
+								<span className="atlas-table__col" style={{ width: 90 }}>{c.total_funding_usd != null ? fmtUsd(Number(c.total_funding_usd)) : '—'}</span>
+								<span className="atlas-table__col hide-sm" style={{ width: 80 }}>{c.latest_round ?? '—'}</span>
+								<span className="atlas-table__col" style={{ width: 70 }}>{c.match_count}/{CHIPS.length}</span>
+							</Link>
+						))}
+					</div>
+					)
 				)}
 		</>
 	);

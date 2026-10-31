@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import useSWR from 'swr';
 import { toast } from 'sonner';
 import { ArrowUpLeft, Check, Loader2, Paperclip, ShieldCheck, X } from 'lucide-react';
@@ -12,9 +12,12 @@ import { CompanyPicker } from './company-picker';
 import { DatePicker } from '@/components/atlas/ui/date-picker';
 import { LocationSelect } from '@/components/features/location/location-select';
 import { BLANK, fromRow, toPayload, num, fmtValuation, type Draft } from './deal-draft-codec';
-import { getSupabaseBrowser } from '@/lib/supabase/client';
+import { DEMO_USER_ID, demoUpload } from '@/lib/sandbox/demo-storage';
 import { apiRequest } from '@/lib/query-client';
+import { refreshPaths } from '@/lib/invalidate';
+import { MAX_DECK_MB, deckFileError, deckUploadError } from '@/lib/deck-upload';
 import { qk } from '@/lib/query-keys';
+import { useLeafSectorOptions, useLeafSectorGroups } from '@/hooks/use-catalog-options';
 import { hrefOf } from '@/lib/routes';
 import { openClaim } from '@/lib/claim-events';
 
@@ -54,7 +57,6 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 	// owner-facing single-deal read, and the list is one request either way.
 	const own = useSWR<{ data: Record<string, unknown>[] }>(resumeId ? qk.scout.dealflowMine() : null);
 	const resumeRow = resumeId ? own.data?.data.find((r) => r['id'] === resumeId) : undefined;
-	const { data: sectors } = useSWR<Array<{ id: string; name: string; parent_id: string | null }>>(qk.reference.sectors());
 
 	const [step, setStep] = useState(0);
 	const [typed, setTyped] = useState<Draft>(BLANK);
@@ -80,19 +82,8 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 	});
 	const sym = d.currency === 'USD' ? '$' : '€';
 
-	// Leaf sectors only, shown as `Parent → Child`. Same builder as Raise setup.
-	const sectorOptions = useMemo<[string, string][]>(() => {
-		const list = sectors ?? [];
-		const byId = new Map(list.map((s) => [s.id, s]));
-		const path = (s: { name: string; parent_id: string | null }): string => {
-			const parts = [s.name]; let p = s.parent_id;
-			while (p) { const par = byId.get(p); if (!par) break; parts.unshift(par.name); p = par.parent_id; }
-			return parts.join(' → ');
-		};
-		const isLeaf = (id: string) => !list.some((x) => x.parent_id === id);
-		return list.filter((s) => isLeaf(s.id)).map((s) => [s.id, path(s)] as [string, string])
-			.sort((a, b) => a[1].localeCompare(b[1]));
-	}, [sectors]);
+	const sectorOptions = useLeafSectorOptions();
+	const sectorGroups = useLeafSectorGroups();
 
 	const needsThesis = (gate.error as { code?: string } | undefined)?.code === 'SCOUT_NOT_SET_UP';
 	if (gate.isLoading || (resumeId && own.isLoading)) return <Loading />;
@@ -148,7 +139,9 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 
 			const sent = await apiRequest('POST', `/api/scout/dealflow/${id}/submit`);
 			if (!sent.ok) throw new Error(String(sent.status));
-			await own.mutate();   // so "Your submissions" shows the new status
+			// Not `own.mutate()`: for a new deal that hook has no key (null), so it did
+			// nothing and "Your submissions" missed the deal. Every deal-flow view.
+			await refreshPaths('/api/scout/dealflow');
 			setDone(true); window.scrollTo(0, 0);
 		} catch {
 			setErr('We couldn’t submit that. Please check the details and try again.');
@@ -201,7 +194,7 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 						<Field label="Sector">
 							<Select
 								value={d.sectorId} onChange={(e) => patch({ sectorId: e.target.value })}
-								options={sectorOptions} placeholder="Select a sector…"
+								options={sectorOptions} groups={sectorGroups} placeholder="Select a sector…"
 							/>
 						</Field>
 						<div className="scout-span">
@@ -211,7 +204,7 @@ export function ShareDeal({ resumeId }: { resumeId?: string }) {
 						    never returned to another Scout. */}
 						<Field label="Founder contact name · Optional"><Input {...txt('founderName')} placeholder="Who should we contact?" /></Field>
 						<Field label="Founder contact email"><Input type="email" {...txt('founderEmail')} placeholder="founder@company.com" /></Field>
-						<Field label="Founder contact phone · Optional"><Input {...txt('founderPhone')} placeholder="Optional" /></Field>
+						<Field label="Founder contact phone · Optional"><Input type="tel" {...txt('founderPhone')} placeholder="Optional" /></Field>
 					</div>
 				)}
 				{step === 1 && (
@@ -318,7 +311,6 @@ function Block({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const BUCKET = 'user-uploads';
-const MAX_BYTES = 25 * 1024 * 1024;
 const ALLOWED_EXT = ['pdf', 'ppt', 'pptx', 'doc', 'docx'];
 
 /**
@@ -345,19 +337,13 @@ function DocField({ label, path, onPath }: {
 
 	const pick = async (file: File) => {
 		const ext = (file.name.split('.').pop() ?? '').toLowerCase();
-		if (!ALLOWED_EXT.includes(ext)) { toast.error('Upload a PDF, PPT/PPTX or DOC/DOCX.'); return; }
-		if (file.size > MAX_BYTES) { toast.error('File too large (max 25 MB).'); return; }
+		const bad = deckFileError(file, ALLOWED_EXT);
+		if (bad) { toast.error(bad); return; }
 		setBusy(true);
 		try {
-			const supabase = getSupabaseBrowser();
-			const { data: auth } = await supabase.auth.getUser();
-			const uid = auth.user?.id;
-			if (!uid) throw new Error('Not signed in');
-			const key = `${uid}/deals/${crypto.randomUUID()}.${ext}`;
-			const { error } = await supabase.storage.from(BUCKET).upload(key, file, {
-				upsert: false, contentType: file.type || 'application/octet-stream',
-			});
-			if (error) throw error;
+			const key = `${DEMO_USER_ID}/deals/${crypto.randomUUID()}.${ext}`;
+			const { error } = await demoUpload(key, file);
+			if (error) throw new Error(deckUploadError(error.message, file, ALLOWED_EXT));
 			// `bucket/key` — the server splits on the first slash to sign it.
 			onPath(`${BUCKET}/${key}`);
 			toast.success('Uploaded');
@@ -387,6 +373,7 @@ function DocField({ label, path, onPath }: {
 					<Button variant="outline" disabled={busy} onClick={() => ref.current?.click()}>
 						{busy ? <><Loader2 className="animate-spin" size={13} /> Uploading…</> : 'Choose a file'}
 					</Button>
+					<span style={{ marginLeft: 10, fontSize: 11, color: 'var(--a-faint)' }}>PDF, PPT/PPTX or DOC/DOCX · max {MAX_DECK_MB} MB</span>
 				</>
 			)}
 		</Field>

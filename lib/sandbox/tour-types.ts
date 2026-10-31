@@ -1,12 +1,13 @@
 /**
- * "The Warm-Up" — guided tour definitions (one per product).
+ * The Atlas tutorial — one guided tour per tier, in chapters (one per page or flow).
  *
- * A tour runs on the real app pages with sample data (the sandbox interceptor).
- * It is a guided demo, not a sandbox: while a step is open only its target
+ * A tour runs on the real app pages with sample data (mock-api.ts). It is
+ * guided and controlled, not a sandbox: while a step is open only its target
  * (plus any `allow`ed popover it opens) can be clicked or typed into — the
- * coach's guard swallows everything else. Each step shows a short instruction
- * in the coach panel and completes when its `advance` condition is met. After
- * the last step the visitor gets the completion screen: sign up or replay.
+ * coach's guard swallows everything else. Each step tells the visitor exactly
+ * what to do in the tour panel on the right (click this, type that) and
+ * completes when its `advance` condition is met. After the last chapter the
+ * visitor gets the completion screen: sign up, replay, or try another tier.
  */
 import type { SandboxProduct } from './types';
 
@@ -27,7 +28,12 @@ export type TourAdvance =
 	 */
 	| { kind: 'request'; method: string; pattern: string; body?: Record<string, string | number | boolean> }
 	/** The user lands on a page whose pathname matches the pattern (`:param` segments), e.g. a profile. */
-	| { kind: 'path'; pattern: string };
+	| { kind: 'path'; pattern: string }
+	/**
+	 * The user types `value` into the target field (case-insensitive, trimmed).
+	 * The panel shows the text to type; the field is the only thing that takes input.
+	 */
+	| { kind: 'type'; value: string };
 
 export interface TourStep {
 	/** Stable id, used for analytics: `walkthrough:<product>:<id>`. */
@@ -79,17 +85,22 @@ export interface TourStep {
 	pause?: number;
 	/** The second interaction of the previous numbered step: shares its step number. */
 	continues?: boolean;
-	/** Show the product sidebar expanded, with labels (it is collapsed during the rest of the tour). */
-	expandNav?: boolean;
 	/** A simulated confirmation, shown as a card over the page instead of a real action. */
 	confirm?: { title: string; body: string };
 }
 
+/** One page or flow of a tour. The contents menu jumps between chapters. */
+export interface TourChapter {
+	id: string;
+	title: string;
+	steps: TourStep[];
+}
+
 export interface Tour {
 	product: SandboxProduct;
-	/** The welcome screen — numbered step 1. Who the visitor is in this run. */
+	/** The welcome screen. Who the visitor is in this run. */
 	intro: { title: string; body: string; points?: { label: string; text: string }[] };
-	steps: TourStep[];
-	/** The completion screen: sign up or replay — no free exploring after it. */
+	chapters: TourChapter[];
+	/** The completion screen: sign up, replay or another tier — no free exploring after it. */
 	finale: { title: string; body: string };
 }

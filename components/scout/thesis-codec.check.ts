@@ -89,7 +89,7 @@ assert.deepEqual(back.include, ['B2B', 'Football'], 'enum back to label, sports 
 assert.deepEqual(back.exclude, ['Web3 & crypto', 'Betting & prediction']);
 assert.equal(back.invStyle, 'Either');
 assert.equal(back.investorType, 'Venture capital');
-assert.equal(back.chequeMin, '€250k');
+assert.equal(back.chequeMin, '250000', 'plain digits — the cheque input is type="number"');
 console.log('  ok    API → form restores every label');
 
 // Both URL fields must leave as absolute URLs. The server validates them with
@@ -112,5 +112,13 @@ assert.deepEqual(empty.sectors, []);
 assert.deepEqual(empty.regions, []);
 assert.equal(empty.chequeMin, '');
 console.log('  ok    an unset thesis reads as empty, not as the sample data');
+
+// Investor type: two labels share the enum 'other', so the label must round-trip.
+const prof = (t: string) => ({ ...toProfileDto({ ...DEFAULT_THESIS, investorType: t }), setup_completed_at: null });
+assert.equal(toForm(undefined, prof('Corporate VC'), DEFAULT_THESIS).investorType, 'Corporate VC');
+assert.equal(toForm(undefined, prof('Accelerator / studio'), DEFAULT_THESIS).investorType, 'Accelerator / studio');
+// A linked investor row that overrides the enum wins over a stale label.
+assert.equal(toForm(undefined, { ...prof('Corporate VC'), investor_type: 'venture_capital' }, DEFAULT_THESIS).investorType, 'Venture capital');
+console.log('  ok    investor-type label round-trips; enum override wins');
 
 console.log('\nPASS');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { toast } from 'sonner';
 import {
@@ -10,15 +10,21 @@ import {
 import { apiRequest } from '@/lib/query-client';
 import { qk } from '@/lib/query-keys';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { useFormDraft } from '@/hooks/use-form-draft';
 import { Flag } from '@/components/atlas';
 import { Combobox } from '@/components/atlas/ui/combobox';
+import { InfoTip } from '@/components/atlas/ui/info-tip';
+import { SETUP_HELP } from '@/components/raise/setup-help';
 import { LocationSelect } from '@/components/features/location/location-select';
+import { CityInput } from '@/components/features/location/city-input';
+import { DatePicker } from '@/components/atlas/ui/date-picker';
 // One sheet now. This used to also pull in `company-detail.css`, purely because
 // it rendered `VerifiedBadge` from the legacy atoms and that badge's `.vb`
 // class lives over there — so the modal dragged a second, unrelated stylesheet
 // along with it. A lucide icon on an Atlas token does the same job.
 import '@/app/claim-modal.css';
-import type { ClaimRole, ClaimTarget } from '@/lib/claim-events';
+import { openClaim, type ClaimRole, type ClaimTarget } from '@/lib/claim-events';
+import { claimToTarget, type VerifyClaimRow } from '@/components/features/verify/verify-cta';
 import { soleRoleOf } from '@/lib/claim-roles';
 import {
   CM_ROLES, CM_ROLE_LIST, blankClaimForm,
@@ -29,7 +35,11 @@ import {
 import { useClaimReference } from './use-claim-reference';
 import { decodeClaimForm } from './decode-claim-form';
 import { useClaimSearch } from './use-claim-search';
-import { buildCompanyDto, buildInvestorDto, buildEntityDto, uploadPitchDeck } from './build-claim-dto';
+import { buildCompanyDto, buildInvestorDto, buildEntityDto, uploadPitchDeck, CLAIM_DECK_EXTS } from './build-claim-dto';
+import { EntityPicker } from './entity-picker';
+import { ProgramsPicker } from './programs-picker';
+import { newEntityMissing, newProgramMissing, validWebsite, validYear, type EntityKind, type EntityPick } from './claim-form';
+import { MAX_DECK_MB, deckFileError } from '@/lib/deck-upload';
 
 const initials = (n: string) => (n || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
@@ -57,6 +67,73 @@ type Step =
   | 'role' | 'search' | 'identity' | 'dataedits' | 'fundraising' | 'review'
   | 'invdata' | 'portfolio' | 'details' | 'extra' | 'done';
 
+/** Business models in founders' terms (the (i) beside "Business model"). */
+const BIZ_HELP = (
+  <ul>
+    <li><strong>B2C</strong> — you sell to consumers, e.g. fans or athletes.</li>
+    <li><strong>B2B</strong> — you sell to businesses: clubs, leagues, brands, venues.</li>
+    <li><strong>B2B2C</strong> — you reach consumers through a business partner, e.g. a club&apos;s app.</li>
+    <li><strong>D2C</strong> — your own brand, sold direct to consumers.</li>
+    <li><strong>Marketplace</strong> — you connect buyers and sellers and take a cut.</li>
+    <li><strong>SaaS</strong> — software sold by subscription.</li>
+    <li><strong>Hardware</strong> — physical devices, often with software alongside.</li>
+  </ul>
+);
+
+// Runtime whitelists for validating a restored draft (stored blobs are untrusted).
+const STEP_VALUES: readonly Step[] = [
+  'role', 'search', 'identity', 'dataedits', 'fundraising', 'review',
+  'invdata', 'portfolio', 'details', 'extra', 'done',
+];
+const ROLE_VALUES: readonly ClaimRole[] = ['founder', 'investor', 'operator'];
+const SELMODE_VALUES = ['claim', 'add'] as const;
+
+/** Keep only draft `form` fields whose type matches the blank template, so a
+ *  hand-edited or stale draft can't put (say) a string where an array is
+ *  expected and crash a later `.map`/`.includes`. */
+function sanitizeClaimForm(raw: unknown, template: ClaimForm): Partial<ClaimForm> {
+  if (!raw || typeof raw !== 'object') return {};
+  const src = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [k, tv] of Object.entries(template)) {
+    if (k === 'deckFile') continue; // never restored (a File can't round-trip JSON)
+    const v = src[k];
+    if (v === undefined || v === null) continue;
+    if (Array.isArray(tv)) { if (Array.isArray(v)) out[k] = v; }
+    else if (typeof tv === typeof v) out[k] = v;
+  }
+  return out as Partial<ClaimForm>;
+}
+
+interface ClaimDraft {
+  role: ClaimRole | null;
+  step: Step;
+  selMode: 'claim' | 'add';
+  selItem: SelectedEntity | null;
+  form: Partial<ClaimForm>;
+}
+
+/** Parse + validate an untrusted stored claim draft into a safe shape, or null. */
+function parseClaimDraft(raw: unknown): ClaimDraft | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const role = ROLE_VALUES.includes(r.role as ClaimRole) ? (r.role as ClaimRole) : null;
+  // A step only makes sense once a role is picked; without one, pin to the chooser.
+  const rawStep = STEP_VALUES.includes(r.step as Step) ? (r.step as Step) : 'role';
+  const step: Step = role ? rawStep : 'role';
+  const selMode = SELMODE_VALUES.includes(r.selMode as 'claim' | 'add') ? (r.selMode as 'claim' | 'add') : 'add';
+  let selItem: SelectedEntity | null = null;
+  if (r.selItem && typeof r.selItem === 'object') {
+    const o = r.selItem as Record<string, unknown>;
+    selItem = {
+      id: typeof o.id === 'string' ? o.id : null,
+      name: typeof o.name === 'string' ? o.name : '',
+      website: typeof o.website === 'string' ? o.website : null,
+    };
+  }
+  return { role, step, selMode, selItem, form: sanitizeClaimForm(r.form, blankClaimForm(null)) };
+}
+
 // Editing an existing claim opens on the entity-data step (identity is already
 // known and is dropped from the step list), not the identity step.
 const EDIT_DATA_STEP: Record<ClaimRole, Step> = { founder: 'dataedits', investor: 'invdata', operator: 'details' };
@@ -70,9 +147,7 @@ export function ClaimModal({
   /**
    * Which roles the chooser may offer, by tier — Explore gets all three, Raise
    * gets founder + operator (it owns events and programmes), Scout gets
-   * investor only. Omitted means all three, which is what
-   * `app/(onboarding)/onboarding/page.tsx` relies on: it renders this modal
-   * directly rather than through the event bus and passes no such prop.
+   * investor only. Omitted means all three.
    */
   allowedRoles?: ClaimRole[];
   onClose: () => void;
@@ -99,16 +174,22 @@ export function ClaimModal({
   // pre-filled answers aren't discarded.
   // Editing an existing claim (capsule → edit) opens on the data step; a fresh
   // claim on a known entity opens on identity; otherwise search / role chooser.
+  // A prefill skips the search only when the caller already settled the
+  // entity: Raise Setup (its own company search ran) and an explicit "add
+  // new" both pass a target without an id. With NO target (Scout onboarding,
+  // the fund picker's Verify with nothing selected) the fund may well exist,
+  // so the search comes first — skipping it filed a duplicate new listing.
   const [step, setStep] = useState<Step>(
     target?.claimId && startRole ? EDIT_DATA_STEP[startRole]
       : target?.id ? 'identity'
-        : (hasPrefill && startRole ? 'identity' : startRole ? 'search' : 'role'),
+        : (hasPrefill && startRole && target ? 'identity' : startRole ? 'search' : 'role'),
   );
   const [selItem, setSelItem] = useState<SelectedEntity | null>(
     target ? { id: target.id ?? null, name: target.name ?? '', website: target.website ?? null } : null,
   );
   const [selMode, setSelMode] = useState<'claim' | 'add'>(target?.id ? 'claim' : 'add');
-  const [q, setQ] = useState('');
+  // Searching for the prefilled name surfaces the existing record first.
+  const [q, setQ] = useState(() => (!target && prefill?.name) || '');
   const [editTab, setEditTab] = useState<'info' | 'funding' | 'mna' | 'org' | 'thesis'>('info');
   // Seed from the target entity, then overlay any prefill (e.g. Raise Setup answers)
   // so a founder verifying right after setup only fills the remaining fields.
@@ -119,6 +200,30 @@ export function ClaimModal({
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Draft cache: if the wizard is dismissed by accident (Escape / click-outside)
+  // mid-answer, reopening restores what was typed — no re-fetch, per-tab only.
+  // Scoped to a brand-new claim started from scratch: editing an existing claim
+  // (or a prefilled post-setup verify) is seeded from the server and must not be
+  // overwritten by a stale draft, so the cache is disabled there. The pitch-deck
+  // File can't be serialized, so it's dropped from the draft (re-attach on reopen).
+  const draftEnabled = !target?.id && !target?.claimId && !hasPrefill;
+  const draftValue = useMemo<ClaimDraft>(
+    () => ({ role, step, selMode, selItem, form: { ...form, deckFile: undefined } }),
+    [role, step, selMode, selItem, form],
+  );
+  const { clear: clearDraft } = useFormDraft<ClaimDraft>(
+    'claim',
+    draftValue,
+    (d) => {
+      setRole(d.role);
+      setStep(d.step);
+      setSelMode(d.selMode);
+      setSelItem(d.selItem);
+      setForm((f) => ({ ...f, ...d.form, deckFile: f.deckFile }));
+    },
+    { enabled: draftEnabled, validate: parseClaimDraft },
+  );
 
   // Editing a verified/pending claim: load the user's submitted data back into
   // the form so they see (and edit) exactly what they entered, not a blank form.
@@ -136,7 +241,36 @@ export function ClaimModal({
   const loadingEdit = !!target?.claimId && !applied;
 
   const R = role ? CM_ROLES[role] : null;
-  const { results } = useClaimSearch(role, q);
+  const { results, isLoading: searching, enabled: searchOn, query: searchedQ, failed: searchFailed } = useClaimSearch(role, q);
+  // "Add" unlocks only once the search for exactly what's typed has come back
+  // without a record of that name — pick the existing one instead of duplicating it.
+  const canAddNew = searchOn && !searching && searchedQ === q.trim()
+    && !results.some((r) => r.name.trim().toLowerCase() === q.trim().toLowerCase());
+
+  // Several people from the same company / investor may be verified (admins
+  // decide), so a verified entity stays selectable for anyone. The search
+  // result's `verified` flag is entity-level (someone is verified); to tell
+  // whether *I* am, cross-reference my own verified claims by target id.
+  type MyClaimRow = VerifyClaimRow;
+  // Shape note: this endpoint returns either a bare array or `{ data: [...] }`
+  // depending on the interceptor — verify-cta.tsx normalises the same way.
+  const { data: myClaimsRaw } = useSWR<MyClaimRow[] | { data: MyClaimRow[] }>(qk.claims.mine(), { dedupingInterval: 60_000 });
+  // My verified claims, keyed by the entity they're on.
+  const myVerified = useMemo(() => {
+    const rows = Array.isArray(myClaimsRaw) ? myClaimsRaw : (myClaimsRaw?.data ?? []);
+    const m = new Map<string, MyClaimRow>();
+    for (const c of rows) {
+      if (!c.is_verified) continue;
+      const id = c.target_company_id ?? c.target_investor_id ?? c.target_ecosystem_entity_id;
+      if (id && !m.has(id)) m.set(id, c);
+    }
+    return m;
+  }, [myClaimsRaw]);
+  const myVerifiedIds = useMemo(() => new Set(myVerified.keys()), [myVerified]);
+  // I'm already verified for what I'm submitting on: that's an edit of my own
+  // record, not a new claim — it goes to the data-change-request queue below
+  // (a fresh claim would only duplicate my verification).
+  const editingVerified = !!target?.verified || (!!selItem?.id && myVerifiedIds.has(selItem.id));
 
   // Prefill the claimant email from the signed-in profile once it loads (SWR
   // resolves after mount, so this genuinely syncs external state → form).
@@ -146,7 +280,9 @@ export function ClaimModal({
   }, [profile?.email]);
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    // An Escape already handled (an open (i) explanation closing itself — Radix
+    // marks it) shouldn't also close the whole form.
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) onClose(); };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
@@ -165,22 +301,77 @@ export function ClaimModal({
 
   const pickRole = (id: ClaimRole) => { setRole(id); setQ(''); setSelItem(null); setForm(blankClaimForm(null)); setStep('search'); };
   const pickItem = (it: SelectedEntity) => {
+    // Already verified for this one ("Yours") → reopen MY claim in edit mode, exactly
+    // like the Verified capsule: prefilled with what I submitted, and saving it is a
+    // data-change request — never a duplicate claim.
+    const mine = it.id ? myVerified.get(it.id) : undefined;
+    if (mine) { openClaim(claimToTarget(mine, true), role); return; }
     setSelItem(it); setSelMode('claim'); setEditTab(role === 'investor' ? 'org' : 'info');
-    setForm((f) => ({ ...blankClaimForm(it), first: f.first, last: f.last, email: f.email, linkedin: f.linkedin, city: f.city, country: f.country, position: f.position }));
+    setForm((f) => withPrefill({ ...blankClaimForm(it), first: f.first, last: f.last, email: f.email, linkedin: f.linkedin, city: f.city, country: f.country, position: f.position }, true));
     setStep('identity');
   };
   const addNew = () => {
     setSelItem(null); setSelMode('add'); setEditTab(role === 'investor' ? 'org' : 'info');
-    setForm((f) => ({ ...blankClaimForm(null), name: q, first: f.first, last: f.last, email: f.email, linkedin: f.linkedin, city: f.city, country: f.country, position: f.position }));
+    setForm((f) => withPrefill({ ...blankClaimForm(null), name: q, first: f.first, last: f.last, email: f.email, linkedin: f.linkedin, city: f.city, country: f.country, position: f.position }, false));
     setStep('identity');
   };
+  // A prefill (e.g. the Scout thesis) rides through the search: re-applied on
+  // top of whichever record is picked — which keeps its own name/website — or
+  // onto a new listing, where it fills a blank name/website.
+  function withPrefill(base: ClaimForm, existing: boolean): ClaimForm {
+    if (!prefill) return base;
+    const { name, website, ...rest } = prefill;
+    return existing
+      ? { ...base, ...rest }
+      : { ...base, ...rest, name: base.name || name || '', website: base.website || website || '' };
+  }
 
   const emailOk = /.+@.+\..+/.test(form.email);
   const richId = role === 'founder' || role === 'investor';
   const identityOk = richId
-    ? !!(form.first.trim() && form.last.trim() && form.city.trim() && form.country.trim() && emailOk && form.position.trim())
+    // A new listing's name is typed on this step, so it can't be blank.
+    ? !!(form.first.trim() && form.last.trim() && form.city.trim() && form.country.trim() && emailOk && form.position.trim() && (selMode !== 'add' || form.name.trim()))
     : !!(form.first.trim() && form.last.trim() && emailOk);
   const detailsOk = !!(form.name.trim() && form.website.trim());
+  // A company / investor that isn't in Atlas yet must arrive with the fields a
+  // usable record needs — whether it's the one being claimed (a new listing) or
+  // a portfolio company / round investor / M&A counterparty added inside.
+  const addingNew = selMode === 'add';
+  const pickGaps = (kind: EntityKind, p: EntityPick | null | undefined) => (p?.added ? newEntityMissing(kind, p.added, p.name) : []);
+  const stepMissing = (): string[] => {
+    const m: string[] = [];
+    if (step === 'dataedits') {
+      if (addingNew) {
+        if (form.website.trim() && !validWebsite(form.website)) m.push('a valid website');
+        if (!form.coCountry.trim()) m.push('country');
+        if (!form.sector) m.push('sector');
+        if (!form.description.trim()) m.push('description');
+      }
+      // The server rejects the whole claim on an out-of-range year.
+      if (!validYear(form.founded)) m.push('a valid founded year');
+      if (form.rounds.some((r) => (r.invs ?? []).some((p) => pickGaps('investor', p).length))) m.push('details of a new round investor');
+      if (form.programs.some((p) => p.added && newProgramMissing(p.added, p.name).length)) m.push('details of a new program');
+      if (form.programs.some((p) => p.year && (Number(p.year) < 1990 || Number(p.year) > new Date().getFullYear() + 1))) m.push('a valid program year');
+      if (form.mna.some((x) => !x.cp)) m.push('a counterparty for each M&A deal (or remove it)');
+      else if (form.mna.some((x) => pickGaps('company', x.cp).length)) m.push('details of a new M&A company');
+    }
+    if (step === 'invdata') {
+      if (addingNew) {
+        if (!form.website.trim()) m.push('website');
+        else if (!validWebsite(form.website)) m.push('a valid website');
+        if (!form.invCategory) m.push('category');
+        if (!form.coCountry.trim()) m.push('country');
+      }
+      if (!validYear(form.yearLaunched)) m.push('a valid launch year');
+    }
+    if (step === 'portfolio') {
+      // A row with nothing picked used to submit as a blank company.
+      if (form.portfolio.some((x) => !x.co)) m.push('a company for each portfolio row (or remove it)');
+      else if (form.portfolio.some((x) => pickGaps('company', x.co).length)) m.push('details of a new portfolio company');
+    }
+    return m;
+  };
+  const missing = stepMissing();
   const fundraisingOk = !form.raising || !!(form.raiseMin && form.raiseMax && form.roundNames.length > 0);
 
   const isRole = step === 'role';
@@ -196,6 +387,7 @@ export function ClaimModal({
   const orgTab = editTab === 'thesis' ? 'thesis' : 'org';
 
   const stepValid = () => {
+    if (missing.length) return false;
     if (step === 'identity') return identityOk;
     if (step === 'details' || step === 'dataedits') return detailsOk;
     if (step === 'invdata') return !!form.name.trim();
@@ -226,7 +418,7 @@ export function ClaimModal({
         if (c.details) delete c.details.pitch_deck_url;
       }
 
-      if (target?.verified && targetId) {
+      if (editingVerified && targetId) {
         // Editing an entity the viewer has *already verified*: this is not a
         // new claim. It goes to the data-change-request queue so the published
         // record stays live and untouched until an admin confirms the edit —
@@ -250,6 +442,7 @@ export function ClaimModal({
         await apiRequest('POST', url, changes);
       }
       await mutate(qk.claims.mine());
+      clearDraft();
       setStep('done');
       onSubmitted?.();
     } catch (e) {
@@ -264,7 +457,7 @@ export function ClaimModal({
   const goBack = () => { if (curIdx > 0) setStep(stepKeys[curIdx - 1] as Step); else if (!lockedTarget) setStep('search'); };
 
   const submitLabel = !R ? '' : isLast
-    ? (R.id === 'founder' ? 'Submit for verification' : (selMode === 'add' ? R.submitAdd : R.submitClaim))
+    ? (editingVerified ? 'Submit changes' : target?.claimId ? 'Resubmit claim' : selMode === 'add' ? R.submitAdd : R.submitClaim)
     : (STEPS[curIdx]?.next ?? 'Continue');
 
   return (
@@ -281,8 +474,12 @@ export function ClaimModal({
           <aside className="cm-rail">
             <div className="cm-rail-glow" />
             <div className="cm-rail-brand">
-              <svg width="20" height="20" viewBox="0 0 32 32" fill="none"><path d="M4 4 L20 4 L28 12 L28 28 L12 28 L4 20 Z" fill="currentColor" /></svg>
-              SPORTS<span className="cm-rail-x">TECH</span>X
+              {/* Real Atlas wordmark (white on the dark theme, dark-ink on light) —
+                  swapped by CSS off the [data-theme] root attribute. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="cm-rail-logo cm-rail-logo--on-light" src="/landing/atlas-wordmark-dark.svg" alt="SportsTechX Atlas" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="cm-rail-logo cm-rail-logo--on-dark" src="/landing/atlas-wordmark-white.svg" alt="SportsTechX Atlas" />
             </div>
             <h2 className="cm-rail-h">{isRole ? 'Own your profile on SportsTechX.' : (R?.free ? "Own your company's profile." : 'Claim and manage your profile.')}</h2>
             <p className="cm-rail-lead">{isRole || !R ? 'Verify ownership so the details the ecosystem sees come from you — not from a guess.' : R.railLead(selItem?.name || form.name)}</p>
@@ -372,23 +569,39 @@ export function ClaimModal({
                 </div>
                 {results.length > 0 && (
                   <div className="cm-results">
-                    {results.map((it) => (
-                      <button key={it.id} className="cm-result" onClick={() => pickItem({ id: it.id, name: it.name, website: it.website, hq: it.hq, cc: it.cc, verified: it.verified })}>
-                        <EntityLogo item={it} />
-                        <span className="cm-result-text">
-                          <span className="cm-result-name">{it.name} {it.verified && <BadgeCheck size={12} aria-label="Verified" style={{ color: 'var(--a-navy)', verticalAlign: 'middle', flexShrink: 0 }} />}</span>
-                          <span className="cm-result-meta">{it.cc && <Flag cc={it.cc} size={12} />} {it.hq ?? ''}{it.kind ? ` · ${it.kind}` : ''}</span>
-                        </span>
-                        {it.verified ? <span className="cm-result-claimed">Claimed</span> : <span className="cm-result-arrow"><ArrowRight size={14} /></span>}
-                      </button>
-                    ))}
+                    {results.map((it) => {
+                      // Everything is selectable: others being verified for an entity
+                      // doesn't stop me requesting verification too. "Yours" marks one
+                      // I'm already verified for (picking it edits my own record).
+                      const mine = myVerifiedIds.has(it.id);
+                      return (
+                        <button
+                          key={it.id}
+                          className="cm-result"
+                          onClick={() => pickItem({ id: it.id, name: it.name, website: it.website, hq: it.hq, cc: it.cc, verified: it.verified })}
+                        >
+                          <EntityLogo item={it} />
+                          <span className="cm-result-text">
+                            <span className="cm-result-name">{it.name} {it.verified && <BadgeCheck size={12} aria-label="Verified" style={{ color: 'var(--a-navy)', verticalAlign: 'middle', flexShrink: 0 }} />}</span>
+                            <span className="cm-result-meta">{it.cc && <Flag cc={it.cc} size={12} />} {it.hq ?? ''}{it.kind ? ` · ${it.kind}` : ''}</span>
+                          </span>
+                          {mine
+                            ? <span className="cm-result-claimed cm-result-yours">Yours</span>
+                            : <span className="cm-result-arrow"><ArrowRight size={14} /></span>}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
-                <button className="cm-addnew" onClick={addNew}>
-                  <span className="cm-addnew-ico"><Plus size={18} /></span>
-                  <span style={{ flex: 1 }}><span className="cm-addnew-h">{q.trim() ? `Add "${q.trim()}"` : `Can't find your ${R.noun}?`}</span><span className="cm-addnew-p">Not listed yet — add it and we&apos;ll verify the details.</span></span>
-                  <ArrowRight size={14} style={{ color: 'var(--a-faint)' }} />
-                </button>
+                {canAddNew ? (
+                  <button className="cm-addnew" onClick={addNew}>
+                    <span className="cm-addnew-ico"><Plus size={18} /></span>
+                    <span style={{ flex: 1 }}><span className="cm-addnew-h">Add &ldquo;{q.trim()}&rdquo; and claim it</span><span className="cm-addnew-p">Not listed yet — add its details and we&apos;ll verify them with your claim.</span></span>
+                    <ArrowRight size={14} style={{ color: 'var(--a-faint)' }} />
+                  </button>
+                ) : (
+                  <div className="cm-hint">{q.trim().length < 2 ? `Type your ${R.noun}'s name. If it isn't listed, you can add it.` : searchFailed ? "Search isn't responding — try again in a moment." : searching || searchedQ !== q.trim() ? 'Searching…' : `Pick your ${R.noun} above.`}</div>
+                )}
               </div>
             )}
 
@@ -407,10 +620,23 @@ export function ClaimModal({
               <div>
                 <div className="cm-block">
                   <div className="cm-block-h">{R.id === 'investor' ? <Wallet size={16} /> : <Building2 size={16} />} {R.id === 'investor' ? 'Investor information' : 'Company information'}</div>
-                  <div className="cm-row2">
-                    <div className="cm-field cm-half"><label className="cm-label">{R.id === 'investor' ? 'Investor name' : 'Company name'}</label><input className="cm-input cm-readonly" value={form.name} readOnly /></div>
-                    <div className="cm-field cm-half"><label className="cm-label">Website</label><input className="cm-input cm-readonly" value={form.website || '—'} readOnly /></div>
-                  </div>
+                  {/* A new listing IS what's typed here, so it's editable — read-only
+                      left a brand-new fund stuck with a "—" website. An existing
+                      record is what you're claiming; changes to it go in the next step. */}
+                  {selMode === 'add' ? (
+                    <div className="cm-row2">
+                      <div className="cm-field cm-half"><label className="cm-label">{R.id === 'investor' ? 'Investor name' : 'Company name'} <span className="cm-req">*</span></label><input className="cm-input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={R.id === 'investor' ? 'Your fund or firm' : 'Your company'} /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Website</label><div className="cm-input-prefix"><span className="cm-input-prefix-txt">https://</span><input className="cm-input" value={form.website} onChange={(e) => set('website', e.target.value)} placeholder={R.id === 'investor' ? 'firm.com' : 'company.com'} /></div></div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="cm-row2">
+                        <div className="cm-field cm-half"><label className="cm-label">{R.id === 'investor' ? 'Investor name' : 'Company name'}</label><input className="cm-input cm-readonly" value={form.name} readOnly /></div>
+                        <div className="cm-field cm-half"><label className="cm-label">Website</label><input className="cm-input cm-readonly" value={form.website || '—'} readOnly /></div>
+                      </div>
+                      <div className="cm-hint">From our directory. Suggest changes to these in the next step.</div>
+                    </>
+                  )}
                 </div>
                 <div className="cm-block">
                   <div className="cm-block-h"><User size={16} /> Your information</div>
@@ -419,7 +645,7 @@ export function ClaimModal({
                     <div className="cm-field cm-half"><label className="cm-label">Last name <span className="cm-req">*</span></label><input className="cm-input" value={form.last} onChange={(e) => set('last', e.target.value)} placeholder="Your last name" /></div>
                   </div>
                   <div className="cm-row2">
-                    <div className="cm-field cm-half"><label className="cm-label">City <span className="cm-req">*</span></label><input className="cm-input" value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="Your city" /></div>
+                    <div className="cm-field cm-half"><label className="cm-label">City <span className="cm-req">*</span></label><CityInput className="cm-input" value={form.city} onChange={(v) => set('city', v)} onPick={(h) => { if (h.country) set('country', h.country); }} placeholder="Your city" geo={form.country} /></div>
                     <div className="cm-field cm-half"><label className="cm-label">Country <span className="cm-req">*</span></label><LocationSelect className="cm-select" value={form.country} onChange={(v) => set('country', v)} placeholder="Select your country" /></div>
                   </div>
                 </div>
@@ -429,7 +655,7 @@ export function ClaimModal({
                     <div className="cm-field cm-half"><label className="cm-label">Company email <span className="cm-req">*</span></label><input className="cm-input" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="your.name@company.com" /></div>
                     <div className="cm-field cm-half"><label className="cm-label">Position <span className="cm-req">*</span></label><input className="cm-input" value={form.position} onChange={(e) => set('position', e.target.value)} placeholder="e.g. CEO, Partner, Founder" /></div>
                   </div>
-                  <div className="cm-field" style={{ marginBottom: 0 }}><label className="cm-label">LinkedIn profile URL</label><input className="cm-input" value={form.linkedin} onChange={(e) => set('linkedin', e.target.value)} placeholder="https://linkedin.com/in/yourprofile" /></div>
+                  <div className="cm-field" style={{ marginBottom: 0 }}><label className="cm-label">LinkedIn profile URL</label><input className="cm-input" type="url" value={form.linkedin} onChange={(e) => set('linkedin', e.target.value)} placeholder="https://linkedin.com/in/yourprofile" /></div>
                 </div>
               </div>
             )}
@@ -444,7 +670,7 @@ export function ClaimModal({
                 </div>
                 <div className="cm-field"><label className="cm-label">Work email <span className="cm-req">*</span></label><input className="cm-input" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="you@organisation.com" /><div className="cm-hint">A work email at your {R.noun}&apos;s domain speeds up approval.</div></div>
                 <div className="cm-field"><label className="cm-label">Position <span className="cm-opt">(optional)</span></label><input className="cm-input" value={form.position} onChange={(e) => set('position', e.target.value)} placeholder="e.g. Programme Director" /></div>
-                <div className="cm-field"><label className="cm-label">LinkedIn profile <span className="cm-opt">(optional)</span></label><input className="cm-input" value={form.linkedin} onChange={(e) => set('linkedin', e.target.value)} placeholder="linkedin.com/in/you" /></div>
+                <div className="cm-field"><label className="cm-label">LinkedIn profile <span className="cm-opt">(optional)</span></label><input className="cm-input" type="url" value={form.linkedin} onChange={(e) => set('linkedin', e.target.value)} placeholder="linkedin.com/in/you" /></div>
               </div>
             )}
 
@@ -465,37 +691,37 @@ export function ClaimModal({
                   <div>
                     <div className="cm-row2">
                       <div className="cm-field cm-half"><label className="cm-label">Company name <span className="cm-req">*</span></label><input className="cm-input" value={form.name} onChange={(e) => set('name', e.target.value)} /></div>
-                      <div className="cm-field cm-half"><label className="cm-label">Website</label><div className="cm-input-prefix"><span className="cm-input-prefix-txt">https://</span><input className="cm-input" value={form.website} onChange={(e) => set('website', e.target.value)} placeholder="company.com" /></div></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Website <span className="cm-req">*</span></label><div className="cm-input-prefix"><span className="cm-input-prefix-txt">https://</span><input className="cm-input" value={form.website} onChange={(e) => set('website', e.target.value)} placeholder="company.com" /></div></div>
                     </div>
                     <div className="cm-field">
-                      <label className="cm-label">Description <span className="cm-opt">(max 150 characters)</span></label>
+                      <label className="cm-label">Description {addingNew && <span className="cm-req">*</span>} <span className="cm-opt">(max 150 characters)</span></label>
                       <textarea className="cm-textarea" maxLength={150} value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="What you do, in a sentence or two." />
                       <div className={`cm-counter ${form.description.length >= 150 ? 'over' : ''}`}>{form.description.length}/150 characters</div>
                     </div>
                     <div className="cm-row2">
-                      <div className="cm-field cm-half"><label className="cm-label">Sector</label><input className="cm-input" value={form.sector} onChange={(e) => set('sector', e.target.value)} placeholder="e.g. Fans & Content" /></div>
-                      <div className="cm-field cm-half"><label className="cm-label">Business model</label><Combobox className="cm-select" value={form.businessModel} onChange={(v) => set('businessModel', v)} options={opt(BIZ_MODELS)} /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Sector {addingNew && <span className="cm-req">*</span>}</label><Combobox className="cm-select" value={form.sector} onChange={(v) => set('sector', v)} placeholder="Select sector…" options={optE('Select…', THESIS_SECTORS)} /></div>
+                      <div className="cm-field cm-half"><div className="atlas-label-row"><label className="cm-label">Business model</label><InfoTip label="About: business model">{BIZ_HELP}</InfoTip></div><Combobox className="cm-select" value={form.businessModel} onChange={(v) => set('businessModel', v)} options={opt(BIZ_MODELS)} /></div>
                     </div>
                     <div className="cm-row2">
                       <div className="cm-field cm-half"><label className="cm-label">Founded year</label><input className="cm-input" value={form.founded} onChange={(e) => set('founded', e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="2021" inputMode="numeric" /></div>
-                      <div className="cm-field cm-half"><label className="cm-label">City</label><input className="cm-input" value={form.coCity} onChange={(e) => set('coCity', e.target.value)} placeholder="London" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">City</label><CityInput className="cm-input" value={form.coCity} onChange={(v) => set('coCity', v)} onPick={(h) => { if (h.country) set('coCountry', h.country); }} placeholder="London" geo={form.coCountry} /></div>
                     </div>
                     <div className="cm-row2">
-                      <div className="cm-field cm-half"><label className="cm-label">Country</label><LocationSelect className="cm-select" value={form.coCountry} onChange={(v) => set('coCountry', v)} /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Country {addingNew && <span className="cm-req">*</span>}</label><LocationSelect className="cm-select" value={form.coCountry} onChange={(v) => set('coCountry', v)} /></div>
                       <div className="cm-field cm-half"><label className="cm-label">Sport</label><Combobox className="cm-select" value={form.sport} onChange={(v) => set('sport', v)} placeholder="Select…" options={optE('Select…', SPORTS_LIST)} /></div>
                     </div>
-                    <div className="cm-field"><label className="cm-label">Program participation</label><input className="cm-input" value={form.programs} onChange={(e) => set('programs', e.target.value)} placeholder="e.g. Stadia Ventures '24" /></div>
+                    <div className="cm-field"><label className="cm-label">Program participation <span className="cm-opt">(optional)</span></label><ProgramsPicker value={form.programs} onChange={(v) => set('programs', v)} /></div>
 
                     <div className="cm-sub">Contact &amp; social</div>
                     <div className="cm-row2">
-                      <div className="cm-field cm-half"><label className="cm-label">Twitter</label><input className="cm-input" value={form.twitter} onChange={(e) => set('twitter', e.target.value)} placeholder="https://twitter.com/company" /></div>
-                      <div className="cm-field cm-half"><label className="cm-label">Instagram</label><input className="cm-input" value={form.instagram} onChange={(e) => set('instagram', e.target.value)} placeholder="https://instagram.com/company" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Twitter</label><input className="cm-input" type="url" value={form.twitter} onChange={(e) => set('twitter', e.target.value)} placeholder="https://twitter.com/company" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Instagram</label><input className="cm-input" type="url" value={form.instagram} onChange={(e) => set('instagram', e.target.value)} placeholder="https://instagram.com/company" /></div>
                     </div>
                     <div className="cm-row2">
-                      <div className="cm-field cm-half"><label className="cm-label">Facebook</label><input className="cm-input" value={form.facebook} onChange={(e) => set('facebook', e.target.value)} placeholder="https://facebook.com/company" /></div>
-                      <div className="cm-field cm-half"><label className="cm-label">LinkedIn</label><input className="cm-input" value={form.linkedin_co} onChange={(e) => set('linkedin_co', e.target.value)} placeholder="https://linkedin.com/company/…" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Facebook</label><input className="cm-input" type="url" value={form.facebook} onChange={(e) => set('facebook', e.target.value)} placeholder="https://facebook.com/company" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">LinkedIn</label><input className="cm-input" type="url" value={form.linkedin_co} onChange={(e) => set('linkedin_co', e.target.value)} placeholder="https://linkedin.com/company/…" /></div>
                     </div>
-                    <div className="cm-field"><label className="cm-label">Company email</label><input className="cm-input" value={form.companyEmail} onChange={(e) => set('companyEmail', e.target.value)} placeholder="contact@company.com" /></div>
+                    <div className="cm-field"><label className="cm-label">Company email</label><input className="cm-input" type="email" value={form.companyEmail} onChange={(e) => set('companyEmail', e.target.value)} placeholder="contact@company.com" /></div>
 
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '4px 0 12px' }}>
                       <div className="cm-sub" style={{ margin: 0 }}>Primary contact</div>
@@ -507,9 +733,9 @@ export function ClaimModal({
                     </div>
                     <div className="cm-row2">
                       <div className="cm-field cm-half"><label className="cm-label">Position</label><input className="cm-input" value={form.contactPosition} onChange={(e) => set('contactPosition', e.target.value)} placeholder="Founder & CEO" /></div>
-                      <div className="cm-field cm-half"><label className="cm-label">Contact email</label><input className="cm-input" value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} placeholder="adam@company.com" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Contact email</label><input className="cm-input" type="email" value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} placeholder="adam@company.com" /></div>
                     </div>
-                    <div className="cm-field" style={{ marginBottom: 0 }}><label className="cm-label">Personal LinkedIn profile</label><input className="cm-input" value={form.contactLinkedin} onChange={(e) => set('contactLinkedin', e.target.value)} placeholder="https://linkedin.com/in/…" /></div>
+                    <div className="cm-field" style={{ marginBottom: 0 }}><label className="cm-label">Personal LinkedIn profile</label><input className="cm-input" type="url" value={form.contactLinkedin} onChange={(e) => set('contactLinkedin', e.target.value)} placeholder="https://linkedin.com/in/…" /></div>
                   </div>
                 )}
 
@@ -517,22 +743,33 @@ export function ClaimModal({
                   <div>
                     <div className="cm-edithead">
                       <div><div className="cm-edithead-t">Edit funding rounds</div><div className="cm-edithead-s">Edit existing rounds or add new ones.</div></div>
-                      <button className="cm-addrow" onClick={() => set('rounds', [...form.rounds, { roundType: '', amount: '', date: '', investors: '', source: '' }])}><Plus size={14} /> Add round</button>
+                      <button className="cm-addrow" onClick={() => set('rounds', [...form.rounds, { roundType: '', amount: '', date: '', investors: '', source: '', invs: [] }])}><Plus size={14} /> Add round</button>
                     </div>
                     {form.rounds.length === 0 && <div className="cm-editempty">No funding rounds yet. Add one if you&apos;d like it on your profile.</div>}
                     <div className="cm-editlist">
                       {form.rounds.map((r, i) => {
-                        const upd = (k: keyof typeof r, v: string) => set('rounds', form.rounds.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+                        const upd = (k: 'roundType' | 'amount' | 'date' | 'source', v: string) => set('rounds', form.rounds.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+                        const invs = r.invs ?? [];
+                        const setInvs = (next: EntityPick[]) => set('rounds', form.rounds.map((x, j) => (j === i ? { ...x, invs: next } : x)));
                         return (
-                          <div key={i} className="cm-editcard">
+                          <div key={`${i}/${form.rounds.length}`} className="cm-editcard">
                             <button className="cm-editcard-x" onClick={() => set('rounds', form.rounds.filter((_, j) => j !== i))} aria-label="Remove round"><X size={14} /></button>
                             <div className="cm-row3">
-                              <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Round type</label><Combobox className="cm-select" value={r.roundType} onChange={(v) => upd('roundType', v)} placeholder="Select…" options={optE('Select…', FUND_ROUND_NAMES)} /></div>
+                              <div className="cm-field" style={{ margin: 0 }}><div className="atlas-label-row"><label className="cm-label">Round type</label><InfoTip label="About: round type">{SETUP_HELP.round}</InfoTip></div><Combobox className="cm-select" value={r.roundType} onChange={(v) => upd('roundType', v)} placeholder="Select…" options={optE('Select…', FUND_ROUND_NAMES)} /></div>
                               <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Amount (USD)</label><input className="cm-input" value={r.amount} onChange={(e) => upd('amount', e.target.value.replace(/[^\d]/g, ''))} placeholder="1000000" inputMode="numeric" /></div>
-                              <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Date</label><input className="cm-input" value={r.date} onChange={(e) => upd('date', e.target.value)} placeholder="2024-07-10" /></div>
+                              <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Date</label><DatePicker className="cm-input" value={r.date} onChange={(v) => upd('date', v)} /></div>
                             </div>
-                            <div className="cm-field" style={{ marginBottom: 12 }}><label className="cm-label">Investors</label><input className="cm-input" value={r.investors} onChange={(e) => upd('investors', e.target.value)} placeholder="Comma-separated" /></div>
-                            <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Source <span className="cm-opt">(optional)</span></label><input className="cm-input" value={r.source} onChange={(e) => upd('source', e.target.value)} placeholder="https://…" /></div>
+                            <div className="cm-field" style={{ marginBottom: 12 }}>
+                              <label className="cm-label">Investors</label>
+                              <div style={{ display: 'grid', gap: 8 }}>
+                                {invs.map((p, k) => (
+                                  <EntityPicker key={k} kind="investor" value={p} onChange={(v) => setInvs(v ? invs.map((x, n) => (n === k ? v : x)) : invs.filter((_, n) => n !== k))} />
+                                ))}
+                                {/* Always one empty search at the end to add the next investor. */}
+                                <EntityPicker key={`new-${invs.length}`} kind="investor" value={null} onChange={(v) => { if (v) setInvs([...invs, v]); }} />
+                              </div>
+                            </div>
+                            <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Source <span className="cm-opt">(optional)</span></label><input className="cm-input" type="url" value={r.source} onChange={(e) => upd('source', e.target.value)} placeholder="https://…" /></div>
                           </div>
                         );
                       })}
@@ -544,19 +781,23 @@ export function ClaimModal({
                   <div>
                     <div className="cm-edithead">
                       <div><div className="cm-edithead-t">Edit M&amp;A deals</div><div className="cm-edithead-s">Edit existing deals or add new ones.</div></div>
-                      <button className="cm-addrow" onClick={() => set('mna', [...form.mna, { dealType: 'Acquisition', counterparty: '', amount: '', date: '' }])}><Plus size={14} /> Add deal</button>
+                      <button className="cm-addrow" onClick={() => set('mna', [...form.mna, { dealType: 'Acquisition', counterparty: '', amount: '', date: '', cp: null }])}><Plus size={14} /> Add deal</button>
                     </div>
                     {form.mna.length === 0 && <div className="cm-editempty">No M&amp;A deals on record. Add one if relevant.</div>}
                     <div className="cm-editlist">
                       {form.mna.map((m, i) => {
-                        const upd = (k: keyof typeof m, v: string) => set('mna', form.mna.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+                        const upd = (k: 'dealType' | 'amount' | 'date', v: string) => set('mna', form.mna.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
                         return (
-                          <div key={i} className="cm-editcard">
+                          <div key={`${i}/${form.mna.length}`} className="cm-editcard">
                             <button className="cm-editcard-x" onClick={() => set('mna', form.mna.filter((_, j) => j !== i))} aria-label="Remove deal"><X size={14} /></button>
-                            <div className="cm-row3">
-                              <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Deal type</label><Combobox className="cm-select" value={m.dealType} onChange={(v) => upd('dealType', v)} options={opt(DEAL_TYPES)} /></div>
-                              <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Counterparty</label><input className="cm-input" value={m.counterparty} onChange={(e) => upd('counterparty', e.target.value)} placeholder="Company name" /></div>
-                              <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Date</label><input className="cm-input" value={m.date} onChange={(e) => upd('date', e.target.value)} placeholder="2024" /></div>
+                            <div className="cm-field" style={{ marginBottom: 12 }}>
+                              <label className="cm-label">Counterparty</label>
+                              <EntityPicker kind="company" value={m.cp ?? null}
+                                onChange={(v) => set('mna', form.mna.map((x, j) => (j === i ? { ...x, cp: v, counterparty: v?.name ?? '' } : x)))} />
+                            </div>
+                            <div className="cm-row2">
+                              <div className="cm-field cm-half" style={{ margin: 0 }}><label className="cm-label">Deal type</label><Combobox className="cm-select" value={m.dealType} onChange={(v) => upd('dealType', v)} options={opt(DEAL_TYPES)} /></div>
+                              <div className="cm-field cm-half" style={{ margin: 0 }}><label className="cm-label">Date</label><DatePicker className="cm-input" value={m.date} onChange={(v) => upd('date', v)} /></div>
                             </div>
                             <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Amount (USD) <span className="cm-opt">(optional)</span></label><input className="cm-input" value={m.amount} onChange={(e) => upd('amount', e.target.value.replace(/[^\d]/g, ''))} placeholder="Undisclosed" inputMode="numeric" /></div>
                           </div>
@@ -580,7 +821,7 @@ export function ClaimModal({
                 <div className="cm-field"><label className="cm-label">One-line description</label><input className="cm-input" value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="What you do, in a sentence" /></div>
                 <div className="cm-sub">Profile</div>
                 <div className="cm-row2">
-                  <div className="cm-field cm-half"><label className="cm-label">Location</label><input className="cm-input" value={form.coCity} onChange={(e) => set('coCity', e.target.value)} placeholder="London" /></div>
+                  <div className="cm-field cm-half"><label className="cm-label">Location</label><CityInput className="cm-input" value={form.coCity} onChange={(v) => set('coCity', v)} onPick={(h) => { if (h.country) set('coCountry', h.country); }} placeholder="London" geo={form.coCountry} /></div>
                   <div className="cm-field cm-half"><label className="cm-label">Country</label><LocationSelect className="cm-select" value={form.coCountry} onChange={(v) => set('coCountry', v)} /></div>
                 </div>
                 <div className="cm-field"><label className="cm-label">Type</label><Combobox className="cm-select" value={form.opType} onChange={(v) => set('opType', v)} options={opt(OP_TYPES)} /></div>
@@ -608,14 +849,21 @@ export function ClaimModal({
                         {FUND_ROUND_NAMES.map((n) => <label key={n} className="cm-check"><input type="checkbox" checked={form.roundNames.includes(n)} onChange={() => toggleIn('roundNames', n)} /> {n}</label>)}
                       </div>
                     </div>
-                    <div className="cm-field"><label className="cm-label">Valuation</label><input className="cm-input" value={form.valuation} onChange={(e) => set('valuation', e.target.value)} placeholder="e.g. $5M pre-money" /><div className="cm-hint">Optional: pre-money or post-money valuation.</div></div>
+                    <div className="cm-field"><div className="atlas-label-row"><label className="cm-label">Valuation (USD)</label><InfoTip label="About: valuation">{SETUP_HELP.valuation}</InfoTip></div><input className="cm-input" type="number" min={0} inputMode="numeric" value={form.valuation} onChange={(e) => set('valuation', e.target.value)} placeholder="e.g. 5000000" /><div className="cm-hint">Optional: numeric value of your pre-money or post-money valuation.</div></div>
                     <div className="cm-field" style={{ marginBottom: 0 }}>
                       <label className="cm-label">Pitch deck <span className="cm-opt">(PDF / PPT / PPTX)</span></label>
-                      <input ref={fileRef} type="file" accept=".pdf,.ppt,.pptx" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0] ?? null; setForm((s) => ({ ...s, deckFile: f, deckName: f?.name ?? null })); }} />
+                      <input ref={fileRef} type="file" accept=".pdf,.ppt,.pptx" style={{ display: 'none' }} onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        e.target.value = ''; // re-picking the same file must fire again
+                        // Refuse it now, with the reason — not at Submit with a storage error.
+                        const err = f ? deckFileError(f, CLAIM_DECK_EXTS) : null;
+                        if (err) { toast.error(err); return; }
+                        setForm((s) => ({ ...s, deckFile: f, deckName: f?.name ?? null }));
+                      }} />
                       {form.deckName ? (
                         <div className="cm-drop has-file"><FileText size={18} style={{ color: 'var(--a-ok)' }} /><span className="cm-drop-file">{form.deckName}</span><button className="cm-drop-clear" onClick={() => setForm((s) => ({ ...s, deckFile: null, deckName: null }))} aria-label="Remove file"><X size={14} /></button></div>
                       ) : (
-                        <button className="cm-drop" onClick={() => fileRef.current?.click()}><span className="cm-drop-ico"><UploadCloud size={20} /></span><span className="cm-drop-h">Choose file</span><span className="cm-drop-p">Max 10MB · PDF, PPT, PPTX</span></button>
+                        <button className="cm-drop" onClick={() => fileRef.current?.click()}><span className="cm-drop-ico"><UploadCloud size={20} /></span><span className="cm-drop-h">Choose file</span><span className="cm-drop-p">Max {MAX_DECK_MB} MB · PDF, PPT, PPTX</span></button>
                       )}
                     </div>
                   </div>
@@ -639,19 +887,19 @@ export function ClaimModal({
                   <div>
                     <div className="cm-sub">Organisation details</div>
                     <div className="cm-field"><label className="cm-label">Name <span className="cm-req">*</span></label><input className="cm-input" value={form.name} onChange={(e) => set('name', e.target.value)} /></div>
-                    <div className="cm-field"><label className="cm-label">Website</label><div className="cm-input-prefix"><span className="cm-input-prefix-txt">https://</span><input className="cm-input" value={form.website} onChange={(e) => set('website', e.target.value)} placeholder="firm.com" /></div></div>
+                    <div className="cm-field"><label className="cm-label">Website {addingNew && <span className="cm-req">*</span>}</label><div className="cm-input-prefix"><span className="cm-input-prefix-txt">https://</span><input className="cm-input" value={form.website} onChange={(e) => set('website', e.target.value)} placeholder="firm.com" /></div></div>
                     <div className="cm-field"><label className="cm-label">Description</label><textarea className="cm-textarea" value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="What you back, in a sentence or two." /></div>
                     <div className="cm-row2">
-                      <div className="cm-field cm-half"><label className="cm-label">Category</label><Combobox className="cm-select" value={form.invCategory} onChange={(v) => set('invCategory', v)} placeholder="Select…" options={optE('Select…', INV_CATEGORIES)} /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Category {addingNew && <span className="cm-req">*</span>}</label><Combobox className="cm-select" value={form.invCategory} onChange={(v) => set('invCategory', v)} placeholder="Select…" options={optE('Select…', INV_CATEGORIES)} /></div>
                       <div className="cm-field cm-half"><label className="cm-label">Year launched</label><input className="cm-input" value={form.yearLaunched} onChange={(e) => set('yearLaunched', e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="2018" inputMode="numeric" /></div>
                     </div>
                     <div className="cm-row2">
-                      <div className="cm-field cm-half"><label className="cm-label">City</label><input className="cm-input" value={form.coCity} onChange={(e) => set('coCity', e.target.value)} placeholder="Boston" /></div>
-                      <div className="cm-field cm-half"><label className="cm-label">Country</label><LocationSelect className="cm-select" value={form.coCountry} onChange={(v) => set('coCountry', v)} /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">City</label><CityInput className="cm-input" value={form.coCity} onChange={(v) => set('coCity', v)} onPick={(h) => { if (h.country) set('coCountry', h.country); }} placeholder="Boston" geo={form.coCountry} /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Country {addingNew && <span className="cm-req">*</span>}</label><LocationSelect className="cm-select" value={form.coCountry} onChange={(v) => set('coCountry', v)} /></div>
                     </div>
                     <div className="cm-row2">
-                      <div className="cm-field cm-half"><label className="cm-label">AUM <span className="cm-opt">(optional)</span></label><input className="cm-input" value={form.aum} onChange={(e) => set('aum', e.target.value)} placeholder="e.g. 230M" /></div>
-                      <div className="cm-field cm-half"><label className="cm-label">Focus <span className="cm-opt">(optional)</span></label><input className="cm-input" value={form.focus} onChange={(e) => set('focus', e.target.value)} placeholder="e.g. Seed–Series A" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">AUM in USD <span className="cm-opt">(optional)</span></label><input className="cm-input" type="number" min={0} inputMode="numeric" value={form.aum} onChange={(e) => set('aum', e.target.value)} placeholder="e.g. 20000000" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Focus <span className="cm-opt">(optional)</span></label><Combobox className="cm-select" value={form.focus} onChange={(v) => set('focus', v)} placeholder="Select stage focus…" options={optE('Select…', FUNDING_STAGES)} /></div>
                     </div>
 
                     <div className="cm-edithead" style={{ marginTop: 6 }}>
@@ -677,10 +925,10 @@ export function ClaimModal({
 
                     <div className="cm-sub">Social media</div>
                     <div className="cm-row2">
-                      <div className="cm-field cm-half"><label className="cm-label">Twitter</label><input className="cm-input" value={form.twitter} onChange={(e) => set('twitter', e.target.value)} placeholder="https://twitter.com/…" /></div>
-                      <div className="cm-field cm-half"><label className="cm-label">LinkedIn</label><input className="cm-input" value={form.linkedin_co} onChange={(e) => set('linkedin_co', e.target.value)} placeholder="https://linkedin.com/company/…" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Twitter</label><input className="cm-input" type="url" value={form.twitter} onChange={(e) => set('twitter', e.target.value)} placeholder="https://twitter.com/…" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">LinkedIn</label><input className="cm-input" type="url" value={form.linkedin_co} onChange={(e) => set('linkedin_co', e.target.value)} placeholder="https://linkedin.com/company/…" /></div>
                     </div>
-                    <div className="cm-field"><label className="cm-label">Email</label><input className="cm-input" value={form.companyEmail} onChange={(e) => set('companyEmail', e.target.value)} placeholder="info@firm.com" /></div>
+                    <div className="cm-field"><label className="cm-label">Email</label><input className="cm-input" type="email" value={form.companyEmail} onChange={(e) => set('companyEmail', e.target.value)} placeholder="info@firm.com" /></div>
 
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '4px 0 12px' }}>
                       <div className="cm-sub" style={{ margin: 0 }}>Point of contact</div>
@@ -691,8 +939,8 @@ export function ClaimModal({
                       <div className="cm-field cm-half"><label className="cm-label">Position</label><input className="cm-input" value={form.contactPosition} onChange={(e) => set('contactPosition', e.target.value)} placeholder="President" /></div>
                     </div>
                     <div className="cm-row2" style={{ marginBottom: 0 }}>
-                      <div className="cm-field cm-half"><label className="cm-label">Contact email</label><input className="cm-input" value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} placeholder="brad@firm.com" /></div>
-                      <div className="cm-field cm-half"><label className="cm-label">LinkedIn</label><input className="cm-input" value={form.contactLinkedin} onChange={(e) => set('contactLinkedin', e.target.value)} placeholder="https://linkedin.com/in/…" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">Contact email</label><input className="cm-input" type="email" value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} placeholder="brad@firm.com" /></div>
+                      <div className="cm-field cm-half"><label className="cm-label">LinkedIn</label><input className="cm-input" type="url" value={form.contactLinkedin} onChange={(e) => set('contactLinkedin', e.target.value)} placeholder="https://linkedin.com/in/…" /></div>
                     </div>
                   </div>
                 )}
@@ -730,19 +978,23 @@ export function ClaimModal({
                 <div className="cm-pending"><Briefcase size={15} /><span>Optionally add portfolio companies you&apos;ve invested in. This helps us verify your claim faster — you can skip this step.</span></div>
                 <div className="cm-edithead">
                   <div><div className="cm-edithead-t">Portfolio companies <span className="cm-opt" style={{ fontWeight: 400 }}>(optional)</span></div><div className="cm-edithead-s">Companies you&apos;ve backed.</div></div>
-                  <button className="cm-addrow" onClick={() => set('portfolio', [...form.portfolio, { name: '', stage: '', year: '' }])}><Plus size={14} /> Add company</button>
+                  <button className="cm-addrow" onClick={() => set('portfolio', [...form.portfolio, { name: '', stage: '', year: '', co: null }])}><Plus size={14} /> Add company</button>
                 </div>
                 {form.portfolio.length === 0 && <div className="cm-editempty">No portfolio companies added yet. Click &quot;Add company&quot; above or skip this step.</div>}
                 <div className="cm-editlist">
                   {form.portfolio.map((p, i) => {
-                    const upd = (k: keyof typeof p, v: string) => set('portfolio', form.portfolio.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+                    const upd = (k: 'stage' | 'year', v: string) => set('portfolio', form.portfolio.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
                     return (
-                      <div key={i} className="cm-editcard">
+                      <div key={`${i}/${form.portfolio.length}`} className="cm-editcard">
                         <button className="cm-editcard-x" onClick={() => set('portfolio', form.portfolio.filter((_, j) => j !== i))} aria-label="Remove company"><X size={14} /></button>
-                        <div className="cm-row3">
-                          <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Company</label><input className="cm-input" value={p.name} onChange={(e) => upd('name', e.target.value)} placeholder="Company name" /></div>
-                          <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Stage</label><Combobox className="cm-select" value={p.stage} onChange={(v) => upd('stage', v)} placeholder="—" options={optE('—', FUNDING_STAGES)} /></div>
-                          <div className="cm-field" style={{ margin: 0 }}><label className="cm-label">Year</label><input className="cm-input" value={p.year} onChange={(e) => upd('year', e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="2023" inputMode="numeric" /></div>
+                        <div className="cm-field" style={{ marginBottom: 12 }}>
+                          <label className="cm-label">Company</label>
+                          <EntityPicker kind="company" value={p.co ?? null}
+                            onChange={(v) => set('portfolio', form.portfolio.map((x, j) => (j === i ? { ...x, co: v, name: v?.name ?? '' } : x)))} />
+                        </div>
+                        <div className="cm-row2">
+                          <div className="cm-field cm-half" style={{ margin: 0 }}><label className="cm-label">Stage</label><Combobox className="cm-select" value={p.stage} onChange={(v) => upd('stage', v)} placeholder="—" options={optE('—', FUNDING_STAGES)} /></div>
+                          <div className="cm-field cm-half" style={{ margin: 0 }}><label className="cm-label">Year</label><input className="cm-input" value={p.year} onChange={(e) => upd('year', e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="2023" inputMode="numeric" /></div>
                         </div>
                       </div>
                     );
@@ -761,7 +1013,7 @@ export function ClaimModal({
                 </label>
                 <div className="cm-row2" style={{ marginTop: 14 }}>
                   <div className="cm-field cm-half"><label className="cm-label">Next intake / edition</label><input className="cm-input" value={form.intake} onChange={(e) => set('intake', e.target.value)} placeholder="e.g. Cohort 12 · Spring '26" /></div>
-                  <div className="cm-field cm-half"><label className="cm-label">Key date / deadline</label><input className="cm-input" value={form.keyDate} onChange={(e) => set('keyDate', e.target.value)} placeholder="e.g. 30 Jun 2026" /></div>
+                  <div className="cm-field cm-half"><label className="cm-label">Key date / deadline</label><DatePicker className="cm-input" value={form.keyDate} onChange={(v) => set('keyDate', v)} /></div>
                 </div>
                 <div className="cm-field" style={{ marginBottom: 0 }}><label className="cm-label">What you offer <span className="cm-opt">(optional)</span></label><input className="cm-input" value={form.offer} onChange={(e) => set('offer', e.target.value)} placeholder="e.g. $100K + 14-week program, equity-free" /></div>
               </div>
@@ -809,7 +1061,7 @@ export function ClaimModal({
               <div className="cm-done">
                 <div className="cm-done-badge"><Check size={30} /></div>
                 <h3 className="cm-done-h">{selMode === 'add' ? "We've got your details" : "You're in review"}</h3>
-                <p className="cm-done-p">Thanks{form.first ? `, ${form.first}` : ''}. We&apos;ve received your {selMode === 'add' ? 'submission' : target?.verified ? `changes to ${form.name}` : `request to claim ${form.name}`}. Here&apos;s what happens next.</p>
+                <p className="cm-done-p">Thanks{form.first ? `, ${form.first}` : ''}. We&apos;ve received your {selMode === 'add' ? 'submission' : editingVerified ? `changes to ${form.name}` : `request to claim ${form.name}`}. Here&apos;s what happens next.</p>
                 <div className="cm-timeline">
                   <div className="cm-tl-row lit"><span className="cm-tl-ico"><Check size={15} /></span><span className="cm-tl-text"><span className="cm-tl-h">Submitted <span className="cm-tl-when">· just now</span></span><span className="cm-tl-p">Sent a confirmation to {form.email || 'your email'}.</span></span></div>
                   <div className="cm-tl-row"><span className="cm-tl-ico">2</span><span className="cm-tl-text"><span className="cm-tl-h">We verify the details <span className="cm-tl-when">· within 24–48h</span></span><span className="cm-tl-p">Our team confirms your role and your {R.noun} data. We may email you if anything needs a second look.</span></span></div>
@@ -832,7 +1084,8 @@ export function ClaimModal({
                 <button className="cm-btn ghost" onClick={goBack}><ArrowRight size={13} style={{ transform: 'rotate(180deg)' }} /> Previous</button>
               ) : <span />}
               <span className="cm-foot-spacer" />
-              {isLast && R.free && <span className="cm-foot-meta" style={{ marginRight: 4 }}>Free · ~5 min</span>}
+              {missing.length > 0 && <span className="cm-foot-missing">Still needed: {missing.join(', ')}</span>}
+              {isLast && R.free && !missing.length && <span className="cm-foot-meta" style={{ marginRight: 4 }}>Free · ~5 min</span>}
               <button className="cm-btn" disabled={!stepValid() || submitting || loadingEdit} onClick={goNext}>
                 {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
                 {submitLabel} {!submitting && (isLast ? <Check size={14} /> : <ArrowRight size={13} />)}

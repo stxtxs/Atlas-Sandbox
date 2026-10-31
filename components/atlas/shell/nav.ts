@@ -15,15 +15,10 @@ export interface ShellNavItem {
 	placeholder?: boolean;
 	/** Active when the page is open without this item's query (the page's default tab). */
 	isDefault?: boolean;
-	/** Guided-tour anchor, for an item standing in for a one-item section (see `navTourId`). */
-	tour?: string;
 }
 export interface ShellNavSection { title: string; items: ShellNavItem[] }
 export type ShellNavEntry = ShellNavItem | ShellNavSection;
 export const isSection = (e: ShellNavEntry): e is ShellNavSection => 'items' in e;
-
-/** `data-tour` anchor of a sidebar section ("Deal Flow" → `nav-deal-flow`), so a tour can point at it. */
-export const navTourId = (title: string) => `nav-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
 /**
  * The one active nav path for the current URL. An item matches when its pathname

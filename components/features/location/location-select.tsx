@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useLocationFacetOptions } from '@/hooks/use-catalog-options';
+import { useLocationFacetOptions, useCountryOptions } from '@/hooks/use-catalog-options';
 import { Combobox, type ComboGroup } from '@/components/atlas/ui/combobox';
 
 /**
@@ -26,6 +26,7 @@ export function LocationSelect({ value, onChange, id, disabled, className = 'atl
 	placeholder?: string;
 }) {
 	const loc = useLocationFacetOptions();
+	const countries = useCountryOptions();
 	const regions = useMemo(() => {
 		// Continents + regions, de-duplicated and sorted — the "Regions" group.
 		const seen = new Set<string>();
@@ -33,7 +34,6 @@ export function LocationSelect({ value, onChange, id, disabled, className = 'atl
 			.filter(([v]) => (seen.has(v) ? false : seen.add(v)))
 			.sort((a, b) => a[1].localeCompare(b[1]));
 	}, [loc.continent, loc.region]);
-	const countries = loc.country;
 
 	// A saved value the facets don't contain (older free text) — keep it listed
 	// so switching this field to a dropdown never silently clears it.

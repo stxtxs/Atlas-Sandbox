@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Field, Input } from '@/components/atlas';
+import { Field, Input, Select } from '@/components/atlas';
 import { LocationSelect } from '@/components/features/location/location-select';
+import { CityInput } from '@/components/features/location/city-input';
 import { useVerifyState } from '@/components/features/verify/verify-cta';
 import { FundPicker } from './fund-picker';
+import { fillEmpty } from './claim-thesis';
+import { useClaimThesis } from './use-claim-thesis';
 import { ChipSet, AddButton, PickerDialog, toggleIn, withSelected } from './thesis-fields';
 import { PILLAR_SECTORS, THESIS_OPTIONS, type Thesis } from './sample-data';
 
@@ -25,41 +28,47 @@ export function ProfileFields({ t, patch }: Props) {
 		<div className="scout-form-grid">
 			<Field label="Full name"><Input {...text(t, patch, 'name')} placeholder="Your name" /></Field>
 			<Field label="Work email"><Input type="email" {...text(t, patch, 'email')} placeholder="you@fund.com" /></Field>
-			<Field label="Role"><Input {...text(t, patch, 'role')} placeholder="e.g. Partner" /></Field>
-			<Field label="LinkedIn profile URL"><Input {...text(t, patch, 'linkedin')} placeholder="linkedin.com/in/…" /></Field>
+			<Field label="Role"><Select value={String(t.role ?? '')} onChange={(e) => patch({ role: e.target.value })} options={[['', 'Select…'], ['Partner', 'Partner'], ['Managing Partner', 'Managing Partner'], ['Managing Director', 'Managing Director'], ['Principal', 'Principal'], ['Vice President', 'Vice President'], ['Associate', 'Associate'], ['Analyst', 'Analyst'], ['Venture Partner', 'Venture Partner'], ['Director', 'Director'], ['General Partner', 'General Partner']]} /></Field>
+			<Field label="LinkedIn profile URL"><Input type="url" {...text(t, patch, 'linkedin')} placeholder="https://linkedin.com/in/…" /></Field>
 		</div>
 	);
 }
 
 export function FundFields({ t, patch }: Props) {
-	// Fund identity is directory-backed: the picker searches investors, lets you
-	// add a new one (→ admin approval) or use what you typed, and surfaces the
-	// verify-ownership step (optional; only gates deal submission). When a fund
-	// is already claimed, its name/website come from that verified record, so we
-	// mirror them onto the thesis and lock the Website field here.
+	// Fund identity is directory-backed: the picker searches investors and, when
+	// search finds nothing, lets you add yours by claiming it, and surfaces the
+	// verify step (optional; only gates deal submission). Once YOU have claimed a
+	// fund (pending or verified — other people from the same fund may be verified
+	// too), its name/website come from your claim, so we mirror them onto the
+	// thesis and lock the Website field here.
 	const { state, claim } = useVerifyState();
 	const linked = (state === 'verified' || state === 'pending') && claim?.claim_type === 'investor';
 	const name = claim?.claim_type === 'investor' ? (claim.target_name_snapshot ?? '') : '';
 	const website = claim?.claim_type === 'investor' ? (claim.target_website_snapshot ?? '') : '';
+	// Also covers a claim filed mid-wizard: everything else the claim answered
+	// (location, type, AUM, cheque, stages, focus) fills whatever is still empty.
+	const { prefill } = useClaimThesis();
 	useEffect(() => {
 		if (!linked) return;
-		const next: Partial<Thesis> = {};
-		if (name && t.fundName !== name) next.fundName = name;
-		if (website && t.website !== website) next.website = website;
-		if (Object.keys(next).length) patch(next);
+		const next = fillEmpty(t, prefill ?? {});
+		if (name) next.fundName = name;
+		if (website) next.website = website;
+		if (JSON.stringify(next) !== JSON.stringify(t)) patch(next);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [linked, name, website]);
+	}, [linked, name, website, prefill]);
 
 	return (
 		<>
 			<FundPicker t={t} patch={patch} />
 			<div className="scout-form-grid">
-				<Field label="Website"><Input {...text(t, patch, 'website')} placeholder="fund.com" disabled={linked} /></Field>
+				<Field label="Website"><Input type="url" {...text(t, patch, 'website')} placeholder="https://fund.com" disabled={linked} /></Field>
 				<Field label="Country"><LocationSelect value={t.country} onChange={(v) => patch({ country: v })} /></Field>
-				<Field label="City"><Input {...text(t, patch, 'city')} placeholder="City" /></Field>
+				<Field label="City"><CityInput value={String(t.city ?? '')} onChange={(v) => patch({ city: v })} onPick={(h) => { if (h.country) patch({ country: h.country }); }} geo={String(t.country ?? '')} /></Field>
 			</div>
 			<FieldBlock label="Investor type"><ChipSet options={THESIS_OPTIONS.investorType} value={t.investorType} onToggle={(o) => patch({ investorType: o })} /></FieldBlock>
-			<FieldBlock label="Fund size / AUM"><ChipSet options={THESIS_OPTIONS.aum} value={t.aum} onToggle={(o) => patch({ aum: o })} /></FieldBlock>
+			<FieldBlock label="Fund size / AUM (USD)" hint="Full amount in USD, numbers only — e.g. 20000000">
+				<Input type="number" min={0} inputMode="numeric" value={String(t.aum ?? '')} onChange={(e) => patch({ aum: e.target.value })} placeholder="e.g. 20000000" />
+			</FieldBlock>
 		</>
 	);
 }
@@ -69,8 +78,8 @@ export function StageFields({ t, patch }: Props) {
 		<>
 			<FieldBlock label="Stages" hint="Select all that apply"><ChipSet options={THESIS_OPTIONS.stages} value={t.stages} onToggle={(o) => patch({ stages: toggleIn(t.stages, o) })} /></FieldBlock>
 			<div className="scout-form-grid">
-				<Field label="Typical cheque — minimum"><Input {...text(t, patch, 'chequeMin')} placeholder="e.g. €250k" /></Field>
-				<Field label="Typical cheque — maximum"><Input {...text(t, patch, 'chequeMax')} placeholder="e.g. €2m" /></Field>
+				<Field label="Typical cheque — minimum (EUR)"><Input type="number" min={0} inputMode="numeric" value={String(t.chequeMin ?? '')} onChange={(e) => patch({ chequeMin: e.target.value })} placeholder="e.g. 250000" /></Field>
+				<Field label="Typical cheque — maximum (EUR)"><Input type="number" min={0} inputMode="numeric" value={String(t.chequeMax ?? '')} onChange={(e) => patch({ chequeMax: e.target.value })} placeholder="e.g. 2000000" /></Field>
 			</div>
 			<FieldBlock label="Do you lead rounds?"><ChipSet options={[...THESIS_OPTIONS.invStyle]} value={t.invStyle} onToggle={(o) => patch({ invStyle: o as Thesis['invStyle'] })} /></FieldBlock>
 		</>

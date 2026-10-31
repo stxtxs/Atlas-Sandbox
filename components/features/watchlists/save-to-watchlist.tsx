@@ -2,9 +2,10 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Bookmark, BookmarkCheck, Check, Loader2, Plus, Search } from 'lucide-react';
-import { cx, menuEdgeRef, useDismiss } from '@/components/atlas';
-import { useCompanyWatchlists, useWatchlistsContaining, addToWatchlist, removeFromWatchlist, createWatchlist } from './use-company-watchlists';
+import { Bookmark, Check, Loader2, Plus, Search } from 'lucide-react';
+import { cx, useDismiss } from '@/components/atlas';
+import { useKeepInViewport } from '@/components/atlas/ui/use-keep-in-viewport';
+import { useCompanyWatchlists, useWatchlistsContaining, addToWatchlist, removeFromWatchlist, createWatchlist, isInvestorList } from './use-company-watchlists';
 import './watchlists.css';
 
 /**
@@ -12,23 +13,24 @@ import './watchlists.css';
  * search, the user's watchlists as toggles (✓ = company is in it), and
  * "+ New watchlist" with a name field (creates the list and adds the company).
  */
-export function SaveToWatchlist({ companyId, companyName, 'data-tour': dataTour }: {
-	companyId: string; companyName: string;
-	/** Guided-tour anchor on the trigger (lib/sandbox/tours). */
-	'data-tour'?: string;
-}) {
+export function SaveToWatchlist({ companyId, companyName }: { companyId: string; companyName: string }) {
 	const [open, setOpen] = useState(false);
 	const [q, setQ] = useState('');
 	const [creating, setCreating] = useState(false);
 	const [newName, setNewName] = useState('');
 	const [busy, setBusy] = useState<string | null>(null);
 	const ref = useRef<HTMLDivElement>(null);
+	const menuRef = useRef<HTMLDivElement>(null);
+	useKeepInViewport(menuRef, open);
 	const close = useCallback(() => { setOpen(false); setQ(''); setCreating(false); setNewName(''); }, []);
 	useDismiss(ref, open, close);
 
-	const { lists, isLoading } = useCompanyWatchlists();
+	// Company lists only — a Raise investor list can't hold companies.
+	const { lists: all, isLoading } = useCompanyWatchlists();
+	const lists = all.filter((l) => !isInvestorList(l));
 	const { ids } = useWatchlistsContaining(companyId);
-	const inCount = ids.length;
+	// Only lists that still exist count (a just-deleted one may linger in `ids`).
+	const inCount = ids.filter((id) => lists.some((l) => l.id === id)).length;
 	const term = q.trim().toLowerCase();
 	const shown = term ? lists.filter((l) => l.name.toLowerCase().includes(term)) : lists;
 
@@ -55,12 +57,12 @@ export function SaveToWatchlist({ companyId, companyName, 'data-tour': dataTour 
 
 	return (
 		<div className="atlas-fbar__anchor" ref={ref}>
-			<button type="button" className="atlas-action" data-tour={dataTour} aria-haspopup="dialog" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
-				<span className="atlas-action__icon">{inCount ? <BookmarkCheck /> : <Bookmark />}</span>
-				{inCount ? `In ${inCount} watchlist${inCount === 1 ? '' : 's'}` : 'Add to watchlist'}
+			<button type="button" className="atlas-action atlas-action--save" aria-haspopup="dialog" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
+				<span className="atlas-action__icon"><Bookmark fill={inCount ? 'currentColor' : 'none'} /></span>
+				<span className="atlas-action__label">{inCount ? `In ${inCount} watchlist${inCount === 1 ? '' : 's'}` : 'Add to watchlist'}</span>
 			</button>
 			{open && (
-				<div ref={menuEdgeRef} className="atlas-menu atlas-menu--end atlas-wl-menu" role="dialog" aria-label="Save to watchlist">
+				<div ref={menuRef} className="atlas-menu atlas-menu--end atlas-wl-menu atlas-menu--sheet" role="dialog" aria-label="Save to watchlist">
 					<div className="atlas-menu__head"><span>Save to watchlist</span></div>
 					{lists.length > 5 && (
 						<div className="atlas-switcher__search">
@@ -75,7 +77,7 @@ export function SaveToWatchlist({ companyId, companyName, 'data-tour': dataTour 
 						{shown.map((l) => {
 							const on = ids.includes(l.id);
 							return (
-								<button key={l.id} type="button" data-watchlist-id={l.id} className={cx('atlas-menu__item', 'atlas-menu__item--plain', on && 'on')} aria-pressed={on} disabled={busy !== null} onClick={() => void toggle(l.id, l.name)}>
+								<button key={l.id} type="button" className={cx('atlas-menu__item', 'atlas-menu__item--plain', on && 'on')} aria-pressed={on} disabled={busy !== null} onClick={() => void toggle(l.id, l.name)}>
 									<span className="atlas-wl-check" aria-hidden="true">{busy === l.id ? <Loader2 className="animate-spin" size={10} /> : on ? <Check size={10} /> : null}</span>
 									<span className="atlas-switcher__name">{l.name}</span>
 									{l.company_count != null && <span className="atlas-switcher__meta">{l.company_count}</span>}

@@ -5,6 +5,13 @@
 .atlas .atlas-co__id { display: flex; align-items: center; gap: 18px; min-width: 0; }
 .atlas .atlas-co__name { margin: 0; font-family: var(--a-font); font-size: 34px; font-weight: 700; line-height: 1.1; letter-spacing: -0.01em; color: var(--a-ink); }
 .atlas .atlas-co__meta { margin-top: 8px; font-family: var(--a-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--a-muted); }
+.atlas .atlas-co__socials { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.atlas .atlas-co__social {
+	display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--a-radius-sm);
+	border: 1px solid var(--a-border); color: var(--a-muted);
+	transition: color .15s, border-color .15s, background .15s;
+}
+.atlas .atlas-co__social:hover { color: var(--a-ink); border-color: var(--a-border-strong); background: var(--a-inset); }
 .atlas .atlas-co__actions { display: flex; align-items: center; gap: 12px 24px; flex-wrap: wrap; }
 
 .atlas .atlas-co__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 36px; align-items: start; }
@@ -28,16 +35,34 @@
 .atlas .atlas-co__h2 { margin: 0; font-family: var(--a-font); font-size: 20px; font-weight: 700; color: var(--a-ink); }
 
 /* Funding history */
-.atlas .atlas-co__card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 22px 30px 18px; border-bottom: 1px solid var(--a-border); }
+/* No divider under the title — the bordered header band below is the separator. */
+.atlas .atlas-co__card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 22px 30px 14px; }
 .atlas .atlas-co__aside { font-family: var(--a-body); font-size: 14px; color: var(--a-muted); }
+
+/* Crunchbase-style rounds table: a bordered header band, then roomy divided rows.
+   Header and rows share one grid so the columns line up. */
+.atlas .atlas-co__deals { padding: 0 20px 10px; }
 .atlas .atlas-co__deal {
-	display: grid; grid-template-columns: 140px 170px 140px minmax(0, 1fr); gap: 12px; align-items: center;
-	padding: 18px 30px; border-top: 1px solid var(--a-border); font-family: var(--a-body); font-size: 15px; color: var(--a-muted);
+	display: grid; grid-template-columns: 140px 180px 130px minmax(0, 1fr); gap: 16px; align-items: start;
+	padding: 16px 14px; border-top: 1px solid var(--a-border); font-family: var(--a-body); font-size: 15px; color: var(--a-muted);
 }
-.atlas .atlas-co__deal:first-of-type { border-top: none; }
-.atlas .atlas-co__amt { font-weight: 600; color: var(--a-ink); }
-.atlas .atlas-co__investors { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 760px) { .atlas .atlas-co__deal { grid-template-columns: 1fr 1fr; padding: 14px 20px; } .atlas .atlas-co__investors { grid-column: 1 / -1; } }
+.atlas .atlas-co__deal--head {
+	border: 1px solid var(--a-border); border-radius: var(--a-radius-sm); background: var(--a-inset);
+	padding: 13px 14px; margin-bottom: 2px;
+	font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--a-ink);
+}
+/* First real row sits just under the band with no extra divider. */
+.atlas .atlas-co__deal--head + .atlas-co__deal { border-top: none; }
+.atlas .atlas-co__amt { font-weight: 700; color: var(--a-ink); font-variant-numeric: tabular-nums; }
+/* Investor names must show in full (feedback: truncated even when zoomed out),
+   so the cell wraps instead of clipping to one ellipsised line. */
+.atlas .atlas-co__investors { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+@media (max-width: 760px) {
+	.atlas .atlas-co__deals { padding: 0 14px 10px; }
+	.atlas .atlas-co__deal { grid-template-columns: 1fr 1fr; padding: 14px 10px; }
+	.atlas .atlas-co__investors { grid-column: 1 / -1; }
+	.atlas .atlas-co__deal--head { display: none; }
+}
 .atlas .atlas-co__empty { margin: 0; padding: 18px 30px 22px; font-size: 13px; color: var(--a-faint); }
 
 /* Right rail cards */
@@ -64,8 +89,35 @@
 }
 .atlas .atlas-co__rel:hover .atlas-co__rel-go { background: var(--a-primary); color: var(--a-primary-ink); }
 .atlas .atlas-co__more { margin-top: 18px; height: 28px; font-size: 10.5px; }
+/* Programs rail card: logo beside the name/meta stack. */
+.atlas .atlas-co__rel > span.atlas-co__prog:first-child { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.atlas .atlas-co__prog-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 
 @media (max-width: 640px) {
 	.atlas .atlas-co__name { font-size: 28px; }
 	.atlas .atlas-co__actions { padding-top: 0; gap: 18px; }
+}
+
+/* Raising pill — the profile route doesn't load company-detail.css (that sheet
+   ships with the dynamically-imported drawer), so the .rp rules live here too. */
+.atlas-co .rp {
+	display: inline-flex; align-items: center; gap: 6px;
+	height: 20px; padding: 0 8px;
+	background: color-mix(in oklch, var(--pos), transparent 88%);
+	color: var(--pos);
+	border: 1px solid color-mix(in oklch, var(--pos), transparent 70%);
+	border-radius: 999px;
+	font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+	letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
+}
+.atlas-co .rp.compact { height: 18px; padding: 0 6px; font-size: 9.5px; gap: 4px; }
+.atlas-co .rp-dot {
+	width: 6px; height: 6px; border-radius: 50%;
+	background: var(--pos); flex-shrink: 0;
+	animation: rp-pulse 2.4s ease-out infinite;
+}
+@keyframes rp-pulse {
+	0%   { box-shadow: 0 0 0 0   color-mix(in oklch, var(--pos), transparent 40%); }
+	70%  { box-shadow: 0 0 0 6px color-mix(in oklch, var(--pos), transparent 100%); }
+	100% { box-shadow: 0 0 0 0   color-mix(in oklch, var(--pos), transparent 100%); }
 }

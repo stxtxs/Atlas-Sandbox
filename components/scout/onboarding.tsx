@@ -11,6 +11,9 @@ import { VerifyButton } from '@/components/features/verify/verify-cta';
 import { useSetupScrollReset } from '@/components/setup/setup-modal';
 import { SCOUT_COLOR } from './shell-config';
 import type { Thesis } from './sample-data';
+import { chequeRange } from './thesis-codec';
+import { claimFromThesis, fillEmpty } from './claim-thesis';
+import { useClaimThesis } from './use-claim-thesis';
 // `scout.css` is imported by AppShell, which this route deliberately does NOT
 // render — the onboarding group has no shell chrome. Without this import every
 // `scout-*` rule is missing here, which is not a styling nit: `ChipSet` falls
@@ -58,9 +61,12 @@ function firstIncomplete(t: Thesis): number {
 	return STEPS.length - 1;
 }
 
-export function Onboarding({ onClose }: { onClose: () => void }) {
+export function Onboarding({ onClose, edit = false }: { onClose: () => void; edit?: boolean }) {
 	const { isLoading: profileLoading } = useUserProfile();
 	const { thesis: saved, save, isLoading } = useThesisState();
+	// Verified (or pending) first? Start from what the claim already says, so
+	// nobody types their fund, location, type, AUM, cheque or focus twice.
+	const claim = useClaimThesis();
 	// Wait for the THESIS, not just the profile.
 	//
 	// This used to gate on `useUserProfile().isLoading` alone while reading the
@@ -68,11 +74,11 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
 	// profile usually resolves first, so the form mounted seeded with
 	// DEFAULT_THESIS, `useState` kept that seed, and a returning Scout who
 	// reopened the wizard could save an empty thesis over a real one.
-	if (profileLoading || isLoading) return <Frame><Screen width={720}><Loading /></Screen></Frame>;
-	return <OnboardingForm initial={saved} save={save} onClose={onClose} />;
+	if (profileLoading || isLoading || claim.isLoading) return <Frame><Screen width={720}><Loading /></Screen></Frame>;
+	return <OnboardingForm initial={claim.prefill ? fillEmpty(saved, claim.prefill) : saved} save={save} onClose={onClose} edit={edit} />;
 }
 
-function OnboardingForm({ initial, save, onClose }: { initial: Thesis; save: ThesisState['save']; onClose: () => void }) {
+function OnboardingForm({ initial, save, onClose, edit }: { initial: Thesis; save: ThesisState['save']; onClose: () => void; edit: boolean }) {
 	const [t, setT] = useState<Thesis>(initial);
 	// Resume where they left off. Every step saves as it is left, so a thesis
 	// that already satisfies steps 1–3 should not make anyone retype them —
@@ -84,11 +90,14 @@ function OnboardingForm({ initial, save, onClose }: { initial: Thesis; save: The
 	// hook, and React throws "rendered fewer hooks than expected" the moment the
 	// wizard finishes and that branch renders.
 	const [busy, setBusy] = useState(false);
-	const patch = (p: Partial<Thesis>) => { setT({ ...t, ...p }); setErr(''); };
+	// Merge into the latest state: two patches in one tick (picking a city sends
+	// the city, then its country) both built from this render's `t`, so the
+	// second wiped the first — the country filled in and the city was lost.
+	const patch = (p: Partial<Thesis>) => { setT((prev) => ({ ...prev, ...p })); setErr(''); };
 	// Scrolls the modal's own region; a no-op anywhere else.
 	const top = useSetupScrollReset();
 
-	if (done) return <Frame width={620}><Screen width={620}><DoneScreen name={t.name} onEnter={onClose} /></Screen></Frame>;
+	if (done) return <Frame width={620}><Screen width={620}><DoneScreen t={t} onEnter={onClose} /></Screen></Frame>;
 
 	const s = STEPS[step];
 	const last = step === STEPS.length - 1;
@@ -111,6 +120,7 @@ function OnboardingForm({ initial, save, onClose }: { initial: Thesis; save: The
 			// looking at a finished wizard on a still-gated Scout.
 			await save(t, { complete: last });
 			if (!last) { setStep(step + 1); top(); return; }
+			if (edit) { toast.success('Thesis updated'); onClose(); return; }
 			setDone(true);
 			top();
 		} catch {
@@ -148,7 +158,7 @@ function OnboardingForm({ initial, save, onClose }: { initial: Thesis; save: The
 				<div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
 					<Button variant="ghost" disabled={step === 0 || busy} onClick={() => { setStep(step - 1); setErr(''); top(); }}><ArrowLeft size={13} /> Back</Button>
 					<Button disabled={busy} onClick={() => void next()}>
-						{busy ? <Loader2 className="animate-spin" size={13} /> : last ? <>Finish setup <Check size={13} /></> : <>Continue <ArrowRight size={13} /></>}
+						{busy ? <Loader2 className="animate-spin" size={13} /> : last ? (edit ? <>Save changes <Check size={13} /></> : <>Finish setup <Check size={13} /></>) : <>Continue <ArrowRight size={13} /></>}
 					</Button>
 				</div>
 
@@ -157,7 +167,7 @@ function OnboardingForm({ initial, save, onClose }: { initial: Thesis; save: The
 				    part-way through had no exit but the browser button. */}
 				<p style={{ textAlign: 'center', marginTop: 16 }}>
 					<button type="button" className="scout-link" onClick={onClose}>
-						{step === 0 ? 'Skip for now — I’ll do this later' : 'Skip for now — I’ll finish this later'}
+						{edit ? 'Close' : step === 0 ? 'Skip for now — I’ll do this later' : 'Skip for now — I’ll finish this later'}
 					</button>
 				</p>
 			</Screen>
@@ -203,8 +213,8 @@ function StepBar({ step, onPick }: { step: number; onPick: (i: number) => void }
  * investor form from the Scout tier, and the claim modal is mounted globally in
  * `app/providers.tsx`, so it works from here.
  */
-function DoneScreen({ name, onEnter }: { name: string; onEnter: () => void }) {
-	const first = name.trim().split(' ')[0];
+function DoneScreen({ t, onEnter }: { t: Thesis; onEnter: () => void }) {
+	const first = t.name.trim().split(' ')[0];
 	return (
 		<div style={{ textAlign: 'center', padding: '32px 0' }}>
 			<H1>{first ? `You’re set up, ${first}.` : 'You’re set up.'}</H1>
@@ -234,7 +244,8 @@ function DoneScreen({ name, onEnter }: { name: string; onEnter: () => void }) {
 					Verifying your fund lets the SportsTechX team confirm who you are, which is what opens Deal Flow
 					introductions and the Investor Circle. Optional, and you can do it later from Account.
 				</div>
-				<VerifyButton label="Get verified" />
+				{/* The thesis just answered most of the claim — send it along. */}
+				<VerifyButton label="Get verified" prefill={claimFromThesis(t)} />
 			</Card>
 			<Button variant="ghost" onClick={onEnter}>Go to Scout <ArrowRight size={13} /></Button>
 		</div>
@@ -262,7 +273,7 @@ function Review({ t, onEdit }: { t: Thesis; onEdit: (step: number) => void }) {
 	const groups: [string, number, [string, string | string[]][]][] = [
 		['Profile', 0, [['Name', t.name], ['Work email', t.email], ['Role', t.role], ['LinkedIn', t.linkedin]]],
 		['Fund', 1, [['Fund / organisation', t.fundName], ['Investor type', t.investorType], ['Fund size / AUM', t.aum], ['Website', t.website], ['Headquarters', [t.city, t.country].filter(Boolean).join(', ')]]],
-		['Stage & cheque', 2, [['Stages', t.stages], ['Cheque size', t.chequeMin || t.chequeMax ? `${t.chequeMin || '—'} – ${t.chequeMax || '—'}` : ''], ['Lead or follow', t.invStyle]]],
+		['Stage & cheque', 2, [['Stages', t.stages], ['Cheque size', chequeRange(t)], ['Lead or follow', t.invStyle]]],
 		['Investment focus', 3, [['Regions', t.regions], ['Sectors', t.sectors], ['Minimum traction', t.traction], ['Include', t.include], ['Exclude', t.exclude]]],
 	];
 	return (

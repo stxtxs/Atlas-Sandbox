@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { ArrowUpRight } from 'lucide-react';
-import { Empty, Loading, PillTabs, Select } from '@/components/atlas';
+import { Empty, Loading, Logo, PillTabs, Select, ViewToggle, type ViewMode } from '@/components/atlas';
 import { qk } from '@/lib/query-keys';
 import { useSectorTierData, useLocationFacetOptions } from '@/hooks/use-catalog-options';
 import { ago, place } from '@/components/features/market/format';
@@ -12,47 +12,25 @@ import { SaveToWatchlist } from '@/components/features/watchlists/save-to-watchl
 import type { Signal, SignalType } from '@/types/api';
 import './signals.css';
 
-/**
- * Discover → Signals: company activity worth watching — funding, fundraising,
- * growth, partnerships, leadership and product news.
- *
- * One component for Raise and Scout, against the un-gated `GET /api/signals`
- * (Scout's `/api/scout/signals` returns the same rows behind the tier; using
- * the shared route lets one cache entry serve both products).
- *
- * Laid out as the Scout mockup's signal row: name, type and age on one line,
- * the headline, then a rule over the company's context and the actions. The
- * filters are separate outline pills in the mockup's order.
- *
- * Only `funding` and `fundraising` carry data today — the other four types are
- * in the enum but have no source yet, so they show the empty state.
- */
 const FILTERS: { key: 'All' | SignalType; label: string }[] = [
 	{ key: 'All', label: 'All' },
 	{ key: 'funding', label: 'Funding' },
-	{ key: 'growth', label: 'Growth' },
-	{ key: 'partnership', label: 'Partnerships' },
-	{ key: 'leadership', label: 'Leadership' },
-	{ key: 'product', label: 'Product' },
 	{ key: 'fundraising', label: 'Fundraising' },
 ];
 const TYPE_LABEL: Record<string, string> = {
-	funding: 'Funding', growth: 'Growth', partnership: 'Partnership', leadership: 'Leadership',
-	product: 'Product', fundraising: 'Fundraising',
+	funding: 'Funding', fundraising: 'Fundraising',
 };
 
 export function Signals({ companiesHref }: { companiesHref: string }) {
 	const [type, setType] = useState<'All' | SignalType>('All');
-	// Optional soft filters the user applies — never automatic scoping. A Raise
-	// founder sees the whole market by default and narrows it if they want.
+	const [view, setView] = useState<ViewMode>('cards');
 	const [sector, setSector] = useState('');
 	const [country, setCountry] = useState('');
 	const [watchlistOnly, setWatchlistOnly] = useState(false);
 	const sectorTiers = useSectorTierData();
-	const loc = useLocationFacetOptions();
+	// Country only (its own endpoint) — no need for the heavy location facets.
+	const loc = useLocationFacetOptions(false);
 
-	// Filtered server-side, not with rows.filter — otherwise `limit` would cap
-	// the feed before the filter ran and a quiet slice could look empty.
 	const params = useMemo(() => {
 		const p: Record<string, unknown> = { limit: 50 };
 		if (type !== 'All') p.type = type;
@@ -72,8 +50,9 @@ export function Signals({ companiesHref }: { companiesHref: string }) {
 				<h2 className="atlas-h2">Signals</h2>
 				<p className="atlas-sig-lede">Companies showing activity worth watching.</p>
 			</div>
-			<div className="atlas-sig-filter">
+			<div className="atlas-sig-filter atlas-sig-filter--top">
 				<PillTabs ariaLabel="Signal type" value={type} onChange={setType} options={FILTERS} />
+				<ViewToggle value={view} onChange={setView} />
 			</div>
 			<div className="atlas-sig-filter atlas-sig-filter--row">
 				<Select aria-label="Sector" placeholder="All sectors" value={sector} onChange={(e) => setSector(e.target.value)} options={sectorTiers.topOptions} />
@@ -89,7 +68,7 @@ export function Signals({ companiesHref }: { companiesHref: string }) {
 							? 'No signals match these filters. Try widening them or clearing to see the whole market.'
 							: 'No signals yet.'}
 					</Empty>
-				) : (
+				) : view === 'cards' ? (
 					<div className="atlas-sig-list">
 						{rows.map((s) => {
 							const name = s.company_name ?? 'Unknown company';
@@ -98,6 +77,7 @@ export function Signals({ companiesHref }: { companiesHref: string }) {
 							return (
 								<article key={s.id} className="atlas-sig">
 									<div className="atlas-sig__top">
+										<Logo co={{ name, website: s.company_website ?? null, custom_logo_url: s.company_custom_logo_url ?? null }} size={24} radius={4} />
 										<Link href={href} className="atlas-sig__name">{name}</Link>
 										<span className="atlas-sig__type">{TYPE_LABEL[s.signal_type] ?? s.signal_type}</span>
 										<span className="atlas-sig__when">· {ago(s.occurred_at)}</span>
@@ -108,11 +88,42 @@ export function Signals({ companiesHref }: { companiesHref: string }) {
 										<div className="atlas-sig__actions">
 											<SaveToWatchlist companyId={s.company_id} companyName={name} />
 											<Link className="atlas-action" href={href}>
-												<span className="atlas-action__icon"><ArrowUpRight /></span>View company
+												<span className="atlas-action__icon"><ArrowUpRight /></span><span className="atlas-action__label">View company</span>
 											</Link>
 										</div>
 									</div>
 								</article>
+							);
+						})}
+					</div>
+				) : (
+					<div className="atlas-table" role="table">
+						<div className="atlas-table__head">
+							<span className="atlas-table__name">Company</span>
+							<span className="atlas-table__col" style={{ width: 90 }}>Type</span>
+							<span className="atlas-table__col hide-sm" style={{ width: 100 }}>Round</span>
+							<span className="atlas-table__col hide-sm" style={{ width: 110 }}>Sector</span>
+							<span className="atlas-table__col hide-sm" style={{ width: 110 }}>Location</span>
+							<span className="atlas-table__col" style={{ width: 80 }}>When</span>
+						</div>
+						{rows.map((s) => {
+							const name = s.company_name ?? 'Unknown company';
+							const href = `${companiesHref}/${s.company_slug ?? s.company_id}`;
+							return (
+								<Link key={s.id} className="atlas-table__row" href={href}>
+									<div className="atlas-table__name">
+										<Logo co={{ name, website: s.company_website ?? null, custom_logo_url: s.company_custom_logo_url ?? null }} size={28} radius={4} />
+										<div className="atlas-table__name-main">
+											<div className="atlas-ellipsis" style={{ fontWeight: 600 }}>{name}</div>
+											<div style={{ fontSize: 11, color: 'var(--a-muted)' }} className="atlas-ellipsis">{s.headline}</div>
+										</div>
+									</div>
+									<span className="atlas-table__col" style={{ width: 90 }}>{TYPE_LABEL[s.signal_type] ?? s.signal_type}</span>
+									<span className="atlas-table__col hide-sm" style={{ width: 100 }}>{s.last_round_type ?? '—'}</span>
+									<span className="atlas-table__col hide-sm" style={{ width: 110 }}>{s.sector ?? '—'}</span>
+									<span className="atlas-table__col hide-sm" style={{ width: 110 }}>{place(s.hq_city, s.hq_country) || '—'}</span>
+									<span className="atlas-table__col" style={{ width: 80 }}>{ago(s.occurred_at)}</span>
+								</Link>
 							);
 						})}
 					</div>

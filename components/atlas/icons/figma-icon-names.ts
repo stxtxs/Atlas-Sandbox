@@ -2,6 +2,7 @@
 export const FIGMA_ICON_NAMES = [
 	'nav-analysis',
 	'nav-caret',
+	'nav-chat',
 	'nav-circle',
 	'nav-companies',
 	'nav-dealflow',
@@ -11,6 +12,8 @@ export const FIGMA_ICON_NAMES = [
 	'nav-home',
 	'nav-interests',
 	'nav-list',
+	'nav-ma',
+	'nav-market',
 	'nav-newsletter',
 	'nav-onboarding',
 	'nav-recommended',

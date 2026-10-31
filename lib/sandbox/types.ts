@@ -1,11 +1,8 @@
 /**
- * The Warm-Up practice — shared types for the request interceptor.
- *
- * In practice the browser's fetch is wrapped: requests whose path matches a
- * SandboxRoute are answered locally (sample data, gated actions), everything
- * else (public data) goes to the real backend. See lib/sandbox/README.md.
+ * Shared types for the tutorial's mock API (mock-api.ts): each product's
+ * routes answer `/api/*` from sample data. See lib/sandbox/README.md.
  */
-export type SandboxProduct = 'raise' | 'scout';
+export type SandboxProduct = 'explore' | 'raise' | 'scout';
 
 export interface SandboxCtx {
 	method: string;
@@ -18,11 +15,9 @@ export interface SandboxCtx {
 	/** Browser-persisted per-product state for writes (pipeline moves, thesis edits…). Mutate then call save(). */
 	state: Record<string, unknown>;
 	save: () => void;
-	/** Pass the request to the real backend (e.g. to post-process a public list). */
-	passthrough: () => Promise<Response>;
 }
 
-/** Return a Response, or a plain value to be sent as JSON 200. Return `undefined` to fall through to the network. */
+/** Return a Response, or a plain value to be sent as JSON 200. `undefined` = not answered (empty list). */
 export type SandboxHandler = (ctx: SandboxCtx) => unknown | Response | Promise<unknown | Response>;
 
 /** [method, path pattern with `:params`, handler]. Pattern matches `url.pathname` exactly (no query). */
@@ -30,13 +25,6 @@ export type SandboxRoute = [method: string, pattern: string, handler: SandboxHan
 
 export const json = (data: unknown, status = 200) =>
 	new Response(JSON.stringify(data ?? null), { status, headers: { 'Content-Type': 'application/json' } });
-
-/**
- * A gated action in the sandbox: the app's existing 402 TIER_REQUIRED path opens
- * its upgrade modal (lib/query-client.ts handleResponse → openTierRequired).
- */
-export const gated = (product: SandboxProduct, message: string) =>
-	json({ error: { code: 'TIER_REQUIRED', message, requiredTiers: [product], currentTier: 'explore', sandbox: true } }, 402);
 
 /** Server-sent-events response (chat, deck analysis stream). */
 export function sse(events: Array<{ event: string; data: unknown }>, delayMs = 40): Response {

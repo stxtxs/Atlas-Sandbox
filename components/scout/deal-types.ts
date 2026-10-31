@@ -70,6 +70,8 @@ export interface DealRow {
 	disclosed: boolean;
 	/** Per-viewer: my own interest request's status, or null if I never asked. */
 	interest_status: string | null;
+	/** This viewer has the deal on watch (server-side since Oct 2026). */
+	is_watched?: boolean;
 }
 
 export const LEAD_LABEL: Record<string, string> = {
@@ -181,6 +183,8 @@ export interface MyDealRow {
 	committed_amount: string | number | null;
 	lead_status: string | null;
 	target_close_date: string | null;
+	/** How many investors have requested an introduction to this (live) deal. */
+	interest_count: number;
 }
 
 /** What a submitter should understand their own deal's status to mean. */

@@ -21,13 +21,18 @@ import { cx } from '../ui/cx';
  * View + Download while an edition offers View alone.
  */
 
+/** Flags a cover as loaded so its frame can drop the 16:9 placeholder and take
+ *  the image's own shape (see .atlas-post__cover--tall). `complete` catches an
+ *  image that finished before hydration, whose load event React never sees. */
+const markLoaded = (img: HTMLImageElement | null) => { if (img?.complete && img.naturalWidth) img.dataset.loaded = ''; };
+
 /** Cover image, or the blank white frame the design shows when there is none. */
-function Cover({ src, alt, className }: { src?: string | null; alt: string; className: string }) {
+function Cover({ src, alt, className, eager }: { src?: string | null; alt: string; className: string; eager?: boolean }) {
 	return (
 		<div className={className}>
 			{src ? (
 				// eslint-disable-next-line @next/next/no-img-element
-				<img src={src} alt={alt} loading="lazy" />
+				<img key={src} src={src} alt={alt} loading={eager ? 'eager' : 'lazy'} ref={markLoaded} onLoad={(e) => markLoaded(e.currentTarget)} />
 			) : null}
 		</div>
 	);
@@ -44,7 +49,8 @@ export function FeaturedPost({ cover, meta, metaIcon, title, desc, tags, actions
 }) {
 	return (
 		<article className="atlas-post atlas-post--featured">
-			<Cover src={cover} alt="" className="atlas-post__cover atlas-post__cover--tall" />
+			{/* The hero sits at the top of the page — don't lazy-load it. */}
+			<Cover src={cover} alt="" className="atlas-post__cover atlas-post__cover--tall" eager />
 			<div className="atlas-post__body">
 				<div className="atlas-post__meta">{metaIcon}{meta}</div>
 				<h2 className="atlas-post__title atlas-post__title--lg">{title}</h2>

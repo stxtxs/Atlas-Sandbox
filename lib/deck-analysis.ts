@@ -1,5 +1,7 @@
 /** Shared types + helpers for the pitch-deck analyzer (list page + [id] page). */
 
+import { openCreditExhausted } from './credit-events';
+
 export interface DeckSection { key: string; label: string; score: number | null; page_refs: number[]; quote: string | null }
 export interface DeckSuggestion { area: string; suggestion: string; page_ref: number | null; quote: string | null }
 /** Investor-mode extras (Deck Screener). Absent on a founder analysis. */
@@ -23,7 +25,10 @@ export interface DeckScorecard {
 	diligence_questions?: string[];
 	comparables?: DeckComparable[];
 }
-export interface DeckListItem { id: string; filename: string | null; status: string; overall_score: number | null; created_at: string }
+/** `failure`: why a failed run failed — 'too_large' means a retry can't help (re-export the deck). */
+export type DeckFailure = 'too_large' | 'failed' | null;
+export interface DeckListItem { id: string; filename: string | null; status: string; overall_score: number | null; created_at: string; failure?: DeckFailure }
+export const DECK_TOO_LARGE_COPY = 'This deck is too large to analyse as it is, and it has no readable text. Export it as a smaller PDF (under about 20 MB) and upload it again.';
 
 /**
  * Hide the trailing scorecard JSON (fenced ```json or a bare {"overall_score"…})
@@ -42,6 +47,8 @@ export interface DeckStreamHandlers {
 	onDelta: (t: string) => void;
 	onDone: (sc: DeckScorecard | null) => void;
 	onError: (m: string) => void;
+	/** Refused for credits — the global modal is already open; let the page say so inline. */
+	onCredits?: () => void;
 }
 
 /** Consume the SSE stream from POST /api/deck-analysis/:id/stream. */
@@ -70,6 +77,12 @@ export async function consumeDeckStream(stream: ReadableStream<Uint8Array>, h: D
 				const parsed = JSON.parse(data);
 				if (event === 'delta' && typeof parsed.text === 'string') h.onDelta(parsed.text);
 				else if (event === 'done') h.onDone((parsed.scorecard ?? null) as DeckScorecard | null);
+				// A credit refusal arrives here, not as a 402 (the SSE is already a 200) —
+				// open the same out-of-credits modal apiRequest would, instead of a toast.
+				else if (event === 'error' && parsed.code === 'INSUFFICIENT_CREDITS') {
+					openCreditExhausted({ required: parsed.details?.required, available: parsed.details?.available, creditType: parsed.details?.credit_type });
+					h.onCredits?.();
+				}
 				else if (event === 'error') h.onError(parsed.message ?? 'Analysis failed');
 			} catch { /* skip malformed */ }
 		}

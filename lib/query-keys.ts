@@ -29,6 +29,8 @@ export const qk = {
     pipeline: (params: Record<string, unknown> = {}) => ['/api/raise/pipeline', params] as const,
     pipelineActivity: (id: string) => [`/api/raise/pipeline/${id}/activity`] as const,
     market: () => ['/api/raise/market'] as const,
+    resources: () => ['/api/raise/resources'] as const,
+    resource: (slug: string) => [`/api/raise/resources/${slug}`] as const,
     dealflow: () => ['/api/raise/dealflow/opt-in'] as const,
   },
   features: () => ['/api/features'] as const,
@@ -40,6 +42,7 @@ export const qk = {
     techTags: () => ['/api/tech-tags'] as const,
     currencies: () => ['/api/currencies'] as const,
     roundTypes: () => ['/api/round-types'] as const,
+    countries: () => ['/api/countries'] as const,
     locationFacets: () => ['/api/locations/facets'] as const,
   },
 
@@ -56,12 +59,18 @@ export const qk = {
     team: (idOrSlug: string) => [`/api/companies/${idOrSlug}/team`] as const,
     contacts: (idOrSlug: string) => [`/api/companies/${idOrSlug}/contacts`] as const,
     similar: (idOrSlug: string) => [`/api/companies/${idOrSlug}/similar`] as const,
+    techTags: (idOrSlug: string) => [`/api/companies/${idOrSlug}/tech-tags`] as const,
   },
   investors: {
     list: (params: Record<string, unknown> = {}) => ['/api/investors', params] as const,
     detail: (idOrSlug: string) => [`/api/investors/${idOrSlug}`] as const,
     thesis: (idOrSlug: string) => [`/api/investors/${idOrSlug}/thesis`] as const,
     funds: (idOrSlug: string) => [`/api/investors/${idOrSlug}/funds`] as const,
+  },
+  acquisitions: {
+    list: (params: Record<string, unknown> = {}) => ['/api/acquisitions', params] as const,
+    detail: (id: string) => [`/api/acquisitions/${id}`] as const,
+    sports: (id: string) => [`/api/acquisitions/${id}/sports`] as const,
   },
   deals: {
     list: (params: Record<string, unknown> = {}) => ['/api/deals', params] as const,
@@ -71,15 +80,12 @@ export const qk = {
     // investor filter dropdown (only investors you can actually filter by).
     investorOptions: (limit = 300) => ['/api/deals/investors', { limit }] as const,
   },
-  acquisitions: {
-    list: (params: Record<string, unknown> = {}) => ['/api/acquisitions', params] as const,
-    detail: (id: string) => [`/api/acquisitions/${id}`] as const,
-  },
   ecosystem: {
     list: (params: Record<string, unknown> = {}) => ['/api/ecosystem-entities', params] as const,
     listByType: (type: string, params: Record<string, unknown> = {}) =>
       ['/api/ecosystem-entities', { type, ...params }] as const,
     detail: (idOrSlug: string) => [`/api/ecosystem-entities/${idOrSlug}`] as const,
+    participations: (params: Record<string, unknown> = {}) => ['/api/program-participations', params] as const,
   },
 
   // ── Search ──────────────────────────────────────────────────────────────
@@ -93,14 +99,6 @@ export const qk = {
     // it must live in the URL string, since buildUrl only serializes object
     // parts of the key into the query string and drops bare strings.
     list: (kind: string) => [`/api/favorites/${kind}`] as const,
-  },
-  savedSearches: {
-    list: () => ['/api/saved-searches'] as const,
-    detail: (id: string) => [`/api/saved-searches/${id}`] as const,
-  },
-  pinnedLists: {
-    list: () => ['/api/pinned-lists'] as const,
-    detail: (id: string) => [`/api/pinned-lists/${id}`] as const,
   },
   userWatchlists: {
     list: () => ['/api/user-watchlists'] as const,
@@ -116,11 +114,6 @@ export const qk = {
     detail: (id: string) => [`/api/claims/${id}`] as const,
     form: (id: string) => [`/api/claims/${id}/form`] as const,
   },
-  dataRequests: {
-    changeMine: () => ['/api/data-change-requests/mine'] as const,
-    editMine: () => ['/api/data-edit-requests/mine'] as const,
-  },
-
   // ── Reports ─────────────────────────────────────────────────────────────
   // NOTE: detail/sections/sectionData/pollResults all interpolate the id into
   // the path string. `buildUrl` in lib/query-client.ts skips non-object key
@@ -139,9 +132,9 @@ export const qk = {
     sectionData: (sectionId: string) => [`/api/reports/sections/${sectionId}/data`] as const,
     pollResults: (pollId: string) => [`/api/reports/polls/${pollId}/results`] as const,
     // Fresh (tier-gated) PDF URL for a version. `download` uses a short TTL +
-    // Content-Disposition; inline view uses a multi-hour TTL.
-    pdfUrl: (versionId: string, download = false) =>
-      [`/api/reports/versions/${versionId}/pdf-url`, download ? { download: 1 } : {}] as const,
+    // Content-Disposition; the in-app `viewer` gets 15 min; bare view, hours.
+    pdfUrl: (versionId: string, mode?: 'download' | 'viewer') =>
+      [`/api/reports/versions/${versionId}/pdf-url`, mode ? { [mode]: 1 } : {}] as const,
   },
   verifiedReports: {
     mine: () => ['/api/verified-reports/mine'] as const,
@@ -152,13 +145,6 @@ export const qk = {
   recommendations: () => ['/api/recommendations'] as const,
   // Founder → investor matches (computed live from the founder's claimed company).
   investorMatches: (limit = 12) => ['/api/recommendations/investors', { limit }] as const,
-  // Founder cohort benchmarks (computed live from the founder's claimed company).
-  benchmarks: () => ['/api/recommendations/benchmarks'] as const,
-  // Underfunded / whitespace sectors (market intelligence).
-  whitespace: () => ['/api/recommendations/whitespace'] as const,
-  // Founder → investor warm-intro requests.
-  introRequests: () => ['/api/intro-requests'] as const,
-
   // ── Signals (company events; shared by Raise and Scout) ────────────────
   // `/api/signals` is the un-gated feed. Scout's own `/api/scout/signals`
   // returns the same rows behind the scout tier; both products use this key so
@@ -219,17 +205,7 @@ export const qk = {
 
   // ── Market Monthly Roundup (editorial + live deal aggregates) ───────────
   market: {
-    roundup: (params: { year?: number; month?: number } = {}) => ['/api/market/roundup', params] as const,
-  },
-
-  // ── Comparison (URL-driven, stateless `?ids=a,b,c`) ─────────────────────
-  // Wraps existing list endpoints with a fixed `?ids=` filter. The server
-  // already supports `ids` on /api/companies; the investors/deals endpoints
-  // accept the same param.
-  compare: {
-    companies: (ids: string[]) => ['/api/companies', { ids: ids.join(',') }] as const,
-    investors: (ids: string[]) => ['/api/investors', { ids: ids.join(',') }] as const,
-    deals: (ids: string[]) => ['/api/deals', { ids: ids.join(',') }] as const,
+    roundup: (params: { year?: number; month?: number; mode?: 'funding' | 'ma'; perspective?: 'acquiree' | 'acquirer' } = {}) => ['/api/market/roundup', params] as const,
   },
 
   // ── Billing ─────────────────────────────────────────────────────────────
@@ -270,11 +246,6 @@ export const qk = {
     suggestions: () => ['/api/chat/suggestions'] as const,
   },
 
-  // ── Uploads (user RAG documents / images) ───────────────────────────────
-  uploads: {
-    list: () => ['/api/uploads'] as const,
-  },
-
   // ── Pitch deck analyzer (founder-facing) ────────────────────────────────
   deckAnalysis: {
     // Mode keeps the two products' histories apart: a Scout's Deck Screener
@@ -298,10 +269,6 @@ export const qk = {
   // ── Developer (admin) ───────────────────────────────────────────────────
   apiKeys: {
     list: () => ['/api/me/api-keys'] as const,
-  },
-  webhooks: {
-    list: () => ['/api/me/webhooks'] as const,
-    deliveries: (id: string) => [`/api/me/webhooks/${id}/deliveries`] as const,
   },
   integrations: {
     intercomHash: () => ['/api/integrations/intercom/hash'] as const,

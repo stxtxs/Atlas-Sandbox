@@ -10,7 +10,7 @@
  * consuming types in components/features/watchlists/use-company-watchlists.ts.
  */
 import type { CompanyWatchlist, WatchlistCompany } from '@/components/features/watchlists/use-company-watchlists';
-import { daysFromNow, gated, json, type SandboxCtx, type SandboxRoute } from './types';
+import { daysFromNow, json, type SandboxCtx, type SandboxRoute } from './types';
 
 interface StoredList { id: string; name: string; description: string | null; color: string | null; created_at: string }
 type StoredCompany = WatchlistCompany & { stage?: string | null };
@@ -148,8 +148,8 @@ export const watchlistSandboxRoutes: SandboxRoute[] = [
 		save(ctx, { lists: st.lists.filter((l) => l.id !== ctx.params.id), items });
 		return noContent();
 	}],
-	// Public share links would expose a practice list on a real URL.
-	['POST', '/api/user-watchlists/:id/share', ({ product }) => gated(product, `Sharing watchlists is part of Atlas ${product === 'raise' ? 'Raise' : 'Scout'}.`)],
+	// A made-up share link: there is no public page behind it in the tutorial.
+	['POST', '/api/user-watchlists/:id/share', ({ params }) => ({ share_token: `demo-${params.id}` })],
 	['DELETE', '/api/user-watchlists/:id/share', () => noContent()],
 	['GET', '/api/user-watchlists/:id/companies', async (ctx) => {
 		const st = await load(ctx);

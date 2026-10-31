@@ -3,20 +3,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { toast } from 'sonner';
-import { ArrowRight, ArrowLeft, Check, Loader2, Search } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, Loader2, Plus, Search } from 'lucide-react';
 import { qk } from '@/lib/query-keys';
+import { useLeafSectorOptions, useLeafSectorGroups } from '@/hooks/use-catalog-options';
 import { apiRequest } from '@/lib/query-client';
+import { refreshRaise } from '@/lib/invalidate';
 import type { RaiseCriteria, RaiseUpsert } from '@/types/api';
 import { openClaim, type ClaimPrefill } from '@/lib/claim-events';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
-import { Screen, H1, Card, Field, Input, Select, Button, Loading, Logo } from '@/components/atlas';
+import { Screen, H1, Card, Field, Input, Select, Button, Loading, Logo, HoverTip } from '@/components/atlas';
+import { SETUP_HELP as H, INVESTOR_TYPE_HELP, EXPERTISE_OPTIONS } from '@/components/raise/setup-help';
 import { DatePicker } from '@/components/atlas/ui/date-picker';
 import { LocationSelect } from '@/components/features/location/location-select';
+import { CityInput } from '@/components/features/location/city-input';
 import { useSetupScrollReset } from '@/components/setup/setup-modal';
 import { InvestorExclude } from '@/components/raise/investor-exclude';
+import { useVerifyState, type VerifyState } from '@/components/features/verify/verify-cta';
+import { VerifiedBadge } from '@/components/atlas/icons/verified-badge';
+import { decodeClaimForm } from '@/components/claim/decode-claim-form';
+import { useClaimReference } from '@/components/claim/use-claim-reference';
 
 /** A company row from /api/companies used to prefill + link Step 1. */
 interface CoRow { id: string; name: string; website: string | null; description: string | null; sector_id: string | null; hq_country: string | null; hq_city: string | null; custom_logo_url: string | null }
+// Raise snapshot field → the linked company's field it copies.
+const CO_FIELDS: Record<string, keyof CoRow> = { company_name: 'name', company_website: 'website', hq_country: 'hq_country', hq_city: 'hq_city', company_description: 'description', company_sector_id: 'sector_id' };
 
 /**
  * Atlas Raise — first-login setup wizard (Notion "Raise Setup Questionnaire") +
@@ -29,6 +39,10 @@ const STEPS = ['Company', 'Your raise', 'History & traction', 'What’s ready', 
 // Required fields per step (Notion "Required: Yes"). Validated client-side so setup
 // can't complete with gaps (e.g. an empty Category → no sector → dead Market). Also
 // drives resume-at-first-incomplete-step. Module-level: static, no component deps.
+// Preset target-geography options for the multi-select (continents + the regions
+// the investor data actually uses). "Global" is the catch-all.
+const GEO_OPTIONS = ['North America', 'Europe', 'United Kingdom', 'Middle East', 'Africa', 'Asia', 'South Asia', 'Southeast Asia', 'East Asia', 'Latin America', 'Oceania', 'Global'];
+
 const REQUIRED: { key: string; label: string; kind?: 'array' | 'bool' }[][] = [
 	[{ key: 'company_name', label: 'Company name' }, { key: 'company_website', label: 'Website' }, { key: 'hq_country', label: 'Country' }, { key: 'hq_city', label: 'City' }, { key: 'company_description', label: 'What the company does' }, { key: 'company_sector_id', label: 'Category' }, { key: 'company_stage', label: 'Stage' }, { key: 'revenue_status', label: 'Revenue status' }],
 	[{ key: 'fundraising_process', label: 'Fundraising process' }, { key: 'round_type', label: 'Round' }, { key: 'target_amount', label: 'Amount raising' }, { key: 'committed_amount', label: 'Already committed' }, { key: 'target_close_date', label: 'Target close date' }, { key: 'lead_investor_status', label: 'Lead investor' }, { key: 'structure', label: 'Structure' }],
@@ -41,6 +55,12 @@ const REQUIRED: { key: string; label: string; kind?: 'array' | 'bool' }[][] = [
 const CRIT_KEYS: (keyof RaiseCriteria)[] = [
 	'investor_types', 'geographies', 'cheque_min', 'cheque_max', 'lead_preference',
 	'strategic_ok', 'desired_expertise', 'excluded_investor_ids', 'biggest_concern',
+];
+/** REQUIRED plus what an "Other" choice asks for: what it means. */
+const requiredFor = (i: number, src: Rec): { key: string; label: string; kind?: 'array' | 'bool' }[] => [
+	...(REQUIRED[i] ?? []),
+	...(i === 0 && src.company_stage === 'other' ? [{ key: 'company_stage_other', label: 'Stage (please specify)' }] : []),
+	...(i === 1 && src.round_type === 'other' ? [{ key: 'round_type_other', label: 'Round (please specify)' }] : []),
 ];
 const isEmpty = (v: unknown, kind?: 'array' | 'bool') =>
 	kind === 'array' ? !Array.isArray(v) || v.length === 0
@@ -57,7 +77,7 @@ const isEmpty = (v: unknown, kind?: 'array' | 'bool') =>
  * `onClose` is also "done" — finishing drops you back where you were rather
  * than pushing you at the dashboard.
  */
-export function RaiseSetup({ onClose }: { onClose: () => void }) {
+export function RaiseSetup({ onClose, edit = false }: { onClose: () => void; edit?: boolean }) {
 	const resetScroll = useSetupScrollReset();
 	const { data, isLoading, mutate } = useSWR<{ raise: Rec | null; criteria: Rec | null }>(qk.raise.current());
 	const [step, setStep] = useState(0);
@@ -70,6 +90,10 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 	// Company facts are prefilled from it; editing them here only updates the founder's
 	// raise snapshot — the master company is changed only via admin-approved verification.
 	const [linked, setLinked] = useState<{ id: string; name: string } | null>(null);
+	// A saved draft that already names a company (from before company search /
+	// claim gating) keeps its fields — judged once at load, not on the live value,
+	// so clearing the name field doesn't make the whole block vanish mid-edit.
+	const [draftCo, setDraftCo] = useState(false);
 
 	// Seed the wizard from any saved draft ONCE — later background revalidations must
 	// not clobber the founder's in-progress edits on the current step.
@@ -77,13 +101,14 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 	useEffect(() => {
 		if (hydrated.current || !data) return;
 		if (data.raise) setForm(data.raise);
+		if (s(data.raise?.company_name)) setDraftCo(true);
 		if (data.criteria) setCrit(data.criteria);
 		// Restore the linked-company banner from a resumed draft.
 		if (data.raise?.company_id) setLinked({ id: String(data.raise.company_id), name: String(data.raise.company_name ?? 'your company') });
 		// Resume where they left off — jump to the first step still missing a required field.
 		const src = (i: number): Rec => (i === STEPS.length - 1 ? data.criteria : data.raise) ?? {};
 		for (let i = 0; i < STEPS.length; i++) {
-			if ((REQUIRED[i] ?? []).some((rr) => isEmpty(src(i)[rr.key], rr.kind))) { setStep(i); break; }
+			if (requiredFor(i, src(i)).some((rr) => isEmpty(src(i)[rr.key], rr.kind))) { setStep(i); break; }
 		}
 		hydrated.current = true;
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -99,23 +124,42 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 	// Atlas taxonomy (Notion Step 1 "category"): pick the most specific sector — its
 	// full path (Root → Sub → Leaf) is stored as company_category for display, and
 	// company_sector_id drives Market + investor matching.
-	const { data: sectors } = useSWR<Array<{ id: string; name: string; parent_id: string | null }>>(qk.reference.sectors());
-	const sectorOptions = useMemo<[string, string][]>(() => {
-		const list = sectors ?? [];
-		const byId = new Map(list.map((s) => [s.id, s]));
-		const path = (s: { name: string; parent_id: string | null }): string => {
-			const parts = [s.name]; let p = s.parent_id;
-			while (p) { const par = byId.get(p); if (!par) break; parts.unshift(par.name); p = par.parent_id; }
-			return parts.join(' → ');
-		};
-		const isLeaf = (id: string) => !list.some((x) => x.parent_id === id);
-		return list.filter((s) => isLeaf(s.id)).map((s) => [s.id, path(s)] as [string, string]).sort((a, b) => a[1].localeCompare(b[1]));
-	}, [sectors]);
+	const sectorOptions = useLeafSectorOptions();
+	const sectorGroups = useLeafSectorGroups();
 	const pickSector = (id: string) => {
 		set('company_sector_id', id || null);
 		const label = sectorOptions.find(([v]) => v === id)?.[1];
 		set('company_category', id && label ? label.split(' → ') : null);
 	};
+
+	// Claimed the company first (pending or verified)? Start Step 1 from what the
+	// claim already says instead of making the founder type it twice. Checked
+	// against the saved draft, not `form` — this can run in the same commit as
+	// the hydrate above, before its setForm lands — and only fills blanks.
+	const { claim: coClaim, state: coClaimState } = useVerifyState();
+	const coClaimId = coClaim?.claim_type === 'company' && coClaimState !== 'none' ? coClaim.id : null;
+	const { data: coClaimForm } = useSWR<Record<string, unknown>>(coClaimId ? qk.claims.form(coClaimId) : null, { shouldRetryOnError: false });
+	const claimRef = useClaimReference();
+	const claimSeeded = useRef(false);
+	// The live form, for the "only fill blanks" check below: the claim's form data
+	// can arrive after the founder has started typing a field.
+	const formRef = useRef(form);
+	useEffect(() => { formRef.current = form; }, [form]); // declared before the seeding effect, so it runs first
+	useEffect(() => {
+		if (claimSeeded.current || !data || !coClaimForm || !claimRef.sectors.length) return;
+		claimSeeded.current = true;
+		const draft = data.raise ?? {};
+		const c = decodeClaimForm(coClaimForm, claimRef);
+		const fill: Rec = { company_name: c.name, company_website: c.website, company_description: c.description, hq_city: c.coCity, hq_country: c.coCountry };
+		// Blank in the saved draft AND in what is on screen now.
+		const blank = (k: string) => isEmpty(draft[k]) && isEmpty(formRef.current[k]);
+		for (const [k, v] of Object.entries(fill)) if (v && blank(k)) set(k, v);
+		const sectorId = claimRef.resolveSector(c.sector);
+		if (sectorId && blank('company_sector_id')) pickSector(sectorId);
+		const companyId = coClaimForm.target_company_id;
+		if (companyId && blank('company_id')) { set('company_id', companyId); setLinked({ id: String(companyId), name: c.name || 'your company' }); }
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [data, coClaimForm, claimRef.sectors.length]);
 
 	// Link an existing master company: prefill the company facts into the raise
 	// snapshot + store company_id. Editing them afterwards only touches the raise
@@ -130,24 +174,43 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 		if (c.sector_id) pickSector(c.sector_id);
 		setLinked({ id: c.id, name: c.name });
 	};
-	// Unlink → treat as a new company (admins approve it later via verification).
-	const unlinkCompany = () => { set('company_id', null); setLinked(null); };
-	// A canonical company fact is read-only when linked AND the company already has
-	// it (so gaps the company leaves empty can still be filled into the snapshot).
-	const coLock = (k: string) => !!linked && !!s(form[k]);
+	// "Not your company?" → back to the search: the linked company's facts are
+	// cleared, and a company not in Atlas is added by claiming it (never free-typed).
+	const unlinkCompany = () => {
+		for (const k of ['company_id', 'company_name', 'company_website', 'hq_country', 'hq_city', 'company_description', 'company_sector_id', 'company_category']) set(k, null);
+		setLinked(null); setDraftCo(false);
+	};
+	// A canonical company fact is read-only when linked AND the company itself has
+	// it; gaps it leaves empty stay editable. Judged from the company record, not
+	// the form — locking on the form value froze a gap after its first keystroke
+	// (city "b"), and locked a resumed draft's own typos.
+	const { data: linkedCo } = useSWR<CoRow>(linked ? qk.companies.detail(linked.id) : null);
+	const coFact = (k: string) => (linkedCo && linkedCo.id === linked?.id ? s(linkedCo[CO_FIELDS[k]]) : '');
+	const coLock = (k: string) => !!coFact(k);
+	// A locked field shows the company's value — a resumed draft or a claim may
+	// hold an older one the founder could no longer correct.
+	useEffect(() => {
+		for (const k of Object.keys(CO_FIELDS)) {
+			const v = coFact(k);
+			if (!v || s(formRef.current[k]) === v) continue;
+			if (k !== 'company_sector_id') set(k, v);
+			else if (sectorOptions.length) pickSector(v); // needs the taxonomy for its category path
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [linkedCo, linked?.id, sectorOptions]);
 
 	// Typed against the DTO, so a renamed or dropped server field fails the
 	// build instead of 400-ing the step's auto-save.
 	const stepFields = useMemo<(keyof RaiseUpsert)[][]>(() => [
-		['company_id', 'company_name', 'company_website', 'hq_country', 'hq_city', 'company_description', 'company_sector_id', 'company_category', 'company_stage', 'revenue_status'],
-		['fundraising_process', 'round_type', 'target_amount', 'committed_amount', 'currency_code', 'target_close_date', 'lead_investor_status', 'structure', 'valuation'],
-		['prior_capital_raised', 'last_round_date', 'annual_revenue', 'revenue_growth_pct', 'paying_customers', 'monthly_burn', 'runway_months', 'strongest_traction'],
+		['company_id', 'company_name', 'company_website', 'hq_country', 'hq_city', 'company_description', 'company_sector_id', 'company_category', 'company_stage', 'company_stage_other', 'revenue_status'],
+		['fundraising_process', 'round_type', 'round_type_other', 'target_amount', 'committed_amount', 'currency_code', 'target_close_date', 'lead_investor_status', 'structure', 'valuation'],
+		['prior_capital_raised', 'last_round_date', 'annual_revenue', 'revenue_growth_pct', 'paying_customers', 'monthly_burn', 'runway_months'],
 		['pitch_deck_status', 'financial_model_status', 'data_room_status', 'has_target_list'],
 	], []);
 
 	const validate = (i: number): { key: string; label: string }[] => {
 		const src = i === STEPS.length - 1 ? crit : form;
-		const missing = (REQUIRED[i] ?? []).filter((r) => isEmpty(src[r.key], r.kind));
+		const missing = requiredFor(i, src).filter((r) => isEmpty(src[r.key], r.kind));
 		setErrors(new Set(missing.map((r) => r.key)));
 		return missing;
 	};
@@ -183,8 +246,9 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 	 */
 	const back = async () => {
 		setSaving(true);
-		try { await saveStep(step); void mutate(); }
-		catch { /* a failed save must not trap them on the step */ }
+		try { await saveStep(step); void mutate(); void refreshRaise(); }
+		// A failed save must not trap them on the step — but it must not be silent either.
+		catch (e) { toast.error((e as Error).message ?? "Couldn't save this step"); }
 		finally { setSaving(false); setStep((x) => Math.max(x - 1, 0)); resetScroll(); }
 	};
 
@@ -192,7 +256,7 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 		const miss = validate(step);
 		if (miss.length) { toast.error(`Please complete: ${miss.map((r) => r.label).join(', ')}`); return; }
 		setSaving(true);
-		try { await saveStep(step); void mutate(); setErrors(new Set()); setStep((x) => Math.min(x + 1, STEPS.length - 1)); resetScroll(); }
+		try { await saveStep(step); void mutate(); void refreshRaise(); setErrors(new Set()); setStep((x) => Math.min(x + 1, STEPS.length - 1)); resetScroll(); }
 		catch (e) { toast.error((e as Error).message ?? 'Could not save'); }
 		finally { setSaving(false); }
 	};
@@ -204,6 +268,13 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 		try {
 			await saveCriteria();
 			await apiRequest('PATCH', '/api/raise', { setup_completed: true });
+			void mutate();
+			// The home page under this modal still says "Complete your raise setup"
+			// until its cards refetch; so do deal-flow status, market and matches.
+			void refreshRaise();
+			// Re-editing from settings: already set up, so skip the first-run
+			// transition screen — just confirm and close.
+			if (edit) { toast.success('Raise settings updated'); onClose(); return; }
 			setDone(true);
 		} catch (e) { toast.error((e as Error).message ?? 'Could not build your plan'); }
 		finally { setSaving(false); }
@@ -213,15 +284,28 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 	// founder only adds the verification-only fields (name, position, LinkedIn, email).
 	// Links to the master company when one was picked; otherwise starts an "add new"
 	// company request that admins approve.
+	// My OWN verification for this company (several people may be verified for
+	// one company) — don't offer "Verify your company" to someone already verified
+	// or awaiting review; that click would only produce an edit request.
+	const { state: myVerifyState } = useVerifyState(form.company_id ? String(form.company_id) : undefined);
+	// Not in Atlas → the founder adds it by claiming it: the verification modal
+	// opens on a new listing, pre-filled from what they've answered. Step 1 then
+	// fills from that claim (the claim-seeding effect above).
+	const addCompany = (name: string) => openClaim({ role: 'founder' }, 'founder', { ...buildVerifyPrefill(form), name });
+	// Company facts show once there's a company to describe: one picked from
+	// Atlas, one being claimed, or a draft that already has them.
+	const showCoFields = !!linked || !!coClaimId || draftCo;
 	const verify = () => {
+		// Not linked → no target: the modal searches the prefilled name first, so
+		// a company that is in Atlas is claimed rather than added twice.
 		const target = form.company_id
 			? { role: 'founder' as const, id: String(form.company_id), name: s(form.company_name), website: s(form.company_website) || null }
-			: { role: 'founder' as const };
+			: null;
 		openClaim(target, 'founder', buildVerifyPrefill(form));
 	};
 
 	if (isLoading) return <Screen><Loading /></Screen>;
-	if (done) return <Screen width={620}><TransitionScreen onEnter={onClose} onVerify={verify} /></Screen>;
+	if (done) return <Screen width={620}><TransitionScreen onEnter={onClose} onVerify={verify} verifyState={myVerifyState} /></Screen>;
 
 	return (
 		<Screen width={720}>
@@ -243,7 +327,7 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 			<Card style={{ padding: 23 }}>
 				{errors.size > 0 && (
 					<div style={{ marginBottom: 16, borderRadius: 'var(--a-radius-sm)', border: '1px solid color-mix(in srgb, var(--a-danger) 22%, transparent)', background: 'var(--a-danger-bg)', color: 'var(--a-danger)', padding: '10px 14px', fontSize: 12, lineHeight: 1.55 }}>
-						Required — please complete: {(REQUIRED[step] ?? []).filter((r) => errors.has(r.key)).map((r) => r.label).join(', ')}.
+						Required — please complete: {requiredFor(step, step === STEPS.length - 1 ? crit : form).filter((r) => errors.has(r.key)).map((r) => r.label).join(', ')}.
 					</div>
 				)}
 				<div style={{ display: 'grid', gap: 16 }}>
@@ -254,51 +338,56 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 								<button type="button" className="atlas-btn atlas-btn--ghost atlas-btn--sm" onClick={unlinkCompany} style={{ flexShrink: 0 }}>Not your company?</button>
 							</div>
 						) : (
-							<CompanySearch onPick={pickCompany} />
+							<CompanySearch onPick={pickCompany} onAdd={addCompany} />
 						)}
+						{showCoFields ? <>
 						<Field label="Company name"><Input value={s(form.company_name)} onChange={(e) => set('company_name', e.target.value)} disabled={coLock('company_name')} /></Field>
 						<Field label="Website"><Input placeholder="https://" value={s(form.company_website)} onChange={(e) => set('company_website', e.target.value)} disabled={coLock('company_website')} /></Field>
-						<Grid><Field label="Country"><LocationSelect value={s(form.hq_country)} onChange={(v) => set('hq_country', v)} disabled={coLock('hq_country')} /></Field><Field label="City"><Input value={s(form.hq_city)} onChange={(e) => set('hq_city', e.target.value)} disabled={coLock('hq_city')} /></Field></Grid>
+						<Grid><Field label="Country"><LocationSelect value={s(form.hq_country)} onChange={(v) => set('hq_country', v)} disabled={coLock('hq_country')} /></Field><Field label="City"><CityInput value={s(form.hq_city)} onChange={(v) => set('hq_city', v)} onPick={(h) => { if (h.country && !coLock('hq_country')) set('hq_country', h.country); }} disabled={coLock('hq_city')} geo={s(form.hq_country)} /></Field></Grid>
 						<Field label="What does the company do?"><Input placeholder="One sentence" value={s(form.company_description)} onChange={(e) => set('company_description', e.target.value)} disabled={coLock('company_description')} /></Field>
-						<Field label="Which category best describes the company?"><Select placeholder="Select the closest Atlas category…" value={s(form.company_sector_id)} onChange={(e) => pickSector(e.target.value)} options={sectorOptions} disabled={coLock('company_sector_id')} /></Field>
+						<Field label="Which category best describes the company?"><Select placeholder="Select the closest Atlas category…" value={s(form.company_sector_id)} onChange={(e) => pickSector(e.target.value)} options={sectorOptions} groups={sectorGroups} disabled={coLock('company_sector_id')} /></Field>
 						{linked && <div style={{ fontSize: 11, color: 'var(--a-faint)', marginTop: -6 }}>Company details come from the Atlas profile. Verify your company to request changes.</div>}
+						</> : (
+							<div style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--a-muted)' }}>Search for your company above. If it isn&apos;t in Atlas, add it — you claim it as its founder, and it goes live once our team verifies it.</div>
+						)}
 						<Grid>
-							<Field label="Stage"><Select placeholder="Select…" value={s(form.company_stage)} onChange={(e) => set('company_stage', e.target.value)} options={[['pre_seed', 'Pre-seed'], ['seed', 'Seed'], ['series_a', 'Series A'], ['series_b_plus', 'Series B+'], ['other', 'Other']]} /></Field>
+							<Field label="Stage"><Select placeholder="Select…" value={s(form.company_stage)} onChange={(e) => { set('company_stage', e.target.value); if (e.target.value !== 'other') set('company_stage_other', null); }} options={[['pre_seed', 'Pre-seed'], ['seed', 'Seed'], ['series_a', 'Series A'], ['series_b_plus', 'Series B+'], ['other', 'Other']]} /></Field>
+							{form.company_stage === 'other' && <Field label="Which stage? (please specify)"><Input maxLength={80} placeholder="e.g. Angel round, Grant-funded, Bootstrapped" value={s(form.company_stage_other)} onChange={(e) => set('company_stage_other', e.target.value)} /></Field>}
 							<Field label="Generating revenue?"><Select placeholder="Select…" value={s(form.revenue_status)} onChange={(e) => set('revenue_status', e.target.value)} options={[['pre_revenue', 'Pre-revenue'], ['generating', 'Yes']]} /></Field>
 						</Grid>
 					</>}
 
 					{step === 1 && <>
 						<Field label="Where are you in the fundraising process?"><Select placeholder="Select…" value={s(form.fundraising_process)} onChange={(e) => set('fundraising_process', e.target.value)} options={[['exploring', 'Exploring'], ['preparing', 'Preparing'], ['approaching', 'Actively approaching investors'], ['due_diligence', 'In due diligence'], ['negotiating', 'Negotiating terms']]} /></Field>
-						<Field label="What round are you raising?"><Select placeholder="Select…" value={s(form.round_type)} onChange={(e) => set('round_type', e.target.value)} options={[['pre_seed', 'Pre-seed'], ['seed', 'Seed'], ['series_a', 'Series A'], ['series_b_plus', 'Series B+'], ['bridge', 'Bridge'], ['other', 'Other']]} /></Field>
-						<Grid><Field label="How much are you raising?"><Input type="number" min={0} value={s(form.target_amount)} onChange={(e) => set('target_amount', e.target.value)} /></Field><Field label="Already committed"><Input type="number" min={0} value={s(form.committed_amount)} onChange={(e) => set('committed_amount', e.target.value)} /></Field></Grid>
+						<Field label="What round are you raising?" info={H.round}><Select placeholder="Select…" value={s(form.round_type)} onChange={(e) => { set('round_type', e.target.value); if (e.target.value !== 'other') set('round_type_other', null); }} options={[['pre_seed', 'Pre-seed'], ['seed', 'Seed'], ['series_a', 'Series A'], ['series_b_plus', 'Series B+'], ['bridge', 'Bridge'], ['other', 'Other']]} /></Field>
+						{form.round_type === 'other' && <Field label="Which round? (please specify)"><Input maxLength={80} placeholder="e.g. Angel round, Crowdfunding, Grant" value={s(form.round_type_other)} onChange={(e) => set('round_type_other', e.target.value)} /></Field>}
+						<Grid><Field label="How much are you raising?"><Input type="number" min={0} value={s(form.target_amount)} onChange={(e) => set('target_amount', e.target.value)} /></Field><Field label="Already committed" info={H.committed}><Input type="number" min={0} value={s(form.committed_amount)} onChange={(e) => set('committed_amount', e.target.value)} /></Field></Grid>
 						<Grid>
 							<Field label="Currency"><Select value={s(form.currency_code) || 'EUR'} onChange={(e) => set('currency_code', e.target.value)} options={[['EUR', 'EUR'], ['USD', 'USD'], ['GBP', 'GBP']]} /></Field>
-							<Field label="Target close date"><DatePicker value={s(form.target_close_date)} onChange={(v) => set('target_close_date', v)} /></Field>
+							<Field label="Target close date" info={H.closeDate}><DatePicker value={s(form.target_close_date)} onChange={(v) => set('target_close_date', v)} /></Field>
 						</Grid>
 						<Grid>
-							<Field label="Lead investor?"><Select placeholder="Select…" value={s(form.lead_investor_status)} onChange={(e) => set('lead_investor_status', e.target.value)} options={[['yes', 'Yes'], ['no', 'No'], ['in_discussion', 'In discussion']]} /></Field>
-							<Field label="Structure"><Select placeholder="Select…" value={s(form.structure)} onChange={(e) => set('structure', e.target.value)} options={[['equity', 'Equity'], ['safe', 'SAFE'], ['convertible', 'Convertible'], ['undecided', 'Undecided'], ['other', 'Other']]} /></Field>
+							<Field label="Lead investor?" info={H.lead}><Select placeholder="Select…" value={s(form.lead_investor_status)} onChange={(e) => set('lead_investor_status', e.target.value)} options={[['yes', 'Yes'], ['no', 'No'], ['in_discussion', 'In discussion']]} /></Field>
+							<Field label="Structure" info={H.structure}><Select placeholder="Select…" value={s(form.structure)} onChange={(e) => set('structure', e.target.value)} options={[['equity', 'Equity'], ['safe', 'SAFE'], ['convertible', 'Convertible'], ['undecided', 'Undecided'], ['other', 'Other']]} /></Field>
 						</Grid>
-						<Field label="Target valuation (optional)"><Input placeholder="e.g. €5M pre-money" value={s(form.valuation)} onChange={(e) => set('valuation', e.target.value)} /></Field>
+						<Field label="Target valuation (optional)" info={H.valuation}><Input type="number" min={0} inputMode="numeric" placeholder="e.g. 5000000" value={s(form.valuation)} onChange={(e) => set('valuation', e.target.value)} /></Field>
 					</>}
 
 					{step === 2 && <>
-						<Grid><Field label="Capital raised before this round"><Input type="number" min={0} value={s(form.prior_capital_raised)} onChange={(e) => set('prior_capital_raised', e.target.value)} /></Field><Field label="Last round date"><DatePicker value={s(form.last_round_date)} onChange={(v) => set('last_round_date', v)} /></Field></Grid>
-						<Grid><Field label="Current annual revenue / ARR"><Input type="number" min={0} value={s(form.annual_revenue)} onChange={(e) => set('annual_revenue', e.target.value)} /></Field><Field label="Monthly burn"><Input type="number" min={0} value={s(form.monthly_burn)} onChange={(e) => set('monthly_burn', e.target.value)} /></Field></Grid>
+						<Grid><Field label="Capital raised before this round" info={H.priorCapital}><Input type="number" min={0} value={s(form.prior_capital_raised)} onChange={(e) => set('prior_capital_raised', e.target.value)} /></Field><Field label="Last round date"><DatePicker value={s(form.last_round_date)} onChange={(v) => set('last_round_date', v)} /></Field></Grid>
+						<Grid><Field label="Current annual revenue / ARR" info={H.revenue}><Input type="number" min={0} value={s(form.annual_revenue)} onChange={(e) => set('annual_revenue', e.target.value)} /></Field><Field label="Monthly burn" info={H.burn}><Input type="number" min={0} value={s(form.monthly_burn)} onChange={(e) => set('monthly_burn', e.target.value)} /></Field></Grid>
 						<Grid><Field label="Revenue growth over the last 12 months (optional)"><Input type="number" placeholder="%" value={s(form.revenue_growth_pct)} onChange={(e) => set('revenue_growth_pct', e.target.value)} /></Field><Field label="Paying customers (optional)"><Input type="number" min={0} value={s(form.paying_customers)} onChange={(e) => set('paying_customers', e.target.value)} /></Field></Grid>
-						<Field label="Months of runway remaining"><Input type="number" min={0} value={s(form.runway_months)} onChange={(e) => set('runway_months', e.target.value)} /></Field>
-						<Field label="Strongest traction metric (optional)"><Input placeholder="e.g. 40% MoM growth" value={s(form.strongest_traction)} onChange={(e) => set('strongest_traction', e.target.value)} /></Field>
+						<Field label="Months of runway remaining" info={H.runway}><Input type="number" min={0} value={s(form.runway_months)} onChange={(e) => set('runway_months', e.target.value)} /></Field>
 					</>}
 
 					{step === 3 && <>
 						<Grid>
-							<Field label="Do you have a current pitch deck?"><Select placeholder="Select…" value={s(form.pitch_deck_status)} onChange={(e) => set('pitch_deck_status', e.target.value)} options={[['have', 'Yes — I’ll upload it'], ['later', 'I’ll add it later']]} /></Field>
-							<Field label="Do you have an investor target list?"><Select value={form.has_target_list === true ? 'yes' : form.has_target_list === false ? 'no' : ''} onChange={(e) => set('has_target_list', e.target.value === 'yes')} placeholder="Select…" options={[['yes', 'Yes'], ['no', 'No']]} /></Field>
+							<Field label="Do you have a current pitch deck?" info={H.deck}><Select placeholder="Select…" value={s(form.pitch_deck_status)} onChange={(e) => set('pitch_deck_status', e.target.value)} options={[['have', 'Yes — I’ll upload it'], ['later', 'I’ll add it later']]} /></Field>
+							<Field label="Do you have an investor target list?" info={H.targetList}><Select value={form.has_target_list === true ? 'yes' : form.has_target_list === false ? 'no' : ''} onChange={(e) => set('has_target_list', e.target.value === 'yes')} placeholder="Select…" options={[['yes', 'Yes'], ['no', 'No']]} /></Field>
 						</Grid>
 						<Grid>
-							<Field label="Do you have a financial model?"><Select placeholder="Select…" value={s(form.financial_model_status)} onChange={(e) => set('financial_model_status', e.target.value)} options={[['ready', 'Ready'], ['in_progress', 'In progress'], ['not_started', 'Not started']]} /></Field>
-							<Field label="Do you have a data room?"><Select placeholder="Select…" value={s(form.data_room_status)} onChange={(e) => set('data_room_status', e.target.value)} options={[['ready', 'Ready'], ['in_progress', 'In progress'], ['not_started', 'Not started']]} /></Field>
+							<Field label="Do you have a financial model?" info={H.financialModel}><Select placeholder="Select…" value={s(form.financial_model_status)} onChange={(e) => set('financial_model_status', e.target.value)} options={[['ready', 'Ready'], ['in_progress', 'In progress'], ['not_started', 'Not started']]} /></Field>
+							<Field label="Do you have a data room?" info={H.dataRoom}><Select placeholder="Select…" value={s(form.data_room_status)} onChange={(e) => set('data_room_status', e.target.value)} options={[['ready', 'Ready'], ['in_progress', 'In progress'], ['not_started', 'Not started']]} /></Field>
 						</Grid>
 						<div style={{ fontSize: 12, color: 'var(--a-muted)', lineHeight: 1.55 }}>
 							You’ll upload your deck and build out your investor pipeline from the workspace once setup is complete — the Pitch Deck and Pipeline pages walk you through it.
@@ -306,14 +395,14 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 					</>}
 
 					{step === 4 && <>
-						<Multi label="Which investor types are you targeting?" v={crit.investor_types} on={(x) => setC('investor_types', x)} opts={['VC', 'Angel', 'Family office', 'Strategic', 'CVC', 'Government fund']} />
-						<Field label="Target geographies"><Input placeholder="Europe, UK" value={Array.isArray(crit.geographies) ? (crit.geographies as string[]).join(', ') : ''} onChange={(e) => setC('geographies', e.target.value.split(',').map((x) => x.trim()).filter(Boolean))} /></Field>
-						<Grid><Field label="Cheque size — minimum"><Input type="number" min={0} value={s(crit.cheque_min)} onChange={(e) => setC('cheque_min', e.target.value)} /></Field><Field label="Cheque size — maximum"><Input type="number" min={0} value={s(crit.cheque_max)} onChange={(e) => setC('cheque_max', e.target.value)} /></Field></Grid>
+						<Multi label="Which investor types are you targeting?" info={H.investorTypes} tips={INVESTOR_TYPE_HELP} v={crit.investor_types} on={(x) => setC('investor_types', x)} opts={Object.keys(INVESTOR_TYPE_HELP)} />
+						<Multi label="Target geographies" info={H.geographies} v={crit.geographies} on={(x) => setC('geographies', x)} opts={GEO_OPTIONS} />
+						<Grid><Field label="Cheque size — minimum" info={H.cheque}><Input type="number" min={0} value={s(crit.cheque_min)} onChange={(e) => setC('cheque_min', e.target.value)} /></Field><Field label="Cheque size — maximum" info={H.cheque}><Input type="number" min={0} value={s(crit.cheque_max)} onChange={(e) => setC('cheque_max', e.target.value)} /></Field></Grid>
 						<Grid>
-							<Field label="Lead, followers or both?"><Select placeholder="Select…" value={s(crit.lead_preference)} onChange={(e) => setC('lead_preference', e.target.value)} options={[['lead', 'Lead'], ['followers', 'Followers'], ['both', 'Both']]} /></Field>
-							<Field label="Open to strategic investors?"><Select placeholder="Select…" value={crit.strategic_ok === true ? 'yes' : crit.strategic_ok === false ? 'no' : ''} onChange={(e) => setC('strategic_ok', e.target.value === 'yes')} options={[['yes', 'Yes'], ['no', 'No']]} /></Field>
+							<Field label="Lead, followers or both?" info={H.leadPreference}><Select placeholder="Select…" value={s(crit.lead_preference)} onChange={(e) => setC('lead_preference', e.target.value)} options={[['lead', 'Lead'], ['followers', 'Followers'], ['both', 'Both']]} /></Field>
+							<Field label="Open to strategic investors?" info={H.strategic}><Select placeholder="Select…" value={crit.strategic_ok === true ? 'yes' : crit.strategic_ok === false ? 'no' : ''} onChange={(e) => setC('strategic_ok', e.target.value === 'yes')} options={[['yes', 'Yes'], ['no', 'No']]} /></Field>
 						</Grid>
-						<Multi label="What expertise or access would be most valuable? (optional)" v={crit.desired_expertise} on={(x) => setC('desired_expertise', x)} opts={['Commercial partnerships', 'Sports rights', 'Media', 'Product', 'International expansion', 'Other']} />
+						<Multi label="What expertise or access would be most valuable? (optional)" info={H.expertise} v={crit.desired_expertise} on={(x) => setC('desired_expertise', x)} opts={EXPERTISE_OPTIONS} />
 						<InvestorExclude label="Are there investors Atlas should exclude? (optional)" value={crit.excluded_investor_ids as string[] | undefined} onChange={(x) => setC('excluded_investor_ids', x)} />
 						<Field label="Biggest fundraising concern (optional)"><Select placeholder="Select…" value={s(crit.biggest_concern)} onChange={(e) => setC('biggest_concern', e.target.value)} options={[['story', 'Story'], ['access', 'Investor access'], ['valuation', 'Valuation'], ['timing', 'Timing'], ['diligence', 'Due diligence'], ['other', 'Other']]} /></Field>
 					</>}
@@ -324,7 +413,7 @@ export function RaiseSetup({ onClose }: { onClose: () => void }) {
 				<Button variant="ghost" disabled={step === 0 || saving} onClick={() => void back()}><ArrowLeft size={13} /> Back</Button>
 				{step < STEPS.length - 1
 					? <Button disabled={saving} onClick={() => void next()}>{saving ? <Loader2 className="animate-spin" size={13} /> : <>Continue <ArrowRight size={13} /></>}</Button>
-					: <Button disabled={saving} onClick={() => void finish()}>{saving ? <Loader2 className="animate-spin" size={13} /> : <>Build my raise plan <Check size={13} /></>}</Button>}
+					: <Button disabled={saving} onClick={() => void finish()}>{saving ? <Loader2 className="animate-spin" size={13} /> : edit ? <>Save changes <Check size={13} /></> : <>Build my raise plan <Check size={13} /></>}</Button>}
 			</div>
 		</Screen>
 	);
@@ -352,7 +441,7 @@ function buildVerifyPrefill(form: Rec): ClaimPrefill {
 	};
 }
 
-function TransitionScreen({ onEnter, onVerify }: { onEnter: () => void; onVerify: () => void }) {
+function TransitionScreen({ onEnter, onVerify, verifyState = 'none' }: { onEnter: () => void; onVerify: () => void; verifyState?: VerifyState }) {
 	return (
 		<div style={{ textAlign: 'center', padding: '32px 0' }}>
 			<H1>Your raise workspace is ready.</H1>
@@ -370,24 +459,41 @@ function TransitionScreen({ onEnter, onVerify }: { onEnter: () => void; onVerify
 				))}
 			</div>
 			<Card glow="blue" style={{ textAlign: 'left', marginBottom: 20 }}>
-				<div style={{ fontFamily: 'var(--a-font)', fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Verify your company</div>
-				<div style={{ fontSize: 13, color: 'var(--a-muted)', lineHeight: 1.55, marginBottom: 16 }}>
-					Get your company verified on SportsTechX. We&apos;ve pre-filled everything you told us — you just add a few details and our team reviews it. Optional, and you can do it later from settings.
-				</div>
-				<Button onClick={onVerify}>Verify your company <ArrowRight size={13} /></Button>
+				{verifyState === 'verified' ? (
+					<>
+						<div style={{ fontFamily: 'var(--a-font)', fontWeight: 700, fontSize: 16, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}><VerifiedBadge size={18} /> You&apos;re verified for this company</div>
+						<div style={{ fontSize: 13, color: 'var(--a-muted)', lineHeight: 1.55 }}>Use “Suggest a correction” on your company&apos;s profile to update its public details.</div>
+					</>
+				) : verifyState === 'pending' ? (
+					<>
+						<div style={{ fontFamily: 'var(--a-font)', fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Verification pending</div>
+						<div style={{ fontSize: 13, color: 'var(--a-muted)', lineHeight: 1.55 }}>Our team is reviewing your request — we&apos;ll let you know as soon as it&apos;s approved. You can edit it any time from the “Verification pending” button.</div>
+					</>
+				) : (
+					<>
+						<div style={{ fontFamily: 'var(--a-font)', fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Verify your company</div>
+						<div style={{ fontSize: 13, color: 'var(--a-muted)', lineHeight: 1.55, marginBottom: 16 }}>
+							Get your company verified on SportsTechX. We&apos;ve pre-filled everything you told us — you just add a few details and our team reviews it. Optional, and you can do it later from settings.
+						</div>
+						<Button onClick={onVerify}>Verify your company <ArrowRight size={13} /></Button>
+					</>
+				)}
 			</Card>
 			<Button variant="ghost" onClick={onEnter}>Skip for now — enter your workspace <ArrowRight size={13} /></Button>
 		</div>
 	);
 }
 
-/** Step 1 typeahead over /api/companies — pick to prefill + link an existing company. */
-function CompanySearch({ onPick }: { onPick: (c: CoRow) => void }) {
+/** Step 1 typeahead over /api/companies — pick to prefill + link an existing company,
+ *  or (only when the search finds nothing by that name) add it by claiming it. */
+function CompanySearch({ onPick, onAdd }: { onPick: (c: CoRow) => void; onAdd: (name: string) => void }) {
 	const [q, setQ] = useState('');
 	const dq = useDebouncedValue(q);
 	const term = dq.trim();
 	const res = useSWR<{ data: CoRow[] }>(term.length >= 2 ? qk.companies.list({ q: term, limit: 6 }) : null);
 	const rows = res.data?.data ?? [];
+	const canAdd = term.length >= 2 && term === q.trim() && !res.isLoading && !!res.data
+		&& !rows.some((c) => c.name.trim().toLowerCase() === term.toLowerCase());
 	return (
 		<Field label="Find your company">
 			<div style={{ position: 'relative' }}>
@@ -405,20 +511,29 @@ function CompanySearch({ onPick }: { onPick: (c: CoRow) => void }) {
 					</div>
 				)}
 			</div>
-			<div style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--a-faint)', marginTop: 6 }}>Find your company to prefill its details. Can’t find it? Just fill in the form below to add it as new.</div>
+			{canAdd ? (
+				<button type="button" className="atlas-btn atlas-btn--ghost atlas-btn--sm" style={{ marginTop: 8 }} onClick={() => onAdd(term)}>
+					<Plus size={13} /> Add “{term}” and claim it as your company
+				</button>
+			) : (
+				<div style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--a-faint)', marginTop: 6 }}>Find your company to prefill its details. Not listed? Search its name and you can add it.</div>
+			)}
 		</Field>
 	);
 }
 
 function s(v: unknown): string { return v == null ? '' : String(v); }
-function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>{children}</div>; }
-function Multi({ label, v, on, opts }: { label: string; v: unknown; on: (x: string[]) => void; opts: string[] }) {
+function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 16 }}>{children}</div>; }
+/** Chip multi-select. `tips` explains each option on hover / focus (the label's
+ *  `info` covers touch, where there's no hover). */
+function Multi({ label, info, tips, v, on, opts }: { label: string; info?: React.ReactNode; tips?: Record<string, string>; v: unknown; on: (x: string[]) => void; opts: string[] }) {
 	const sel = new Set((v as string[]) ?? []);
-	return <Field label={label}><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+	return <Field label={label} info={info}><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
 		{opts.map((o) => {
 			const active = sel.has(o);
-			return <button key={o} type="button" aria-pressed={active} className={`atlas-btn ${active ? 'atlas-btn--primary' : 'atlas-btn--outline'} atlas-btn--sm`}
+			const chip = <button key={o} type="button" aria-pressed={active} className={`atlas-btn ${active ? 'atlas-btn--primary' : 'atlas-btn--outline'} atlas-btn--sm`}
 				onClick={() => { const nn = new Set(sel); if (nn.has(o)) nn.delete(o); else nn.add(o); on([...nn]); }}>{o}</button>;
+			return tips?.[o] ? <HoverTip key={o} tip={tips[o]}>{chip}</HoverTip> : chip;
 		})}
 	</div></Field>;
 }

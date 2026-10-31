@@ -5,12 +5,13 @@ import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { toast } from 'sonner';
-import { Loader2, ArrowUpRight } from 'lucide-react';
-import { getSupabaseBrowser } from '@/lib/supabase/client';
+import { Loader2, ArrowUpRight, Check } from 'lucide-react';
+import { DEMO_USER_ID, demoUpload } from '@/lib/sandbox/demo-storage';
 import { apiRequest } from '@/lib/query-client';
+import { MAX_DECK_MB, deckFileError, deckUploadError } from '@/lib/deck-upload';
 import { qk } from '@/lib/query-keys';
 import { isInsufficientCreditsError } from '@/lib/credit-events';
-import type { DeckListItem, DeckScorecard } from '@/lib/deck-analysis';
+import { DECK_TOO_LARGE_COPY, type DeckListItem, type DeckScorecard } from '@/lib/deck-analysis';
 import { Screen, Card, Button, Badge, Loading, StagedLoader } from '@/components/atlas';
 import { hrefOf } from '@/lib/routes';
 import { rating } from './score-tone';
@@ -23,7 +24,6 @@ import { DECK_ANALYSIS_STAGES } from './deck-stages';
  * full analysis lives at `/app/deck/[id]` (DeckAnalysisDetail).
  */
 const BUCKET = 'user-uploads';
-const MAX_BYTES = 25 * 1024 * 1024;
 const ALLOWED_EXT = ['pdf', 'ppt', 'pptx', 'doc', 'docx'];
 const ACCEPT = 'application/pdf,.pdf,.ppt,.pptx,.doc,.docx';
 const AREAS = [
@@ -59,7 +59,7 @@ export function DeckSummary({ header, copy = FOUNDER_DECK_COPY, mode = 'founder'
 	const router = useRouter();
 	// This page's own route; the full analysis opens at `${DECK}/${id}`.
 	const DECK = hrefOf('deck');
-	const { data: list, mutate } = useSWR<DeckListItem[]>(qk.deckAnalysis.list(mode), { dedupingInterval: 10_000, refreshInterval: (d) => (d?.[0] && d[0].status !== 'done' ? 4000 : 0) });
+	const { data: list, mutate } = useSWR<DeckListItem[]>(qk.deckAnalysis.list(mode), { dedupingInterval: 10_000, refreshInterval: (d) => (d?.[0]?.status === 'processing' ? 4000 : 0) });
 	const latest = list?.[0] ?? null;
 	const fileRef = useRef<HTMLInputElement>(null);
 	const [uploading, setUploading] = useState(false);
@@ -74,17 +74,13 @@ export function DeckSummary({ header, copy = FOUNDER_DECK_COPY, mode = 'founder'
 	const analyze = async (file: File) => {
 		if (uploading) return;
 		const ext = (file.name.split('.').pop() ?? '').toLowerCase();
-		if (!ALLOWED_EXT.includes(ext)) { toast.error('Upload a PDF, PPT/PPTX, or DOC/DOCX.'); return; }
-		if (file.size > MAX_BYTES) { toast.error('File too large (max 25 MB).'); return; }
+		const bad = deckFileError(file, ALLOWED_EXT);
+		if (bad) { toast.error(bad); return; }
 		setUploading(true);
 		try {
-			const supabase = getSupabaseBrowser();
-			const { data: auth } = await supabase.auth.getUser();
-			const uid = auth.user?.id;
-			if (!uid) throw new Error('Not signed in');
-			const key = `${uid}/decks/${crypto.randomUUID()}.${ext}`;
-			const { error } = await supabase.storage.from(BUCKET).upload(key, file, { upsert: false, contentType: file.type || 'application/octet-stream' });
-			if (error) throw error;
+			const key = `${DEMO_USER_ID}/decks/${crypto.randomUUID()}.${ext}`;
+			const { error } = await demoUpload(key, file);
+			if (error) throw new Error(deckUploadError(error.message, file, ALLOWED_EXT));
 			const res = await apiRequest('POST', '/api/deck-analysis', { storage_path: key, filename: file.name, mode });
 			if (!res.ok) {
 				const body = await res.json().catch(() => null);
@@ -120,15 +116,40 @@ export function DeckSummary({ header, copy = FOUNDER_DECK_COPY, mode = 'founder'
 				<div className="atlas-h2">{copy.emptyTitle}</div>
 				<p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--a-muted)', lineHeight: '19px', maxWidth: 632 }}>{copy.emptyBody}</p>
 				{copy.emptyExtra}
-				<hr className="atlas-divider" style={{ margin: '33px 0 37px' }} />
-				<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 24, maxWidth: 880 }}>
+				<hr className="atlas-divider" style={{ margin: '26px 0 22px' }} />
+				<div className="atlas-eyebrow" style={{ marginBottom: 14 }}>What Atlas checks</div>
+				<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
 					{AREAS.map((a) => (
-						<div key={a.h}><div style={{ fontSize: 12, fontWeight: 700 }}>{a.h}</div>
-							<div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', fontSize: 12, lineHeight: '19px', color: 'var(--a-muted)' }}>{a.items.map((it) => <span key={it}>{it}</span>)}</div></div>
+						<div key={a.h} style={{ border: '1px solid var(--a-border)', borderRadius: 'var(--a-radius-sm)', background: 'var(--a-inset)', padding: '16px 16px 15px' }}>
+							<div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--a-font)', color: 'var(--a-ink)' }}>{a.h}</div>
+							<div style={{ marginTop: 13, display: 'flex', flexDirection: 'column', gap: 9 }}>
+								{a.items.map((it) => (
+									<span key={it} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--a-muted)' }}>
+										<Check size={13} style={{ color: 'var(--a-navy)', flexShrink: 0 }} aria-hidden="true" />{it}
+									</span>
+								))}
+							</div>
+						</div>
 					))}
 				</div>
-				<hr className="atlas-divider" style={{ margin: '48px 0 30px' }} />
+				<hr className="atlas-divider" style={{ margin: '26px 0 24px' }} />
 				<Button onClick={trigger} disabled={uploading}>{uploading ? <Loader2 className="animate-spin" size={14} /> : <>{copy.emptyCta} <ArrowUpRight /></>}</Button>
+				<p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--a-faint)' }}>PDF, PPT/PPTX or DOC/DOCX · max {MAX_DECK_MB} MB</p>
+			</Card>
+		</Screen>
+	);
+
+	// Not started (e.g. refused for credits) or failed — nothing is running, so
+	// don't show the "Analysing…" loader (or poll); offer to run it.
+	if (latest.status === 'pending' || latest.status === 'failed') return (
+		<Screen>{head}{fileInput}
+			<Card style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+				<div>
+					<div style={{ fontSize: 15, fontFamily: 'var(--a-font)', fontWeight: 700 }}>{latest.filename ?? copy.fallbackName}</div>
+					<div style={{ fontSize: 13, color: 'var(--a-muted)', marginTop: 4 }}>{latest.failure === 'too_large' ? DECK_TOO_LARGE_COPY : latest.status === 'failed' ? "The last analysis didn't finish." : latest.overall_score != null ? "A re-run was started but didn't finish." : "This deck hasn't been analysed yet."}</div>
+				</div>
+				{/* Too large: retrying the same file can't work — "Upload new deck" (header) is the way on. */}
+				{latest.failure !== 'too_large' && <Button size="sm" onClick={() => router.push(`${DECK}/${latest.id}`)}>{latest.status === 'failed' ? 'Try again' : 'Run analysis'}</Button>}
 			</Card>
 		</Screen>
 	);
@@ -178,7 +199,7 @@ export function DeckSummary({ header, copy = FOUNDER_DECK_COPY, mode = 'founder'
 				</>}
 				<hr className="atlas-divider" style={{ margin: '26px 0 24px' }} />
 				<div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-					<Button data-tour="deck-open" onClick={() => router.push(`${DECK}/${latest.id}`)}>View full analysis <ArrowUpRight /></Button>
+					<Button onClick={() => router.push(`${DECK}/${latest.id}`)}>View full analysis <ArrowUpRight /></Button>
 					<Button variant="outline" onClick={trigger} disabled={uploading}>{uploading ? <Loader2 className="animate-spin" size={13} /> : 'Analyse revised deck'}</Button>
 				</div>
 			</Card>

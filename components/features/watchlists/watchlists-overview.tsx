@@ -4,13 +4,23 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowUpRight, Pencil, Plus, Trash2 } from 'lucide-react';
-import { Action, Button, Empty, Input, Loading } from '@/components/atlas';
-import { useCompanyWatchlists, createWatchlist, renameWatchlist, deleteWatchlist } from './use-company-watchlists';
+import { Action, Button, Empty, Input, Loading, Seg } from '@/components/atlas';
+import { getUserType, useUserProfile } from '@/hooks/use-user-profile';
+import { useCompanyWatchlists, createWatchlist, renameWatchlist, deleteWatchlist, isInvestorList } from './use-company-watchlists';
 import './watchlists.css';
 
-/** All company watchlists: open, rename, delete, and create a new one by name. */
+const count = (n: number, investors: boolean) => `${n} ${investors ? `investor${n === 1 ? '' : 's'}` : `compan${n === 1 ? 'y' : 'ies'}`}`;
+
+/** All watchlists: open, rename, delete, and create a new one by name. Raise
+ *  users also keep investor watchlists here, so they pick what a new list holds. */
 export function WatchlistsOverview({ watchlistHref }: { watchlistHref: (id: string) => string }) {
-	const { lists, isLoading } = useCompanyWatchlists();
+	const { lists: all, isLoading } = useCompanyWatchlists();
+	const { data: profile } = useUserProfile();
+	const isRaise = getUserType(profile) === 'raise';
+	// Investor lists only mean something on Raise (see use-nav).
+	const lists = isRaise ? all : all.filter((l) => !isInvestorList(l));
+	const [kind, setKind] = useState<'investors' | 'companies'>('investors');
+	const newKind = isRaise ? kind : 'companies';
 	const [name, setName] = useState('');
 	const [editing, setEditing] = useState<string | null>(null);
 	const [editName, setEditName] = useState('');
@@ -23,7 +33,8 @@ export function WatchlistsOverview({ watchlistHref }: { watchlistHref: (id: stri
 
 	return (
 		<>
-			<form className="atlas-wl-createbar" onSubmit={(e) => { e.preventDefault(); const n = name.trim(); if (n) void run(async () => { await createWatchlist(n); setName(''); }, `Created ${n}`); }}>
+			<form className="atlas-wl-createbar" onSubmit={(e) => { e.preventDefault(); const n = name.trim(); if (n) void run(async () => { await createWatchlist(n, newKind); setName(''); }, `Created ${n}`); }}>
+				{isRaise && <Seg ariaLabel="New watchlist holds" value={kind} onChange={setKind} options={[{ key: 'investors', label: 'Investors' }, { key: 'companies', label: 'Companies' }]} />}
 				<Input className="atlas-input--search" placeholder="New watchlist name, e.g. Football Infrastructure" value={name} maxLength={120} onChange={(e) => setName(e.target.value)} aria-label="New watchlist name" />
 				<Button type="submit" disabled={!name.trim() || busy}><Plus /> New watchlist</Button>
 			</form>
@@ -32,7 +43,7 @@ export function WatchlistsOverview({ watchlistHref }: { watchlistHref: (id: stri
 				<Empty>No watchlists yet. Create one above, or use “Add to watchlist” on any company page.</Empty>
 			) : (
 				<div className="atlas-rowlist">
-					{lists.map((l, i) => (
+					{lists.map((l) => (
 						<div key={l.id} className="atlas-rowlist__row">
 							<div className="atlas-rowlist__main">
 								{editing === l.id ? (
@@ -43,8 +54,8 @@ export function WatchlistsOverview({ watchlistHref }: { watchlistHref: (id: stri
 									</form>
 								) : (
 									<>
-										<Link href={watchlistHref(l.id)} className="atlas-rowlist__title atlas-wl-title" data-tour={i === 0 ? 'watchlist-open' : undefined}>{l.name}</Link>
-										<div className="atlas-rowlist__desc">{l.company_count ?? 0} compan{(l.company_count ?? 0) === 1 ? 'y' : 'ies'}</div>
+										<Link href={watchlistHref(l.id)} className="atlas-rowlist__title atlas-wl-title">{l.name}</Link>
+										<div className="atlas-rowlist__desc">{count(l.company_count ?? 0, isInvestorList(l))}</div>
 									</>
 								)}
 							</div>
@@ -52,7 +63,7 @@ export function WatchlistsOverview({ watchlistHref }: { watchlistHref: (id: stri
 								<div className="atlas-wl-actions">
 									<Action icon={<ArrowUpRight />} href={watchlistHref(l.id)}>Open</Action>
 									<Action icon={<Pencil />} onClick={() => { setEditing(l.id); setEditName(l.name); }}>Rename</Action>
-									<Action icon={<Trash2 />} disabled={busy} onClick={() => { if (window.confirm(`Delete “${l.name}”? Companies stay in the database.`)) void run(() => deleteWatchlist(l.id), `Deleted ${l.name}`); }}>Delete</Action>
+									<Action icon={<Trash2 />} disabled={busy} onClick={() => { if (window.confirm(isInvestorList(l) ? `Delete “${l.name}”? Its investors move back to your Main watchlist.` : `Delete “${l.name}”? Companies stay in the database.`)) void run(() => deleteWatchlist(l.id), `Deleted ${l.name}`); }}>Delete</Action>
 								</div>
 							)}
 						</div>

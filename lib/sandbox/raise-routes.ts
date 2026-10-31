@@ -20,7 +20,7 @@
  * (money as strings, YYYY-MM-DD for date columns, ISO for timestamps).
  */
 import { PIPELINE_STAGES, type PipelineActivity, type PipelineAdd, type PipelineStage, type PipelineUpdate, type RaiseCriteria, type RaiseUpsert } from '@/types/api';
-import { daysFromNow, gated, json, type SandboxCtx, type SandboxRoute } from './types';
+import { daysFromNow, json, type SandboxCtx, type SandboxRoute } from './types';
 
 // ─── Shapes (mirror the server rows) ────────────────────────────────────────
 
@@ -301,7 +301,7 @@ const RAISE_INT: (keyof RaiseUpsert)[] = ['paying_customers', 'runway_months'];
 const RAISE_KEYS: (keyof RaiseUpsert)[] = [
 	'company_id', 'company_name', 'company_website', 'hq_country', 'hq_city', 'company_description', 'company_category',
 	'company_sector_id', 'company_stage', 'revenue_status', 'fundraising_process', 'round_type', 'currency_code',
-	'target_close_date', 'valuation', 'structure', 'lead_investor_status', 'last_round_date', 'strongest_traction',
+	'target_close_date', 'valuation', 'structure', 'lead_investor_status', 'last_round_date',
 	'pitch_deck_status', 'financial_model_status', 'data_room_status', 'has_target_list', 'status',
 	...RAISE_MONEY, ...RAISE_INT,
 ];
@@ -612,7 +612,11 @@ async function buildBenchmarks(ws: Workspace) {
 
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
-const DEALFLOW_MSG = 'Sharing your round with the Investor Circle is part of Atlas Raise. In the sandbox you can see how it works.';
+/** Share the round with the Investor Circle (pending review), or withdraw it. */
+const setOptIn = (on: boolean) => withWs((ws, ctx) => {
+	commit(ctx, { ...ws, raise: { ...ws.raise, dealflow_opt_in: on, dealflow_status: on ? 'pending' : null } });
+	return { ok: true };
+});
 
 /** Run a handler against the (lazily built) workspace. */
 const withWs = <T>(fn: (ws: Workspace, ctx: SandboxCtx) => T) => async (ctx: SandboxCtx) => fn(await workspace(ctx), ctx);
@@ -636,7 +640,7 @@ export const raiseSandboxRoutes: SandboxRoute[] = [
 	['GET', '/api/raise/home', withWs(buildHome)],
 	['GET', '/api/raise/criteria', withWs((ws) => ws.criteria)],
 	['PUT', '/api/raise/criteria', putCriteria],
-	['POST', '/api/raise/strategy/book', () => gated('raise', 'Strategy sessions with SportsTechX leadership are part of Atlas Raise. Upgrade to book your quarterly call.')],
+	['POST', '/api/raise/strategy/book', () => ({ ok: true })],
 
 	// Market → My market.
 	['GET', '/api/raise/market', (ctx) => buildMarket(ctx, ctx.url.searchParams.get('force') === '1')],
@@ -649,12 +653,12 @@ export const raiseSandboxRoutes: SandboxRoute[] = [
 		ws.pipeline.some((r) => r.id === ctx.params.id) ? { data: ws.activity[ctx.params.id] ?? [] } : notFound('pipeline entry not found')
 	))],
 
-	// Deal Flow opt-in (Settings): readable, writes are an upgrade.
+	// Deal Flow opt-in (Settings): share the round with the Investor Circle, or withdraw it.
 	['GET', '/api/raise/dealflow/opt-in', withWs(({ raise }) => (
 		{ opted_in: raise.dealflow_opt_in, status: raise.dealflow_status, review_notes: null, submitted_at: null, has_raise: true }
 	))],
-	['POST', '/api/raise/dealflow/opt-in', () => gated('raise', DEALFLOW_MSG)],
-	['DELETE', '/api/raise/dealflow/opt-in', () => gated('raise', DEALFLOW_MSG)],
+	['POST', '/api/raise/dealflow/opt-in', setOptIn(true)],
+	['DELETE', '/api/raise/dealflow/opt-in', setOptIn(false)],
 
 	// Founder recommendations (raise-gated on the server).
 	['GET', '/api/recommendations/investors', withWs((ws, ctx) => buildMatches(ws, ctx.url))],

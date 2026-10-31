@@ -8,7 +8,7 @@ import { Loader2, RefreshCw } from 'lucide-react';
 import { qk } from '@/lib/query-keys';
 import { apiRequest } from '@/lib/query-client';
 import { Card, Tabs, Button, Loading, Empty, Logo, Flag } from '@/components/atlas';
-import { hrefOf } from '@/lib/routes';
+import { companyHref, hrefOf } from '@/lib/routes';
 
 /**
  * Market → My market. The founder's OWN market: LLM-estimated TAM/SAM plus
@@ -17,7 +17,7 @@ import { hrefOf } from '@/lib/routes';
  * analytics took that slot.
  */
 interface Grounded { sector?: string; total_funding_usd?: number; funded_companies?: number; companies_tracked?: number; deals?: number; funding_cagr_pct?: number | null }
-interface Methodology { approach?: string; grounded?: Grounded; assumptions?: string[]; sources?: string[] }
+interface Methodology { estimating?: boolean; estimate_failed?: boolean; approach?: string; grounded?: Grounded; assumptions?: string[]; sources?: string[] }
 interface Competitor { id: string; name: string; website?: string | null; custom_logo_url?: string | null; hq_country: string | null; funding: string }
 interface Market {
 	unavailable?: boolean; reason?: string;
@@ -26,22 +26,27 @@ interface Market {
 	methodology: Methodology | null; competitors: Competitor[] | null; updated_at?: string;
 }
 
+// One decimal, dropping a trailing ".0" so round values stay clean (2.3m / 340m).
+const d1 = (x: number) => x.toFixed(1).replace(/\.0$/, '');
 const eur = (v: string | null) => {
 	if (v == null) return '—';
 	const n = Number(v);
-	return n >= 1e9 ? `EUR ${(n / 1e9).toFixed(1)}bn` : n >= 1e6 ? `EUR ${(n / 1e6).toFixed(0)}m` : `EUR ${n.toLocaleString()}`;
+	return n >= 1e9 ? `EUR ${d1(n / 1e9)}bn` : n >= 1e6 ? `EUR ${d1(n / 1e6)}m` : `EUR ${n.toLocaleString()}`;
 };
-const usd = (n?: number | null) => (n == null ? '—' : n >= 1e9 ? `$${(n / 1e9).toFixed(1)}bn` : n >= 1e6 ? `$${(n / 1e6).toFixed(0)}m` : n > 0 ? `$${n.toLocaleString()}` : '—');
+const usd = (n?: number | null) => (n == null ? '—' : n >= 1e9 ? `$${d1(n / 1e9)}bn` : n >= 1e6 ? `$${d1(n / 1e6)}m` : n > 0 ? `$${n.toLocaleString()}` : '—');
 
 export function MyMarket() {
 	const [tab, setTab] = useState<'size' | 'competitors'>('size');
 	const [recomputing, setRecomputing] = useState(false);
-	const [attempts, setAttempts] = useState(0);
+	// The server flags a running TAM/SAM estimate (and clears the flag when it
+	// lands, fails, or times out) — poll on that, and keep the previous figures up.
+	// Interval refreshes are deduped, and the global 5-min dedupe made this poll a no-op.
 	const { data, isLoading, mutate } = useSWR<Market>(qk.raise.market(), {
-		refreshInterval: (d) => (d && !d.unavailable && d.tam == null && attempts < 6 ? 8000 : 0),
-		onSuccess: (d) => setAttempts((a) => (d && !d.unavailable && d.tam == null ? a + 1 : 0)),
+		dedupingInterval: 2000,
+		refreshInterval: (d) => (d && !d.unavailable && d.methodology?.estimating ? 8000 : 0),
 	});
-	const estimating = !!data && !data.unavailable && data.tam == null && attempts < 6;
+	const estimating = !!data && !data.unavailable && !!data.methodology?.estimating;
+	const sizeNote = (v: string | null) => (estimating || recomputing ? (v != null ? 'Updating estimate…' : 'Estimating…') : v != null ? 'Estimate' : data?.methodology?.estimate_failed ? 'Estimate failed — try Recompute' : 'Not available');
 	const competitors = useMemo(() => data?.competitors ?? [], [data]);
 	const g = data?.methodology?.grounded;
 
@@ -50,7 +55,6 @@ export function MyMarket() {
 		try {
 			const res = await apiRequest('GET', '/api/raise/market?force=1');
 			if (!res.ok) throw new Error('Could not recompute');
-			setAttempts(0);
 			await mutate((await res.json()) as Market, { revalidate: false });
 			toast.success('Market analysis recomputed');
 		} catch (e) { toast.error((e as Error).message ?? 'Recompute failed'); }
@@ -71,9 +75,9 @@ export function MyMarket() {
 				</Button>
 			</div>
 
-			<div className="atlas-kpis" data-tour="raise-market-size">
-				<Kpi label="Total market (TAM)" value={estimating || recomputing ? '—' : eur(data.tam)} note={estimating || recomputing ? 'Estimating…' : data.tam != null ? 'Estimate' : undefined} />
-				<Kpi label="Addressable market (SAM)" value={estimating || recomputing ? '—' : eur(data.sam)} note={estimating || recomputing ? 'Estimating…' : data.sam != null ? 'Estimate' : undefined} />
+			<div className="atlas-kpis">
+				<Kpi label="Total market (TAM)" value={eur(data.tam)} note={sizeNote(data.tam)} />
+				<Kpi label="Addressable market (SAM)" value={eur(data.sam)} note={sizeNote(data.sam)} />
 				<Kpi label="Market growth" value={data.cagr != null ? `${Number(data.cagr).toFixed(1)}% CAGR` : '—'} />
 				<Kpi label="Competitors tracked" value={String(g?.companies_tracked ?? competitors.length)} />
 				<Kpi label="Total funding raised" value={usd(g?.total_funding_usd)} />
@@ -117,9 +121,9 @@ export function MyMarket() {
 			) : (
 				<div style={{ marginTop: 27 }}>
 					{competitors.length === 0 ? <Empty>No competitors mapped yet.</Empty> : (
-						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))', gap: 16 }}>
 							{competitors.map((c) => (
-								<div key={c.id} className="atlas-card atlas-entity-card" style={{ minHeight: 120 }}>
+								<Link key={c.id} href={companyHref(c.id)} className="atlas-card atlas-entity-card" style={{ minHeight: 120, textDecoration: 'none', color: 'inherit' }}>
 									<div className="atlas-entity-card__head" style={{ marginBottom: 12 }}>
 										<Logo co={{ name: c.name, website: c.website, custom_logo_url: c.custom_logo_url }} size={62} radius={9} />
 										<div style={{ minWidth: 0, paddingTop: 11 }}>
@@ -128,7 +132,7 @@ export function MyMarket() {
 										</div>
 									</div>
 									<div className="atlas-entity-card__actions" style={{ fontFamily: 'var(--a-mono)', fontSize: 10, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--a-muted)' }}>{c.funding}</div>
-								</div>
+								</Link>
 							))}
 						</div>
 					)}
@@ -143,7 +147,7 @@ function Kpi({ label, value, note }: { label: string; value: string; note?: stri
 		<div className="atlas-kpi">
 			<div className="atlas-kpi__label">{label}</div>
 			<div className="atlas-kpi__value">{value}</div>
-			<div className="atlas-kpi__note">{note}</div>
+			{note && <div className="atlas-kpi__note">{note}</div>}
 		</div>
 	);
 }

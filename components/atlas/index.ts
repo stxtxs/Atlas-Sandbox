@@ -18,14 +18,16 @@ export { Screen, PageHead, SectionHead, H1, H2, Sub, Eyebrow, Loading, Empty } f
 export { Card } from './ui/card';
 export { Button, Action } from './ui/button';
 export { Field, Input, Textarea, Select, ReadOnly } from './ui/form';
+export { InfoTip, HoverTip } from './ui/info-tip';
 export { Badge } from './ui/badge';
 export { Tabs, Seg, PillTabs } from './ui/tabs';
+export { ViewToggle } from './ui/view-toggle';
+export type { ViewMode } from './ui/view-toggle';
 export { Stat, Progress } from './ui/stat';
 
 // Patterns
 export { FilterBar } from './patterns/filter-bar';
 export { useDismiss } from './patterns/use-dismiss';
-export { menuEdgeRef } from './patterns/menu-edge';
 export type { FilterDef, FilterGroup } from './patterns/filter-bar';
 export { Logo, Flag, countryToIso } from './patterns/entity-logo';
 export { StagedLoader } from './patterns/staged-loader';

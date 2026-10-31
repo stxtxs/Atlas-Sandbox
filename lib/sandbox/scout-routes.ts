@@ -32,7 +32,7 @@
  */
 import type { DealRow, MyDealRow } from '@/components/scout/deal-types';
 import type { ScoutProfile, ServerThesis, TaxonomyRef } from '@/components/scout/thesis-codec';
-import { daysFromNow, gated, json, type SandboxCtx, type SandboxRoute } from './types';
+import { daysFromNow, json, type SandboxCtx, type SandboxRoute } from './types';
 
 // ─── Constants & state ───────────────────────────────────────────────────────
 
@@ -68,6 +68,8 @@ interface ScoutState {
 	/** null = nothing saved; reads as the server's empty thesis. */
 	thesis: ServerThesis | null;
 	drafts: DraftDeal[];
+	/** Deals the visitor asked SportsTechX for an introduction to. */
+	interests?: string[];
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -79,6 +81,7 @@ function readState(ctx: SandboxCtx): ScoutState {
 		profile: isRecord(s.profile) ? (s.profile as unknown as ScoutProfileRow) : null,
 		thesis: isRecord(s.thesis) ? (s.thesis as unknown as ServerThesis) : null,
 		drafts: Array.isArray(s.drafts) ? (s.drafts as DraftDeal[]) : [],
+		interests: Array.isArray(s.interests) ? (s.interests as string[]) : [],
 	};
 }
 
@@ -647,7 +650,7 @@ function upsertDraft(ctx: SandboxCtx, id: string | null) {
 			id: crypto.randomUUID(), source: 'circle', status: 'draft', company_name: null, round_type: null,
 			currency_code: null, target_amount: null, review_notes: null, submitted_at: null,
 			created_at: now, updated_at: now, company_anonymous: false, submitter_anonymous: false,
-			founder_consent: false, committed_amount: null, lead_status: null, target_close_date: null, ...changes,
+			founder_consent: false, committed_amount: null, lead_status: null, target_close_date: null, interest_count: 0, ...changes,
 		};
 		writeState(ctx, { ...state, drafts: [row, ...state.drafts] });
 		return row;
@@ -676,13 +679,13 @@ function dealList(ctx: SandboxCtx) {
 
 const findDeal = (id: string | undefined) => SAMPLE_DEALS.find((d) => d.id === id);
 
-/** Document opens are gated, but only for documents the real server would release. */
+/** Documents open the bundled sample PDF — only for documents the real server would release. */
 function documentRoute(ctx: SandboxCtx, which: 'deck' | 'one_pager') {
 	const d = findDeal(ctx.params.id);
 	const present = which === 'deck' ? d?.has_deck : d?.has_one_pager;
 	const allowed = !!d && (d.disclosed || (d.materials_access === 'immediate' && !d.company_anonymous));
 	if (!d || !present || !allowed) return notFound();
-	return gated('scout', 'Opening deal documents is part of Scout. Upgrade to read the full pitch deck and one-pager.');
+	return { url: '/sample/sample-deck.pdf' };
 }
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
@@ -704,7 +707,7 @@ export const scoutSandboxRoutes: SandboxRoute[] = [
 	// Deal Flow — reads work without a row (server parity); writes need one
 	['GET', '/api/scout/dealflow', (ctx) => dealList(ctx)],
 	['GET', '/api/scout/dealflow/mine', (ctx) => ({ data: readState(ctx).drafts })],
-	['GET', '/api/scout/dealflow/interest', () => ({ data: [] })],
+	['GET', '/api/scout/dealflow/interest', (ctx) => ({ data: (readState(ctx).interests ?? []).map((deal_id) => ({ deal_id, status: 'requested', created_at: daysFromNow(0) })) })],
 	// Sandbox choice: eligible once a workspace exists, so drafting can be tried.
 	['GET', '/api/scout/dealflow/can-submit', (ctx) => ({ can_submit: !!readState(ctx).profile })],
 	['POST', '/api/scout/dealflow', (ctx) => upsertDraft(ctx, null)],
@@ -712,10 +715,19 @@ export const scoutSandboxRoutes: SandboxRoute[] = [
 	['PATCH', '/api/scout/dealflow/:id', (ctx) => upsertDraft(ctx, ctx.params.id)],
 	['GET', '/api/scout/dealflow/:id/deck-url', (ctx) => documentRoute(ctx, 'deck')],
 	['GET', '/api/scout/dealflow/:id/one-pager-url', (ctx) => documentRoute(ctx, 'one_pager')],
-	['POST', '/api/scout/dealflow/:id/interest', (ctx) => (findDeal(ctx.params.id)
-		? gated('scout', 'Requesting an introduction is part of Scout. Upgrade and SportsTechX will connect you with the company.')
-		: notFound())],
-	['POST', '/api/scout/dealflow/:id/submit', (ctx) => (readState(ctx).profile
-		? gated('scout', 'Your draft is saved. Upgrade to Scout to submit it to the Investor Circle for review.')
-		: notSetUp())],
+	['POST', '/api/scout/dealflow/:id/interest', (ctx) => {
+		if (!findDeal(ctx.params.id)) return notFound();
+		const state = readState(ctx);
+		writeState(ctx, { ...state, interests: [...new Set([...(state.interests ?? []), ctx.params.id])] });
+		return { deal_id: ctx.params.id, status: 'requested' };
+	}],
+	['POST', '/api/scout/dealflow/:id/submit', (ctx) => {
+		const state = readState(ctx);
+		if (!state.profile) return notSetUp();
+		const row = state.drafts.find((m) => m.id === ctx.params.id);
+		if (!row) return notFound();
+		const submitted: DraftDeal = { ...row, status: 'submitted', submitted_at: daysFromNow(0), updated_at: daysFromNow(0) };
+		writeState(ctx, { ...state, drafts: state.drafts.map((m) => (m.id === row.id ? submitted : m)) });
+		return submitted;
+	}],
 ];

@@ -1,5 +1,9 @@
-import { getSupabaseBrowser } from '@/lib/supabase/client';
-import type { ClaimForm } from './claim-form';
+import { demoUpload } from '@/lib/sandbox/demo-storage';
+import { deckUploadError } from '@/lib/deck-upload';
+
+/** Pitch-deck formats the claim form takes (the claim analyzer converts PPT/PPTX). */
+export const CLAIM_DECK_EXTS = ['pdf', 'ppt', 'pptx'];
+import type { ClaimForm, EntityPick, NewEntity } from './claim-form';
 import { OP_TYPE_TO_ENTITY } from './claim-form';
 import type { ClaimReference } from './use-claim-reference';
 
@@ -40,6 +44,20 @@ const trimOrNull = (s: string): string | null => {
   return v ? v : null;
 };
 
+// ─── user-added companies / investors ─────────────────────────────────────
+// A picked Atlas record sends its id; one the user added sends its details
+// (created when the claim is verified); an older bare name is kept as text.
+
+const newCompany = (n: NewEntity) => ({
+  website: n.website.trim(), hq_country: n.country.trim(), hq_city: trimOrNull(n.city),
+  sector_id: n.sectorId, description: n.description.trim(), founded_year: intOrNull(n.founded), linkedin_url: trimOrNull(n.linkedin),
+});
+const newInvestor = (n: NewEntity) => ({
+  website: n.website.trim(), hq_country: n.country.trim(), hq_city: trimOrNull(n.city),
+  category: n.category, linkedin_url: trimOrNull(n.linkedin),
+});
+const named = (p: EntityPick | null | undefined): p is EntityPick => !!p && !!p.name.trim();
+
 // ─── pitch-deck upload ─────────────────────────────────────────────────────
 
 /**
@@ -48,14 +66,12 @@ const trimOrNull = (s: string): string | null => {
  * `pitch_deck_url`; admins mint signed URLs to read it. Throws on failure.
  */
 export async function uploadPitchDeck(file: File, userId: string): Promise<string> {
-  const supabase = getSupabaseBrowser();
   const safeName = file.name.replace(/[^\w.\-]+/g, '_').slice(-80);
   const key = `${userId}/${Date.now()}_${safeName}`;
-  const { error } = await supabase.storage.from('claim-decks').upload(key, file, {
-    upsert: false,
-    contentType: file.type || undefined,
-  });
-  if (error) throw new Error(error.message);
+  const { error } = await demoUpload(key, file);
+  // Say what went wrong ("Your pitch deck is 63.2 MB — the maximum is 50 MB"),
+  // not storage's "The object exceeded the maximum allowed size".
+  if (error) throw new Error(deckUploadError(error.message, file, CLAIM_DECK_EXTS));
   return key;
 }
 
@@ -87,7 +103,12 @@ export function buildCompanyDto(form: ClaimForm, ref: ClaimReference, targetId: 
       hq_city: trimOrNull(form.coCity),
       hq_country: trimOrNull(form.coCountry),
       sport: trimOrNull(form.sport),
-      program_participation: trimOrNull(form.programs),
+      // Linked / added programs; the text column keeps a readable summary.
+      programs: form.programs.filter(named).map((p) => ({
+        program_id: p.id, name: p.name.trim(), cohort_year: intOrNull(p.year),
+        new_program: p.added && !p.id ? { website: p.added.website.trim(), hq_country: p.added.country.trim(), hq_city: trimOrNull(p.added.city) } : null,
+      })),
+      program_participation: trimOrNull(form.programs.filter(named).map((p) => (p.year ? `${p.name.trim()} (${p.year})` : p.name.trim())).join(', ').slice(0, 200)),
       twitter_url: trimOrNull(form.twitter),
       instagram_url: trimOrNull(form.instagram),
       facebook_url: trimOrNull(form.facebook),
@@ -99,20 +120,29 @@ export function buildCompanyDto(form: ClaimForm, ref: ClaimReference, targetId: 
       contact_email: trimOrNull(form.contactEmail),
       contact_linkedin: trimOrNull(form.contactLinkedin),
     },
-    funding_rounds: form.rounds.map((r) => ({
-      round_type_id: ref.resolveRoundType(r.roundType),
-      round_label: trimOrNull(r.roundType),
-      amount_usd: parseAmount(r.amount),
-      round_date: trimOrNull(r.date),
-      investors: trimOrNull(r.investors),
-      source_url: trimOrNull(r.source),
-    })),
-    mna: form.mna.map((m) => ({
-      deal_type: trimOrNull(m.dealType),
-      counterparty: trimOrNull(m.counterparty),
-      amount_usd: parseAmount(m.amount),
-      deal_date: trimOrNull(m.date),
-    })),
+    funding_rounds: form.rounds.map((r) => {
+      const invs = (r.invs ?? []).filter(named);
+      return {
+        round_type_id: ref.resolveRoundType(r.roundType),
+        round_label: trimOrNull(r.roundType),
+        amount_usd: parseAmount(r.amount),
+        round_date: trimOrNull(r.date),
+        investors: invs.length ? invs.map((p) => p.name.trim()).join(', ') : null,
+        investor_refs: invs.map((p) => ({ investor_id: p.id, name: p.name.trim(), new_investor: p.added ? newInvestor(p.added) : null })),
+        source_url: trimOrNull(r.source),
+      };
+    }),
+    mna: form.mna.map((m) => {
+      const cp = named(m.cp) ? m.cp : null;
+      return {
+        deal_type: trimOrNull(m.dealType),
+        counterparty: cp ? cp.name.trim() : trimOrNull(m.counterparty),
+        counterparty_company_id: cp?.id ?? null,
+        new_counterparty: cp?.added ? newCompany(cp.added) : null,
+        amount_usd: parseAmount(m.amount),
+        deal_date: trimOrNull(m.date),
+      };
+    }),
   };
 }
 
@@ -153,11 +183,16 @@ export function buildInvestorDto(form: ClaimForm, ref: ClaimReference, targetId:
       fund_year: intOrNull(f.year),
       size_usd: parseAmount(f.size),
     })),
-    portfolio: form.portfolio.map((p) => ({
-      company_name: trimOrNull(p.name),
-      stage: trimOrNull(p.stage),
-      invest_year: intOrNull(p.year),
-    })),
+    portfolio: form.portfolio.map((p) => {
+      const co = named(p.co) ? p.co : null;
+      return {
+        company_name: co ? co.name.trim() : trimOrNull(p.name),
+        company_id: co?.id ?? null,
+        new_company: co?.added ? newCompany(co.added) : null,
+        stage: trimOrNull(p.stage),
+        invest_year: intOrNull(p.year),
+      };
+    }),
   };
 }
 

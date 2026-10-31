@@ -1,10 +1,14 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import useSWR, { mutate as globalMutate } from 'swr';
+import useSWR from 'swr';
 import { X, Plus, Check } from 'lucide-react';
 import { qk } from '@/lib/query-keys';
 import { apiRequest } from '@/lib/query-client';
+import { useFormDraft } from '@/hooks/use-form-draft';
+import { toast } from 'sonner';
+import { addToWatchlist, removeFromWatchlist } from '@/components/features/watchlists/use-company-watchlists';
+import { refreshWatchlists } from '@/lib/invalidate';
 
 interface Watchlist {
 	id: string;
@@ -12,6 +16,7 @@ interface Watchlist {
 	description: string | null;
 	color: string | null;
 	company_count?: number;
+	kind?: 'companies' | 'investors';
 }
 
 interface WatchlistsResponse { data: Watchlist[] }
@@ -40,7 +45,8 @@ export function WatchlistPicker({
 		open && companyId ? qk.userWatchlists.containing(companyId) : null,
 	);
 
-	const lists = useMemo(() => listsResp?.data ?? [], [listsResp]);
+	// Company lists only — a Raise investor list can't hold companies.
+	const lists = useMemo(() => (listsResp?.data ?? []).filter((l) => l.kind !== 'investors'), [listsResp]);
 	const checked = useMemo(() => new Set(containingResp?.data ?? []), [containingResp]);
 
 	const [pending, setPending] = useState<Set<string>>(new Set());
@@ -48,12 +54,28 @@ export function WatchlistPicker({
 	const [newName, setNewName] = useState('');
 	const [newColor, setNewColor] = useState('#f43f5e');
 
-	useEffect(() => {
-		if (!open) {
-			setCreating(false);
-			setNewName('');
-		}
-	}, [open]);
+	// Keep a half-typed new-list name across an accidental close (Escape /
+	// click-outside) so reopening restores it. Cleared once the list is created.
+	const { clear: clearDraft } = useFormDraft(
+		`watchlist:${companyId ?? 'new'}`,
+		{ newName, newColor },
+		(d) => { if (d.newName) setNewName(d.newName); if (d.newColor) setNewColor(d.newColor); },
+		{
+			enabled: open,
+			// Untrusted stored blob: accept only a well-formed name + hex colour.
+			validate: (raw) => {
+				if (!raw || typeof raw !== 'object') return null;
+				const r = raw as Record<string, unknown>;
+				const name = typeof r.newName === 'string' ? r.newName.slice(0, 120) : '';
+				const color = typeof r.newColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(r.newColor) ? r.newColor : '#f43f5e';
+				return name || color !== '#f43f5e' ? { newName: name, newColor: color } : null;
+			},
+		},
+	);
+
+	// Don't wipe the typed name on close any more — that was the data loss the
+	// draft cache fixes. Just drop the transient "creating" flag.
+	useEffect(() => { if (!open) setCreating(false); }, [open]);
 
 	useEffect(() => {
 		if (!open) return;
@@ -68,13 +90,13 @@ export function WatchlistPicker({
 		if (!companyId) return;
 		const isOn = checked.has(id);
 		setPending((p) => new Set(p).add(id));
+		// The shared helpers: optimistic, and they refresh every view of the list
+		// (this used to miss the list's own page and swallow failures).
 		try {
-			await apiRequest(
-				isOn ? 'DELETE' : 'POST',
-				`/api/user-watchlists/${id}/companies/${companyId}`,
-			);
-			await globalMutate(qk.userWatchlists.containing(companyId));
-			await globalMutate(qk.userWatchlists.list());
+			if (isOn) await removeFromWatchlist(id, companyId);
+			else await addToWatchlist(id, companyId);
+		} catch (err) {
+			toast.error((err as Error).message || 'Could not update the watchlist');
 		} finally {
 			setPending((p) => { const n = new Set(p); n.delete(id); return n; });
 		}
@@ -90,14 +112,13 @@ export function WatchlistPicker({
 				name, color: newColor,
 			});
 			const created = await res.json() as Watchlist;
-			await globalMutate(qk.userWatchlists.list());
-			if (companyId) {
-				await apiRequest('POST', `/api/user-watchlists/${created.id}/companies/${companyId}`);
-				await globalMutate(qk.userWatchlists.containing(companyId));
-			}
+			if (companyId) await addToWatchlist(created.id, companyId);
+			else await refreshWatchlists();
 			setNewName('');
+			clearDraft();
 			setCreating(false);
-		} catch {
+		} catch (err) {
+			toast.error((err as Error).message || 'Could not create the list');
 			setCreating(false);
 		}
 	};

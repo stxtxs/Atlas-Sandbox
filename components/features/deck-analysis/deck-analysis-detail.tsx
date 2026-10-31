@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { AlertTriangle, ArrowLeft, ArrowUpRight, Check, ChevronDown, FileText, HelpCircle, RefreshCw } from 'lucide-react';
 import { apiRequest, getAuthHeaders } from '@/lib/query-client';
+import { mockFetch } from '@/lib/sandbox/mock-api';
+import { refreshCredits, refreshPaths } from '@/lib/invalidate';
 import { isInsufficientCreditsError } from '@/lib/credit-events';
-import { consumeDeckStream, stripScorecardJson, type DeckScorecard } from '@/lib/deck-analysis';
+import { consumeDeckStream, stripScorecardJson, DECK_TOO_LARGE_COPY, type DeckFailure, type DeckScorecard } from '@/lib/deck-analysis';
 import { Markdown } from '@/components/markdown';
 import { Screen, Card, Button, Loading, Logo, StagedLoader } from '@/components/atlas';
 import { companyHref, hrefOf } from '@/lib/routes';
@@ -19,7 +21,7 @@ import { DECK_ANALYSIS_STAGES } from './deck-stages';
  * scorecard + markdown); streams on first run for a not-yet-analysed deck.
  * Rendered from the structured scorecard; markdown is the fallback.
  */
-interface DeckRow { status: string; analysis_md: string | null; result_json: DeckScorecard | null; filename?: string | null; created_at?: string | null; overall_score?: number | null }
+interface DeckRow { status: string; analysis_md: string | null; result_json: DeckScorecard | null; filename?: string | null; created_at?: string | null; overall_score?: number | null; failure?: DeckFailure }
 
 const TOPIC_GROUPS: { h: string; labels: string[] }[] = [
 	{ h: 'Story', labels: ['problem', 'solution', 'market', 'product'] },
@@ -40,24 +42,40 @@ export function DeckAnalysisDetail({ id, copy = FOUNDER_DETAIL_COPY }: { id: str
 	const [md, setMd] = useState('');
 	const [scorecard, setScorecard] = useState<DeckScorecard | null>(null);
 	const [streaming, setStreaming] = useState(true);
+	// Why the analysis isn't showing (refused for credits, or failed) — without it
+	// the page is blank once the modal / toast is gone.
+	const [notice, setNotice] = useState<{ kind: 'credits' } | { kind: 'error'; message: string } | null>(null);
 	const [busy, setBusy] = useState<'file' | 'rerun' | null>(null);
 	// Bumped by "Run it again". The effect below already does
 	// fetch-row-then-stream, and `reanalyze` resets the row to `pending`
 	// server-side, so re-running the effect is the whole implementation.
 	const [reload, setReload] = useState(0);
 	const abortRef = useRef<AbortController | null>(null);
+	const gotResult = useRef(false);
 
 	const streamAnalysis = useCallback(async (ac: AbortController, cancelled: () => boolean) => {
 		const auth = await getAuthHeaders();
-		const res = await fetch(`/api/deck-analysis/${id}/stream`, { method: 'POST', headers: { Accept: 'text/event-stream', ...auth }, credentials: 'include', signal: ac.signal });
+		const res = await mockFetch(`/api/deck-analysis/${id}/stream`, { method: 'POST', headers: { Accept: 'text/event-stream', ...auth }, credentials: 'include', signal: ac.signal });
 		if (!res.ok || !res.body) { if (!cancelled()) setMd('⚠️ Failed to start analysis.'); return; }
-		await consumeDeckStream(res.body, { onDelta: (t) => setMd((p) => p + t), onDone: (sc) => setScorecard(sc), onError: (m) => toast.error(m) }, ac.signal);
+		await consumeDeckStream(res.body, {
+			onDelta: (t) => setMd((p) => p + t),
+			onDone: (sc) => {
+				gotResult.current = true;
+				setScorecard(sc);
+				// Credits are charged when the analysis finishes; the deck list and
+				// its summary card (score, verdict) now have the new result.
+				void refreshCredits();
+				void refreshPaths('/api/deck-analysis');
+			},
+			onError: (message) => setNotice({ kind: 'error', message }),
+			onCredits: () => setNotice({ kind: 'credits' }),
+		}, ac.signal);
 	}, [id]);
 
 	useEffect(() => {
 		const ac = new AbortController(); abortRef.current = ac; let cancelled = false;
 		(async () => {
-			setMd(''); setScorecard(null); setStreaming(true); setRow(null);
+			setMd(''); setScorecard(null); setStreaming(true); setRow(null); setNotice(null);
 			try {
 				const res = await apiRequest('GET', `/api/deck-analysis/${id}`);
 				const r = res.ok ? ((await res.json()) as DeckRow) : null;
@@ -68,7 +86,19 @@ export function DeckAnalysisDetail({ id, copy = FOUNDER_DETAIL_COPY }: { id: str
 					setScorecard(r.result_json ?? null);
 					return;
 				}
+				// Re-running the same too-large file can't work — say so instead.
+				if (r?.failure === 'too_large') { setNotice({ kind: 'error', message: DECK_TOO_LARGE_COPY }); return; }
+				gotResult.current = false;
 				await streamAnalysis(ac, () => cancelled);
+				// A refused/failed RE-run keeps the previous analysis server-side —
+				// show it again under the notice instead of an empty page.
+				if (!gotResult.current && !cancelled) {
+					const again = await apiRequest('GET', `/api/deck-analysis/${id}`);
+					const r2 = again.ok ? ((await again.json()) as DeckRow) : null;
+					if (!cancelled && r2?.status === 'done') {
+						setRow(r2); setMd(r2.analysis_md ?? ''); setScorecard(r2.result_json ?? null);
+					}
+				}
 			} catch (e) {
 				if ((e as Error).name !== 'AbortError') toast.error((e as Error).message ?? 'Analysis failed');
 			} finally { if (!cancelled) setStreaming(false); }
@@ -144,6 +174,13 @@ export function DeckAnalysisDetail({ id, copy = FOUNDER_DETAIL_COPY }: { id: str
 				</div>
 			</div>
 
+			{/* Above the analysis: after a failed re-run the previous one shows below it. */}
+			{notice && !streaming && (
+				<Card style={{ marginTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+					<span style={{ fontSize: 13, color: 'var(--a-muted)' }}>{notice.kind === 'credits' ? 'Not enough credits to analyse this deck. Top up, then run it again.' : notice.message}</span>
+					{notice.kind === 'credits' && <Button size="sm" onClick={() => router.push(hrefOf('credits'))}>Buy credits</Button>}
+				</Card>
+			)}
 			{streaming && !scorecard && (
 				<StagedLoader
 					title={`Analysing ${row?.filename ?? 'the deck'}`}
@@ -247,7 +284,7 @@ export function DeckAnalysisDetail({ id, copy = FOUNDER_DETAIL_COPY }: { id: str
 							<FlaggedCol title="Diligence questions" items={scorecard.diligence_questions ?? []} tone="muted" icon={<HelpCircle size={13} />} />
 							<Col title={copy.strengths} items={scorecard.strengths} />
 						</> : <>
-							<Col title={copy.recommendations} items={scorecard.suggestions.map((s) => s.suggestion)} firstTour="deck-top-fix" />
+							<Col title={copy.recommendations} items={scorecard.suggestions.map((s) => s.suggestion)} />
 							<Col title={copy.strengths} items={scorecard.strengths} />
 							<Col title={copy.concerns} items={scorecard.risks} />
 						</>}
@@ -301,12 +338,12 @@ function Area({ label, score, shows, missing, defaultOpen, last }: { label: stri
 	);
 }
 
-function Col({ title, items, firstTour }: { title: string; items: string[]; firstTour?: string }) {
+function Col({ title, items }: { title: string; items: string[] }) {
 	return (
 		<div>
 			<div className="atlas-eyebrow">{title}</div>
 			<div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12, lineHeight: 1.55, color: 'var(--a-muted)' }}>
-				{items.length ? items.map((t, i) => <span key={i} data-tour={i === 0 ? firstTour : undefined}>{t}</span>) : <span style={{ color: 'var(--a-faint)' }}>—</span>}
+				{items.length ? items.map((t, i) => <span key={i}>{t}</span>) : <span style={{ color: 'var(--a-faint)' }}>—</span>}
 			</div>
 		</div>
 	);

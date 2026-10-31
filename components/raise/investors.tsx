@@ -2,18 +2,22 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import useSWR from 'swr';
+import { useRouter } from 'next/navigation';
+import useSWR, { mutate as globalMutate } from 'swr';
 import { toast } from 'sonner';
-import { Check, Plus, ArrowUpRight, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowUpRight, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ExportButton } from '@/components/features/exports/export-button';
 import { qk } from '@/lib/query-keys';
 import type { InvestorListItem as Investor } from '@/types/api';
 import { apiRequest } from '@/lib/query-client';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
-import { Button, Loading, Empty, Action, FilterBar, type FilterDef, Logo, Flag, lockedFiltersNote } from '@/components/atlas';
-import { useSectorTierData, useSportOptions, useLocationFacetOptions, useTechTagOptions } from '@/hooks/use-catalog-options';
-import { SINCE_YEARS, DEALS_BUCKETS } from '@/lib/catalog-options';
+import { Button, Loading, Empty, Action, FilterBar, type FilterDef, Logo, Flag, ViewToggle, type ViewMode, lockedFiltersNote } from '@/components/atlas';
+import { useSectorTierData, useSportOptions, useLocationFacetOptions, useTechTagOptions, useCountryOptions } from '@/hooks/use-catalog-options';
+import { SINCE_YEARS, DEALS_BUCKETS, canonicalCountry } from '@/lib/catalog-options';
 import { useFeatureAccess } from '@/contexts/feature-access-context';
+import { useUserProfile, getUserType } from '@/hooks/use-user-profile';
+import { useUrlSync, useUrlReader } from '@/hooks/use-url-state';
+import { SaveInvestorToWatchlist } from './save-investor-to-watchlist';
 import { hrefOf } from '@/lib/routes';
 
 /**
@@ -22,7 +26,8 @@ import { hrefOf } from '@/lib/routes';
  *   • RecommendedInvestors — the investor-matching engine (/api/recommendations/investors),
  *     leading with the *reasons* Atlas matched them, not a mystery % score.
  *   • AllInvestors — the investor database with search + filters + pagination.
- * "Add to watchlist" posts to the raise pipeline (/api/raise/pipeline).
+ * "Add to watchlist" files the investor in one of the founder's investor
+ * watchlists (Main or a named list) — see SaveInvestorToWatchlist.
  */
 interface Match { id: string; name: string; slug: string | null; website: string | null; logo_url?: string | null; hq_country?: string | null; category: string | null; description: string | null; score: number; match_reasons: string[] }
 interface MatchResult { company: { id: string; name: string } | null; reason?: string; results: Match[] }
@@ -47,42 +52,49 @@ const CATEGORY_OPTIONS: [string, string][] = [
 	['private_equity', 'Private Equity'], ['family_investment_office', 'Family Office'],
 	['sovereign_wealth_fund', 'Sovereign Wealth Fund'], ['angel', 'Angel'], ['other', 'Other'],
 ];
-// Country options — the OPTION VALUE is a CSV of every spelling that country
-// appears under in the data (the backend `country` filter splits CSV and matches
-// any), so one option catches all variants. Ordered by investor frequency.
-// e.g. the DB stores both "USA" and "United States"; "UK" and "United Kingdom".
-const COUNTRY_OPTIONS: [string, string][] = [
-	['USA,United States', 'United States'],
-	['UK,United Kingdom', 'United Kingdom'],
-	['India', 'India'], ['Singapore', 'Singapore'], ['France', 'France'],
-	['Australia', 'Australia'], ['Germany', 'Germany'], ['Hong Kong', 'Hong Kong'],
-	['Canada', 'Canada'], ['Israel', 'Israel'], ['Spain', 'Spain'], ['Brazil', 'Brazil'],
-	['UAE,United Arab Emirates', 'United Arab Emirates'], ['The Netherlands,Netherlands', 'Netherlands'],
-	['Sweden', 'Sweden'], ['China', 'China'], ['Switzerland', 'Switzerland'], ['Belgium', 'Belgium'],
-	['Japan', 'Japan'], ['Italy', 'Italy'], ['Denmark', 'Denmark'], ['South Korea', 'South Korea'],
-	['Ireland', 'Ireland'], ['Portugal', 'Portugal'], ['Finland', 'Finland'], ['Luxembourg', 'Luxembourg'],
-	['Saudi Arabia', 'Saudi Arabia'],
-];
-const SORT_OPTIONS: [string, string][] = [['-created_at', 'Newest'], ['name', 'Name A–Z'], ['-deals', 'Most deals']];
+/** The API sends the raw enum ('venture_capital'); show the label. Unknown values pass through. */
+export const categoryLabel = (c: string | null | undefined) => (c ? CATEGORY_OPTIONS.find(([v]) => v === c)?.[1] ?? c : null);
+const SORT_OPTIONS: [string, string][] = [['-deals', 'Most deals'], ['-created_at', 'Newest'], ['name', 'Name A–Z']];
+/** Most active investors first — 'Newest' led with freshly added firms that have no deals yet. */
+const DEFAULT_SORT = '-deals';
+const DASH = <span className="atlas-dash">—</span>;
 
-/** Which investors are already on the watchlist, plus an add action that refreshes it. */
-function useWatchlistAdd() {
-	const pipe = useSWR<{ data: Array<{ investor_id: string | null }> }>(qk.raise.pipeline());
+/** Which investors are already in one of the founder's watchlists.
+ *  The watchlist (raise pipeline) is a Raise-only feature — the endpoint is
+ *  `@RequireTier('raise')`, so a Scout browsing the shared Investors directory
+ *  passes `enabled: false` and gets the directory without the add action. */
+function useWatchlistAdd(enabled = true) {
+	const pipe = useSWR<{ data: Array<{ investor_id: string | null }> }>(enabled ? qk.raise.pipeline() : null);
 	const inPipeline = useMemo(() => new Set((pipe.data?.data ?? []).map((r) => r.investor_id).filter(Boolean) as string[]), [pipe.data]);
-	const add = async (investorId: string) => {
-		try {
-			await apiRequest('POST', '/api/raise/pipeline', { investor_id: investorId, stage: 'target' });
-			toast.success('Added to watchlist');
-			void pipe.mutate();
-		} catch (e) { toast.error((e as Error).message); }
-	};
-	return { inPipeline, add };
+	return { inPipeline };
 }
 
 export function RecommendedInvestors() {
-	const { inPipeline, add } = useWatchlistAdd();
+	const { inPipeline } = useWatchlistAdd();
+	const [view, setView] = useState<ViewMode>('cards');
+	// Hidden at once, saved server-side (`raise_investor_dismissals`) so a
+	// "Not relevant" investor stays out of matches after a reload, on any device.
 	const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 	const matches = useSWR<MatchResult>(qk.investorMatches(24));
+	const refreshMatches = () => globalMutate((k: unknown) => Array.isArray(k) && k[0] === qk.investorMatches()[0]);
+	const hide = (id: string, on: boolean) => setDismissed((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n; });
+	const dismiss = async (id: string, name: string) => {
+		hide(id, true);
+		try {
+			await apiRequest('POST', `/api/recommendations/investors/${id}/dismiss`);
+			// Into the shared cache too: the local Set dies with this page, and the
+			// cached matches would bring the investor back on the next visit.
+			void globalMutate(qk.investorMatches(24), (d?: MatchResult) => d && { ...d, results: d.results.filter((r) => r.id !== id) }, { revalidate: false });
+			toast.success(`Hid ${name}`, {
+				action: { label: 'Undo', onClick: () => void apiRequest('DELETE', `/api/recommendations/investors/${id}/dismiss`)
+					.then(() => { hide(id, false); void refreshMatches(); })
+					.catch(() => toast.error("Couldn't undo. Please try again.")) },
+			});
+		} catch {
+			hide(id, false);
+			toast.error("Couldn't hide that investor. Please try again.");
+		}
+	};
 	const criteria = useSWR<{ criteria: { investor_types?: string[]; geographies?: string[]; cheque_min?: string | null; cheque_max?: string | null } | null }>(qk.raise.current());
 
 	// Only factors the engine actually matches on (sector/stage come from the company;
@@ -106,54 +118,104 @@ export function RecommendedInvestors() {
 					{criteriaSummary && (
 						<div className="atlas-card atlas-card--glow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', padding: '16px 23px', marginBottom: 20 }}>
 							<span style={{ fontSize: 13, color: 'var(--a-muted)' }}>{criteriaSummary}</span>
-							<Button href={hrefOf('raise-settings')} variant="outline" size="sm">Edit criteria</Button>
+							<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+								<ViewToggle value={view} onChange={setView} />
+								<Button href={hrefOf('raise-settings')} variant="outline" size="sm">Edit criteria</Button>
+							</div>
 						</div>
 					)}
+					{!criteriaSummary && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}><ViewToggle value={view} onChange={setView} /></div>}
+					{view === 'cards' ? (
 					<Grid>
-						{matches.data!.results.filter((m) => !dismissed.has(m.id)).map((m, i) => (
-							<InvestorCard key={m.id} tour={i === 0 ? 'raise-top-investor' : undefined} inv={m} added={inPipeline.has(m.id)} onAdd={() => add(m.id)} reasons={m.match_reasons}
-								onDismiss={() => setDismissed((s) => new Set(s).add(m.id))} />
+						{matches.data!.results.filter((m) => !dismissed.has(m.id)).map((m) => (
+							<InvestorCard key={m.id} inv={m} added={inPipeline.has(m.id)} reasons={m.match_reasons}
+								onDismiss={() => void dismiss(m.id, m.name)} />
 						))}
 					</Grid>
+					) : (
+					<div className="atlas-table" role="table">
+						<div className="atlas-table__head">
+							<span className="atlas-table__name">Investor</span>
+							<span className="atlas-table__col hide-sm" style={{ width: 110 }}>Type</span>
+							<span className="atlas-table__col hide-sm" style={{ width: 110 }}>Location</span>
+							<span className="atlas-table__col" style={{ width: 60 }}>Score</span>
+							<span className="atlas-table__col" style={{ width: 90 }}>Status</span>
+						</div>
+						{matches.data!.results.filter((m) => !dismissed.has(m.id)).map((m) => (
+							<Link key={m.id} className="atlas-table__row" href={`${hrefOf('investors')}/${m.id}`}>
+								<div className="atlas-table__name">
+									<Logo co={{ name: m.name, website: m.website, custom_logo_url: m.logo_url }} size={28} radius={5} />
+									<div className="atlas-table__name-main">
+										<div className="atlas-ellipsis" style={{ fontWeight: 600 }}>{m.name}</div>
+										{m.match_reasons?.[0] && <div style={{ fontSize: 11, color: 'var(--a-muted)' }} className="atlas-ellipsis">{m.match_reasons[0]}</div>}
+									</div>
+								</div>
+								<span className="atlas-table__col hide-sm" style={{ width: 110 }}>{categoryLabel(m.category) ?? '—'}</span>
+								<span className="atlas-table__col hide-sm" style={{ width: 110 }}>{m.hq_country ? canonicalCountry(m.hq_country) : '—'}</span>
+								<span className="atlas-table__col" style={{ width: 60 }}>{m.score}%</span>
+								<span className="atlas-table__col" style={{ width: 90 }}>{inPipeline.has(m.id) ? 'In watchlist' : '—'}</span>
+							</Link>
+						))}
+					</div>
+					)}
 				</>
 	);
 }
 
 export function AllInvestors() {
-	const { inPipeline, add } = useWatchlistAdd();
-	return <AllInvestorsTab inPipeline={inPipeline} onAdd={add} />;
+	// Shared by Raise and Scout. Only Raise keeps a pipeline ("watchlist"), so a
+	// Scout gets the same directory with the add action and status column dropped.
+	const { data: profile } = useUserProfile();
+	const canWatchlist = getUserType(profile) === 'raise';
+	const { inPipeline } = useWatchlistAdd(canWatchlist);
+	return <AllInvestorsTab inPipeline={inPipeline} canWatchlist={canWatchlist} />;
 }
 
 /** The "All investors" tab — search + filters + sort + pagination over /api/investors. */
-function AllInvestorsTab({ inPipeline, onAdd }: { inPipeline: Set<string>; onAdd: (id: string) => void }) {
-	const [q, setQ] = useState('');
+function AllInvestorsTab({ inPipeline, canWatchlist }: { inPipeline: Set<string>; canWatchlist: boolean }) {
+	const router = useRouter();
+	// View-state mirrored into the URL (Back/Forward restore, shareable links).
+	const url = useUrlReader();
+	// List is the default for every database; a chosen view lives in the URL
+	// with the filters, so it survives Back/Forward, links and any remount.
+	const [view, setView] = useState<ViewMode>(() => url.oneOf('view', ['table', 'cards'] as const, 'table'));
+	const [q, setQ] = useState(() => url.str('q'));
 	const dq = useDebouncedValue(q);
-	const [category, setCategory] = useState('');
-	const [roundType, setRoundType] = useState('');
-	const [sector, setSector] = useState('');
-	const [subSector, setSubSector] = useState('');
-	const [subSubSector, setSubSubSector] = useState('');
-	const [sport, setSport] = useState('');
-	const [country, setCountry] = useState('');
-	const [city, setCity] = useState('');
-	const [continent, setContinent] = useState('');
-	const [region, setRegion] = useState('');
-	const [techTag, setTechTag] = useState('');
-	const [launched, setLaunched] = useState('');
-	const [deals, setDeals] = useState('');
-	const [verified, setVerified] = useState(false);
-	const [active, setActive] = useState(false);
-	const [sort, setSort] = useState('-created_at');
-	const [page, setPage] = useState(1);
+	const [category, setCategory] = useState(() => url.oneOf('category', CATEGORY_OPTIONS.map(([v]) => v), ''));
+	const [roundType, setRoundType] = useState(() => url.str('round'));
+	const [sector, setSector] = useState(() => url.str('sector'));
+	const [subSector, setSubSector] = useState(() => url.str('sub'));
+	const [subSubSector, setSubSubSector] = useState(() => url.str('subsub'));
+	const [sport, setSport] = useState(() => url.str('sport'));
+	const [country, setCountry] = useState(() => url.str('country'));
+	const [city, setCity] = useState(() => url.str('city'));
+	const [continent, setContinent] = useState(() => url.str('continent'));
+	const [region, setRegion] = useState(() => url.str('region'));
+	const [techTag, setTechTag] = useState(() => url.str('tech'));
+	const [launched, setLaunched] = useState(() => url.str('launched'));
+	const [deals, setDeals] = useState(() => url.str('deals'));
+	const [verified, setVerified] = useState(() => url.bool('verified'));
+	const [active, setActive] = useState(() => url.bool('active'));
+	const [sort, setSort] = useState(() => url.oneOf('sort', SORT_OPTIONS.map(([v]) => v), DEFAULT_SORT));
+	const [page, setPage] = useState(() => url.num('page', 1));
 	const reset = () => setPage(1); // any filter/search change returns to page 1
+	useUrlSync({
+		view: view !== 'table' ? view : undefined,
+		q: dq, category, round: roundType, sector, sub: subSector, subsub: subSubSector,
+		sport, country, city, continent, region, tech: techTag, launched, deals,
+		verified, active,
+		sort: sort !== DEFAULT_SORT ? sort : undefined,
+		page: page > 1 ? page : undefined,
+	});
 
 	const roundsResp = useSWR<RoundRef[] | { data: RoundRef[] }>(qk.reference.roundTypes(), { dedupingInterval: 60 * 60_000 });
 	const rounds = Array.isArray(roundsResp.data) ? roundsResp.data : (roundsResp.data?.data ?? []);
 	const sectors = useSectorTierData();
 	const sportOptions = useSportOptions();
-	const loc = useLocationFacetOptions();
+	const countryOptions = useCountryOptions();
 	const techTags = useTechTagOptions();
 	const adv = useFeatureAccess('advanced_filters');
+	const loc = useLocationFacetOptions(adv.hasAccess);
 
 	const params = useMemo(() => {
 		const p: Record<string, unknown> = { page, limit: PAGE_SIZE, sort };
@@ -193,7 +255,7 @@ function AllInvestorsTab({ inPipeline, onAdd }: { inPipeline: Set<string>; onAdd
 	const total = all.data?.total ?? 0;
 	const totalPages = all.data?.totalPages ?? 1;
 	const anyFilter = !!(dq || category || roundType || sector || subSector || subSubSector || sport || country || city || continent || region || techTag || launched || deals || verified || active);
-	const clearAll = () => { setQ(''); setCategory(''); setRoundType(''); setSector(''); setSubSector(''); setSubSubSector(''); setSport(''); setCountry(''); setCity(''); setContinent(''); setRegion(''); setTechTag(''); setLaunched(''); setDeals(''); setVerified(false); setActive(false); setSort('-created_at'); setPage(1); };
+	const clearAll = () => { setQ(''); setCategory(''); setRoundType(''); setSector(''); setSubSector(''); setSubSubSector(''); setSport(''); setCountry(''); setCity(''); setContinent(''); setRegion(''); setTechTag(''); setLaunched(''); setDeals(''); setVerified(false); setActive(false); setSort(DEFAULT_SORT); setPage(1); };
 	// Filter defs for the toolbar — each change resets to page 1, as before.
 	const sel = (key: string, label: string, value: string, options: [string, string][], set: (v: string) => void): FilterDef =>
 		({ kind: 'select', key, label, value, options, onChange: (v) => { set(v); reset(); } });
@@ -215,7 +277,7 @@ function AllInvestorsTab({ inPipeline, onAdd }: { inPipeline: Set<string>; onAdd
 						sel('sport', 'Sports', sport, sportOptions, setSport),
 					] },
 					{ label: 'Geography & location', filters: [
-						sel('country', 'Countries', country, COUNTRY_OPTIONS, setCountry),
+						sel('country', 'Countries', country, countryOptions, setCountry),
 						...(adv.hasAccess ? [
 							sel('continent', 'Continents', continent, loc.continent, setContinent),
 							sel('region', 'Regions', region, loc.region, setRegion),
@@ -237,16 +299,59 @@ function AllInvestorsTab({ inPipeline, onAdd }: { inPipeline: Set<string>; onAdd
 				sort={{ value: sort, options: SORT_OPTIONS, onChange: (v) => { setSort(v); reset(); } }}
 				canClear={anyFilter}
 				onClear={clearAll}
-				count={`${total.toLocaleString()} investor${total === 1 ? '' : 's'}`}
-				actions={<ExportButton entity="investors" search={dq} params={params} />}
 			/>
-			<div style={{ borderTop: '1px solid var(--a-border)', margin: '6px 0 30px' }} />
 
 			{/* `!filtersReady` counts as loading — with a null key SWR reports
 			    isLoading=false, which would show the empty state first. */}
 			{(all.isLoading || !filtersReady) && rows.length === 0 ? <Loading />
 				: rows.length === 0 ? <Empty>No investors match your filters.</Empty>
-					: <Grid>{rows.map((inv) => <InvestorCard key={inv.id} inv={inv} added={inPipeline.has(inv.id)} onAdd={() => onAdd(inv.id)} />)}</Grid>}
+				: (
+				<div className="atlas-card atlas-chart-card" style={{ marginTop: 10 }}>
+					<div className="atlas-chart-card__head" style={{ padding: '17px 25px 16px', fontSize: 13, color: 'var(--a-muted)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+						<span>{total.toLocaleString()} investor{total === 1 ? '' : 's'}{anyFilter ? ' match your filters' : ' · Filter to refine results'}</span>
+						<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ViewToggle value={view} onChange={setView} /><ExportButton entity="investors" search={dq} params={params} /></div>
+					</div>
+				{view === 'cards'
+					? <div style={{ padding: 20 }}><Grid>{rows.map((inv) => <InvestorCard key={inv.id} inv={inv} added={inPipeline.has(inv.id)} canAdd={canWatchlist} />)}</Grid></div>
+					: (
+					<div className="atlas-table" role="table">
+						<div className="atlas-table__head">
+							<span className="atlas-table__name">Investor</span>
+							<span className="atlas-table__col hide-sm" style={{ width: 110 }}>Type</span>
+							<span className="atlas-table__col hide-sm" style={{ width: 110 }}>Location</span>
+							<span className="atlas-table__col hide-sm hide-md" style={{ width: 60 }}>Deals</span>
+							<span className="atlas-table__col hide-sm hide-md" style={{ width: 84 }}>Launched</span>
+							<span className="atlas-table__col hide-sm" style={{ width: 72 }}>Status</span>
+							{canWatchlist && <span className="atlas-table__col atlas-table__col--action" style={{ width: 190 }}>Watchlist</span>}
+						</div>
+						{/* List is the default view, so the watchlist picker the cards carry
+						    has to be on the row too. A row can't be a <Link> around a menu,
+						    so the row navigates on click and the name is the real link. */}
+						{rows.map((inv) => (
+							<div key={inv.id} className="atlas-table__row" style={{ cursor: 'pointer' }} onClick={() => router.push(`${hrefOf('investors')}/${inv.id}`)}>
+								<div className="atlas-table__name">
+									<Logo co={{ name: inv.name, website: inv.website, custom_logo_url: inv.logo_url }} size={28} radius={5} />
+									<div className="atlas-table__name-main">
+										<Link href={`${hrefOf('investors')}/${inv.id}`} onClick={(e) => e.stopPropagation()} className="atlas-ellipsis" style={{ display: 'block', fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>{inv.name}</Link>
+										{inv.description && <div style={{ fontSize: 11, color: 'var(--a-muted)' }} className="atlas-ellipsis">{inv.description}</div>}
+									</div>
+								</div>
+								<span className="atlas-table__col hide-sm" style={{ width: 110 }}>{categoryLabel(inv.category) ?? DASH}</span>
+								<span className="atlas-table__col hide-sm" style={{ width: 110 }}>{inv.hq_country ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Flag cc={inv.hq_country} size={11} />{canonicalCountry(inv.hq_country)}</span> : DASH}</span>
+								<span className="atlas-table__col hide-sm hide-md" style={{ width: 60, fontWeight: inv.deals_count ? 600 : 400, color: inv.deals_count ? 'var(--a-ink)' : undefined }}>{inv.deals_count || DASH}</span>
+								<span className="atlas-table__col hide-sm hide-md" style={{ width: 84 }}>{inv.year_launched ?? DASH}</span>
+								<span className="atlas-table__col hide-sm" style={{ width: 72 }}>{inv.actively_investing ? <span className="atlas-chip-sm">ACTIVE</span> : DASH}</span>
+								{canWatchlist && (
+									<span className="atlas-table__col atlas-table__col--action" style={{ width: 190 }} onClick={(e) => e.stopPropagation()}>
+										<SaveInvestorToWatchlist investorId={inv.id} investorName={inv.name} align="end" portal />
+									</span>
+								)}
+							</div>
+						))}
+					</div>
+					)}
+				</div>
+				)}
 
 			{totalPages > 1 && (
 				<div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 22 }}>
@@ -259,18 +364,16 @@ function AllInvestorsTab({ inPipeline, onAdd }: { inPipeline: Set<string>; onAdd
 	);
 }
 
-function InvestorCard({ inv, added, onAdd, reasons, onDismiss, tour }: { inv: InvestorCardData; added: boolean; onAdd: () => void; reasons?: string[]; onDismiss?: () => void; tour?: string }) {
-	const [busy, setBusy] = useState(false);
-	const doAdd = async () => { setBusy(true); await onAdd(); setBusy(false); };
+function InvestorCard({ inv, added, reasons, onDismiss, canAdd = true }: { inv: InvestorCardData; added: boolean; reasons?: string[]; onDismiss?: () => void; canAdd?: boolean }) {
 	return (
-		<div className="atlas-card atlas-entity-card" data-tour={tour}>
+		<div className="atlas-card atlas-entity-card">
 			<div className="atlas-entity-card__head">
 				<Logo co={{ name: inv.name, website: inv.website, custom_logo_url: inv.logo_url }} size={62} radius={9} />
 				<div style={{ minWidth: 0, paddingTop: 11 }}>
-					{inv.category && <div className="atlas-entity-card__eyebrow">{inv.category}</div>}
-					<div className="atlas-entity-card__name">{inv.name}</div>
+					{inv.category && <div className="atlas-entity-card__eyebrow">{categoryLabel(inv.category)}</div>}
+					<Link href={`${hrefOf('investors')}/${inv.id}`} className="atlas-entity-card__name" style={{ textDecoration: 'none', color: 'inherit' }}>{inv.name}</Link>
 					{inv.hq_country && (
-						<div className="atlas-entity-card__meta"><Flag cc={inv.hq_country} size={11} /><span>{inv.hq_country}</span></div>
+						<div className="atlas-entity-card__meta"><Flag cc={inv.hq_country} size={11} /><span>{canonicalCountry(inv.hq_country)}</span></div>
 					)}
 				</div>
 			</div>
@@ -281,9 +384,7 @@ function InvestorCard({ inv, added, onAdd, reasons, onDismiss, tour }: { inv: In
 				</div>
 			)}
 			<div className="atlas-entity-card__actions">
-				{added
-					? <Action icon={<Check />} disabled>In watchlist</Action>
-					: <Action icon={busy ? <Loader2 className="animate-spin" /> : <Plus />} disabled={busy} onClick={() => void doAdd()}>Add to watchlist</Action>}
+				{canAdd && <SaveInvestorToWatchlist investorId={inv.id} investorName={inv.name} />}
 				<Action icon={<ArrowUpRight />} href={`${hrefOf('investors')}/${inv.id}`}>View profile</Action>
 				{!added && onDismiss && <Action icon={<X />} onClick={onDismiss}>Not relevant</Action>}
 			</div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { RemoveScroll } from 'react-remove-scroll';
 import { Check, ChevronDown, Search } from 'lucide-react';
 import { cx } from './cx';
 
@@ -37,18 +38,27 @@ interface Props {
 	/** Inline style for the trigger (e.g. a fixed width in a pill filter row). */
 	style?: React.CSSProperties;
 	ariaLabel?: string;
+	/** Typing a group's label lists that whole group — for groups that are real
+	 *  categories (sector parents). Off by default: the location picker's
+	 *  "Countries" heading would otherwise swallow a query like "tri". */
+	searchGroupLabels?: boolean;
 }
 
 const flatten = (options?: ComboOption[], groups?: ComboGroup[]): ComboOption[] =>
 	groups ? groups.flatMap((g) => g.options) : (options ?? []);
 
-export function Combobox({ value, onChange, options, groups, placeholder = 'Select…', disabled, id, className, style, ariaLabel }: Props) {
+export function Combobox({ value, onChange, options, groups, placeholder = 'Select…', disabled, id, className, style, ariaLabel, searchGroupLabels }: Props) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState('');
 	const [active, setActive] = useState(0);
 	const [pos, setPos] = useState<{ left: number; width: number; top?: number; bottom?: number; maxH: number } | null>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const panelRef = useRef<HTMLDivElement>(null);
+	// Only auto-scroll the active option into view for keyboard/open — NOT for
+	// mouse hover. Wheel-scrolling moves options under a stationary cursor, firing
+	// onMouseEnter → setActive; scrolling that into view fought the wheel and made
+	// the list jump (reported: "scroll to the bottom and it shoots to the top").
+	const keyNav = useRef(false);
 
 	const all = useMemo(() => flatten(options, groups), [options, groups]);
 	const selectedLabel = useMemo(() => all.find(([v]) => v === value)?.[1] ?? (value || ''), [all, value]);
@@ -59,10 +69,12 @@ export function Combobox({ value, onChange, options, groups, placeholder = 'Sele
 	const q = query.trim().toLowerCase();
 	const match = (o: ComboOption) => !q || o[1].toLowerCase().includes(q);
 	const renderGroups = useMemo<{ label?: string; options: ComboOption[] }[]>(() => {
-		if (groups) return groups.map((g) => ({ label: g.label, options: g.options.filter(match) })).filter((g) => g.options.length);
+		// With searchGroupLabels, a query matching the group label keeps the whole
+		// group (a parent sector lists its sectors though no option is named that).
+		if (groups) return groups.map((g) => ({ label: g.label, options: !q || (searchGroupLabels && g.label.toLowerCase().includes(q)) ? g.options : g.options.filter(match) })).filter((g) => g.options.length);
 		return [{ options: (options ?? []).filter(match) }];
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [groups, options, q]);
+	}, [groups, options, q, searchGroupLabels]);
 	const visible = useMemo(() => renderGroups.flatMap((g) => g.options), [renderGroups]);
 
 	// Open downward by default, but flip above the trigger when there isn't room
@@ -76,23 +88,32 @@ export function Combobox({ value, onChange, options, groups, placeholder = 'Sele
 		const above = r.top - margin;
 		// Match the trigger width — long labels (e.g. full sector paths) wrap
 		// rather than widening the panel, so short dropdowns aren't oversized.
-		const width = r.width;
+		const width = Math.min(r.width, window.innerWidth - margin * 2);
+		// Clamp horizontally so the panel never spills off either edge on a phone.
+		const left = Math.max(margin, Math.min(r.left, window.innerWidth - width - margin));
 		if (below >= Math.min(want, 180) || below >= above) {
-			setPos({ left: r.left, width, top: r.bottom + gap, maxH: Math.min(want, below) });
+			setPos({ left, width, top: r.bottom + gap, maxH: Math.min(want, below) });
 		} else {
-			setPos({ left: r.left, width, bottom: window.innerHeight - r.top + gap, maxH: Math.min(want, above) });
+			setPos({ left, width, bottom: window.innerHeight - r.top + gap, maxH: Math.min(want, above) });
 		}
 	};
 	useLayoutEffect(() => {
 		if (!open) return;
 		place();
 		setQuery('');
+		keyNav.current = true; // scroll the selected option into view on open
 		setActive(Math.max(0, visible.findIndex(([v]) => v === value)));
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [open]);
 	useEffect(() => {
 		if (!open) return;
-		const h = () => place();
+		// Reposition only when the PAGE/ancestor scrolls — ignore the panel's own
+		// list scroll (capture catches it) so scrolling the list doesn't re-run
+		// place() and jitter the panel.
+		const h = (e?: Event) => {
+			if (e && e.target instanceof Node && panelRef.current?.contains(e.target)) return;
+			place();
+		};
 		window.addEventListener('scroll', h, true);
 		window.addEventListener('resize', h);
 		const away = (e: MouseEvent) => {
@@ -118,8 +139,8 @@ export function Combobox({ value, onChange, options, groups, placeholder = 'Sele
 		if (!open) return;
 		const onKeyCap = (e: KeyboardEvent) => {
 			if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); triggerRef.current?.focus(); }
-			else if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(visible.length - 1, i + 1)); }
-			else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(0, i - 1)); }
+			else if (e.key === 'ArrowDown') { e.preventDefault(); keyNav.current = true; setActive((i) => Math.min(visible.length - 1, i + 1)); }
+			else if (e.key === 'ArrowUp') { e.preventDefault(); keyNav.current = true; setActive((i) => Math.max(0, i - 1)); }
 			else if (e.key === 'Enter') { e.preventDefault(); const o = visible[active]; if (o) pick(o[0]); }
 		};
 		document.addEventListener('keydown', onKeyCap, true);
@@ -129,7 +150,7 @@ export function Combobox({ value, onChange, options, groups, placeholder = 'Sele
 
 	// Keep the keyboard-highlighted option in view in a long (scrolled) list.
 	useEffect(() => {
-		if (!open) return;
+		if (!open || !keyNav.current) return; // keyboard/open only — see keyNav
 		panelRef.current?.querySelector<HTMLElement>(`[data-ci="${active}"]`)?.scrollIntoView({ block: 'nearest' });
 	}, [active, open]);
 
@@ -159,6 +180,14 @@ export function Combobox({ value, onChange, options, groups, placeholder = 'Sele
 			</button>
 			{open && pos && createPortal(
 				<div className="atlas">
+					{/* A Radix Dialog host locks page scroll via react-remove-scroll,
+					    which allows wheel/touch only inside its own content. This panel
+					    is portalled to <body>, outside that content, so its list could
+					    be clicked but not scrolled. Wrapping it in RemoveScroll makes
+					    the panel the active scroll region while open (the same stacking
+					    Radix's own Select relies on); harmless outside a dialog. The
+					    wrapper div it renders is inert — the panel is position:fixed. */}
+					<RemoveScroll removeScrollBar={false}>
 					<div
 						ref={panelRef}
 						className="atlas-combo-panel"
@@ -172,7 +201,7 @@ export function Combobox({ value, onChange, options, groups, placeholder = 'Sele
 									autoFocus
 									value={query}
 									placeholder="Type to filter…"
-									onChange={(e) => { setQuery(e.target.value); setActive(0); }}
+									onChange={(e) => { keyNav.current = true; setQuery(e.target.value); setActive(0); }}
 								/>
 							</div>
 						)}
@@ -189,10 +218,9 @@ export function Combobox({ value, onChange, options, groups, placeholder = 'Sele
 												type="button"
 												role="option"
 												data-ci={idx}
-												data-value={v}
 												aria-selected={v === value}
 												className={cx('atlas-combo-opt', v === value && 'is-selected', idx === active && 'is-active')}
-												onMouseEnter={() => setActive(idx)}
+												onMouseEnter={() => { keyNav.current = false; setActive(idx); }}
 												onClick={() => pick(v)}
 											>
 												<span>{l}</span>
@@ -204,6 +232,7 @@ export function Combobox({ value, onChange, options, groups, placeholder = 'Sele
 							))}
 						</div>
 					</div>
+				</RemoveScroll>
 				</div>,
 				document.body,
 			)}

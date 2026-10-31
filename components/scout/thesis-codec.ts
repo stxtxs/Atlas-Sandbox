@@ -32,6 +32,8 @@ export interface ServerThesis {
 	traction_floor: string | null;
 	invest_style: string | null;
 	exclusions: string | null;
+	/** Include chips with no taxonomy column (SaaS, Fans, themes …). */
+	include_tags?: string[];
 }
 
 export interface ScoutProfile {
@@ -40,6 +42,8 @@ export interface ScoutProfile {
 	linkedin_url: string | null;
 	fund_name: string | null;
 	investor_type: string | null;
+	/** The picker label the Scout chose; several labels share one enum value. */
+	investor_type_label?: string | null;
 	fund_website: string | null;
 	hq_country: string | null;
 	hq_city: string | null;
@@ -96,6 +100,10 @@ export function formatMoney(n: number | null): string {
 	return `€${n}`;
 }
 
+/** "€250k – €2m" for summaries; '' when neither end is set. */
+export const chequeRange = (t: Pick<Thesis, 'chequeMin' | 'chequeMax'>) =>
+	t.chequeMin || t.chequeMax ? `${formatMoney(parseMoney(t.chequeMin)) || '—'} – ${formatMoney(parseMoney(t.chequeMax)) || '—'}` : '';
+
 /** Case-insensitive name → id, for a reference list. */
 export const indexByName = (rows: TaxonomyRef[]) =>
 	new Map(rows.filter((r) => r.name).map((r) => [r.name!.toLowerCase(), r.id]));
@@ -115,7 +123,12 @@ export function toForm(
 		role: p?.role_title ?? fallback.role,
 		linkedin: p?.linkedin_url ?? '',
 		fundName: p?.fund_name ?? '',
-		investorType: p?.investor_type ? (flip(INVESTOR_TYPE)[p.investor_type] ?? '') : '',
+		// Prefer the saved label while it still agrees with the enum (a linked
+		// investor row can override the type); flip() alone can't tell
+		// Corporate VC from Accelerator — both are `other`.
+		investorType: p?.investor_type_label && INVESTOR_TYPE[p.investor_type_label] === p.investor_type
+			? p.investor_type_label
+			: p?.investor_type ? (flip(INVESTOR_TYPE)[p.investor_type] ?? '') : '',
 		website: p?.fund_website ?? '',
 		country: p?.hq_country ?? '',
 		city: p?.hq_city ?? '',
@@ -123,8 +136,10 @@ export function toForm(
 		sectors: names(t?.sectors ?? []),
 		stages: names(t?.round_types ?? []),
 		regions: (t?.geo ?? []).map((g) => g.scope_value),
-		chequeMin: formatMoney(t?.cheque_min ?? null),
-		chequeMax: formatMoney(t?.cheque_max ?? null),
+		// Plain digits: the cheque inputs are type="number", which renders a
+		// formatted '€250k' as blank — returning Scouts saw empty cheques.
+		chequeMin: t?.cheque_min == null ? '' : String(t.cheque_min),
+		chequeMax: t?.cheque_max == null ? '' : String(t.cheque_max),
 		traction: t?.traction_floor ?? '',
 		invStyle: (t?.invest_style
 			? ((t.invest_style[0].toUpperCase() + t.invest_style.slice(1)) as Thesis['invStyle'])
@@ -167,6 +182,7 @@ export function toProfileDto(t: Thesis) {
 		linkedin_url: t.linkedin?.trim() ? absolute(t.linkedin.trim()) : null,
 		fund_name: t.fundName || null,
 		investor_type: INVESTOR_TYPE[t.investorType] ?? null,
+		investor_type_label: INVESTOR_TYPE[t.investorType] ? t.investorType : null,
 		// The schema demands a URL; the form collects "northline.vc".
 		fund_website: t.website?.trim() ? absolute(t.website.trim()) : null,
 		hq_country: t.country || null,

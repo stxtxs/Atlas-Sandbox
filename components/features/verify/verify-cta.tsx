@@ -3,7 +3,7 @@
 import useSWR from 'swr';
 import { VerifiedBadge } from '@/components/atlas/icons/verified-badge';
 import { Button } from '@/components/atlas';
-import { openClaim, type ClaimRole, type ClaimTarget } from '@/lib/claim-events';
+import { openClaim, type ClaimPrefill, type ClaimRole, type ClaimTarget } from '@/lib/claim-events';
 import { rolesForTier } from '@/lib/claim-roles';
 import { useUserProfile, getUserType } from '@/hooks/use-user-profile';
 import { qk } from '@/lib/query-keys';
@@ -25,10 +25,11 @@ import { qk } from '@/lib/query-keys';
  * The modal itself needs nothing: it handles all three roles and is mounted
  * globally in `app/providers.tsx`, so `openClaim` works from anywhere.
  */
-interface ClaimRow {
+export interface VerifyClaimRow {
 	id: string;
 	claim_type: 'company' | 'investor' | 'ecosystem_entity';
 	is_verified: boolean | null;
+	rejected_at?: string | null;
 	target_company_id: string | null;
 	target_investor_id: string | null;
 	target_ecosystem_entity_id: string | null;
@@ -38,12 +39,12 @@ interface ClaimRow {
 
 export type VerifyState = 'none' | 'pending' | 'verified';
 
-const ROLE_OF: Record<ClaimRow['claim_type'], ClaimRole> = {
+const ROLE_OF: Record<VerifyClaimRow['claim_type'], ClaimRole> = {
 	company: 'founder', investor: 'investor', ecosystem_entity: 'operator',
 };
 
 /** The entity a claim points at, as a claim target the modal can reopen. */
-function claimToTarget(c: ClaimRow, verified: boolean): ClaimTarget {
+export function claimToTarget(c: VerifyClaimRow, verified: boolean): ClaimTarget {
 	return {
 		role: ROLE_OF[c.claim_type],
 		id: c.target_company_id ?? c.target_investor_id ?? c.target_ecosystem_entity_id ?? null,
@@ -62,13 +63,16 @@ function claimToTarget(c: ClaimRow, verified: boolean): ClaimTarget {
  * name matching both misses real claims and — worse — can report "Verified"
  * on a company the viewer does not own.
  */
-export function useVerifyState(entityId?: string): { state: VerifyState; isLoading: boolean; claim: ClaimRow | null } {
+export function useVerifyState(entityId?: string): { state: VerifyState; isLoading: boolean; claim: VerifyClaimRow | null } {
 	// The navbar mounts this on every authenticated page, so a default dedupe
 	// window means a refetch on each navigation. Claims only change when an
 	// admin acts on one, so a minute of staleness costs nothing and this stops
 	// being a request per page view.
-	const { data, isLoading } = useSWR<ClaimRow[] | { data: ClaimRow[] }>(qk.claims.mine(), { dedupingInterval: 60_000 });
-	const rows = Array.isArray(data) ? data : (data?.data ?? []);
+	const { data, isLoading } = useSWR<VerifyClaimRow[] | { data: VerifyClaimRow[] }>(qk.claims.mine(), { dedupingInterval: 60_000 });
+	// A rejected claim is neither verified nor pending: /api/claims/mine returns
+	// every claim, and counting rejected ones as "pending" showed a rejected user
+	// a pending badge and seeded Raise Setup from a company they were refused.
+	const rows = (Array.isArray(data) ? data : (data?.data ?? [])).filter((r) => !r.rejected_at);
 	const relevant = entityId
 		? rows.filter((r) => r.target_company_id === entityId
 			|| r.target_investor_id === entityId
@@ -90,7 +94,7 @@ export function useVerifyState(entityId?: string): { state: VerifyState; isLoadi
  * `role` is optional: left out, it is inferred from the viewer's tier rather
  * than every call site repeating the same rule.
  */
-export function VerifyButton({ role = null, target = null, entityId, label, hideWhenVerifiedElsewhere = false }: {
+export function VerifyButton({ role = null, target = null, entityId, label, hideWhenVerifiedElsewhere = false, prefill }: {
 	role?: ClaimRole | null;
 	target?: ClaimTarget | null;
 	/** Scopes the pending/verified state to one entity, by id. */
@@ -100,6 +104,8 @@ export function VerifyButton({ role = null, target = null, entityId, label, hide
 	 *  entirely when the viewer already holds a verified claim on something else
 	 *  — they're clearly a known user, so don't nudge them to claim this one. */
 	hideWhenVerifiedElsewhere?: boolean;
+	/** Answers already given elsewhere (e.g. the Scout thesis) so the claim form opens filled. */
+	prefill?: ClaimPrefill;
 }) {
 	const { state, claim } = useVerifyState(entityId);
 	// Global claim status (same SWR row, deduped) — "verified on anything".
@@ -129,20 +135,26 @@ export function VerifyButton({ role = null, target = null, entityId, label, hide
 				onClick={() => openClaim(target, target.role, undefined, allowed)}
 				title={state === 'verified' ? 'Edit your verified details' : 'Edit your pending submission'}
 			>
-				<VerifiedBadge size={17} className="atlas-verify-btn__tick" /> {state === 'verified' ? 'Verified' : 'Verification pending'}{name ? ` · ${name}` : ''}
+				<VerifiedBadge size={17} className="atlas-verify-btn__tick" /><span className="atlas-ellipsis atlas-verify-btn__label">{state === 'verified' ? 'Verified' : 'Verification pending'}{name ?` · ${name}` : ''}</span>
 			</Button>
 		);
 	}
+
+	// Entity already verified (by anyone) — the profile's "Is this your company?"
+	// prompt is hidden. Others can still get verified for it (several people per
+	// company/investor are allowed) via the claim modal's search from the
+	// Get-verified entry points, onboarding and the Raise/Scout thesis flows.
+	if (target?.verified) return null;
 
 	// Already a known, verified user elsewhere — don't prompt them to claim this
 	// specific entity (they can still do it from the Get-verified entry).
 	if (hideWhenVerifiedElsewhere && state === 'none' && anyVerified) return null;
 
 	return (
-		<Button size="sm" variant="outline" className="atlas-verify-btn" onClick={() => openClaim(target, explicitRole, undefined, allowed)}>
+		<Button size="sm" variant="outline" className="atlas-verify-btn" onClick={() => openClaim(target, explicitRole, prefill, allowed)}>
 			{/* The verification tick everyone already reads as "verified", in the
 			    one place Atlas spends a hue on something that is not a status. */}
-			<VerifiedBadge size={17} className="atlas-verify-btn__tick" /> {label ?? 'Get verified'}
+			<VerifiedBadge size={17} className="atlas-verify-btn__tick" /><span className="atlas-verify-btn__label">{label ?? 'Get verified'}</span>
 		</Button>
 	);
 }

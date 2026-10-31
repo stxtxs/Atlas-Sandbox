@@ -3,7 +3,9 @@
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { qk } from '@/lib/query-keys';
+import Link from 'next/link';
 import { Card, Loading, Logo, ComboBarLine, PieDonut, HBarDrilldown, type ComboPoint, type PieSegment, type HBarRow, Seg, barAt, BAR_ACCENT } from '@/components/atlas';
+import { companyHref } from '@/lib/routes';
 import { fmtUsd, fmtUsdB, fmtCount } from './format';
 
 type Series = 'funding' | 'ma' | 'total';
@@ -15,8 +17,8 @@ interface TreeLeaf { sector_id: string; sector_name: string; total_amount: numbe
 interface TreeNode extends TreeLeaf { children: TreeLeaf[] }
 interface BizRow { business_model: string; deal_count: number; total_amount: number }
 interface GeoRow { country: string; deal_count: number; total_amount: number }
-interface TopFunded { company_id: string; name: string; slug: string | null; custom_logo_url: string | null; total_raised: number; deal_count: number }
-interface TopAcquirer { acquirer_name: string; acquirer_country: string | null; deal_count: number; total_value: number }
+interface TopFunded { company_id: string; name: string; slug: string | null; website?: string | null; custom_logo_url: string | null; total_raised: number; deal_count: number }
+interface TopAcquirer { acquirer_name: string; acquirer_country: string | null; acquirer_website?: string | null; acquirer_logo?: string | null; acquirer_slug?: string | null; deal_count: number; total_value: number }
 
 const rangeToPeriod: Record<Range, Period> = { '10y': 'all', '5y': '12m', ytd: 'ytd' };
 const BAR_TOP = 'var(--a-chart-bar-top)';
@@ -90,7 +92,9 @@ export function MarketAnalysis() {
 	const loadingCore = funding.isLoading || ma.isLoading;
 
 	return (
-		<div style={{ display: 'grid', gap: 22 }}>
+		// minmax(0, 1fr): an implicit `auto` track grows to its widest child's
+		// min-content, which pushed the whole page to 513px on a 390px phone.
+		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 22 }}>
 			{/* Controls */}
 			<div className="atlas-controls">
 				<Seg<Series>
@@ -174,20 +178,22 @@ export function MarketAnalysis() {
 						<div className="atlas-table">
 							{series === 'funding'
 								? (topFunded.data ?? []).map((c, i) => (
-									<div className="atlas-table__row" key={c.company_id}>
+									<Link className="atlas-table__row" key={c.company_id} href={companyHref(c.slug ?? c.company_id)}>
 										<span className="atlas-table__rank">{i + 1}</span>
 										<div className="atlas-table__name">
-											<Logo co={{ name: c.name, website: null, custom_logo_url: c.custom_logo_url }} size={28} />
+											<Logo co={{ name: c.name, website: c.website ?? null, custom_logo_url: c.custom_logo_url }} size={28} />
 											<div className="atlas-table__name-main"><div className="atlas-ellipsis" style={{ fontFamily: 'var(--a-font)', fontWeight: 700, fontSize: 15 }}>{c.name}</div></div>
 										</div>
 										<span className="atlas-table__col hide-sm">{fmtCount(c.deal_count)} rounds</span>
 										<span className="atlas-table__amount">{fmtUsd(c.total_raised)}</span>
-									</div>
+									</Link>
 								))
 								: (topAcq.data ?? []).map((a, i) => (
 									<div className="atlas-table__row" key={`${a.acquirer_name}-${i}`}>
 										<span className="atlas-table__rank">{i + 1}</span>
-										<div className="atlas-table__name"><div className="atlas-table__name-main"><div className="atlas-ellipsis" style={{ fontFamily: 'var(--a-font)', fontWeight: 700, fontSize: 15 }}>{a.acquirer_name}</div>{a.acquirer_country && <div style={{ fontFamily: 'var(--a-body)', fontSize: 10, color: 'var(--a-muted)', marginTop: 3 }}>{a.acquirer_country}</div>}</div></div>
+										<div className="atlas-table__name"><Logo co={{ name: a.acquirer_name, website: a.acquirer_website ?? null, custom_logo_url: a.acquirer_logo ?? null }} size={28} /><div className="atlas-table__name-main">{a.acquirer_slug
+											? <Link href={companyHref(a.acquirer_slug)} className="atlas-ellipsis" style={{ display: 'block', fontFamily: 'var(--a-font)', fontWeight: 700, fontSize: 15, color: 'inherit', textDecoration: 'none' }}>{a.acquirer_name}</Link>
+											: <div className="atlas-ellipsis" style={{ fontFamily: 'var(--a-font)', fontWeight: 700, fontSize: 15 }}>{a.acquirer_name}</div>}{a.acquirer_country && <div style={{ fontFamily: 'var(--a-body)', fontSize: 10, color: 'var(--a-muted)', marginTop: 3 }}>{a.acquirer_country}</div>}</div></div>
 										<span className="atlas-table__col hide-sm">{fmtCount(a.deal_count)} deals</span>
 										<span className="atlas-table__amount">{fmtUsd(a.total_value)}</span>
 									</div>

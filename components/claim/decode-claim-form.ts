@@ -1,5 +1,5 @@
-import type { ClaimForm, RoundRow, MnaRow, FundRow, PortfolioRow } from './claim-form';
-import { RAISE_AMOUNTS } from './claim-form';
+import type { ClaimForm, RoundRow, MnaRow, FundRow, PortfolioRow, EntityPick, NewEntity, ProgramPick } from './claim-form';
+import { RAISE_AMOUNTS, blankNewEntity } from './claim-form';
 import { parseAmount } from './build-claim-dto';
 import type { ClaimReference } from './use-claim-reference';
 
@@ -34,6 +34,18 @@ const REVENUE_REVERSE: Record<string, string> = {
 	pre_revenue: 'Pre-Revenue', early_revenue: 'Early Revenue', growth: 'Product-Market Fit', profitable: 'Late Stage',
 };
 
+// A stored company / investor link back to a pick: an Atlas id, or the details
+// the user added (still pending, or already created — then it has an id too).
+const added = (n: unknown): NewEntity | null => {
+	if (!n || typeof n !== 'object') return null;
+	const o = n as Record<string, unknown>;
+	return { website: s(o.website), country: s(o.hq_country), city: s(o.hq_city), sectorId: s(o.sector_id), description: s(o.description), founded: numStr(o.founded_year), linkedin: s(o.linkedin_url), category: s(o.category) };
+};
+const pick = (id: unknown, name: unknown, details: unknown): EntityPick | null => {
+	const a = id ? null : added(details);
+	return id || a || s(name).trim() ? { id: id ? String(id) : null, name: s(name), added: a } : null;
+};
+
 export function decodeClaimForm(data: Record<string, unknown>, ref: ClaimReference): Partial<ClaimForm> {
 	const sectorName = new Map(ref.sectors.map((o) => [o.id, o.name]));
 	const techName = new Map(ref.techTags.map((o) => [o.id, o.name]));
@@ -63,17 +75,28 @@ export function decodeClaimForm(data: Record<string, unknown>, ref: ClaimReferen
 			coCity: s(d.hq_city),
 			coCountry: s(d.hq_country),
 			sport: s(d.sport),
-			programs: s(d.program_participation),
+			// Older claims only stored text: keep it as one unlinked entry.
+			programs: Array.isArray(d.programs)
+				? arr(d.programs).map((x): ProgramPick => ({
+					id: x.program_id ? String(x.program_id) : null, name: s(x.name), year: numStr(x.cohort_year),
+					added: !x.program_id && x.new_program ? { ...blankNewEntity(), website: s((x.new_program as Record<string, unknown>).website), country: s((x.new_program as Record<string, unknown>).hq_country), city: s((x.new_program as Record<string, unknown>).hq_city) } : null,
+				})).filter((p) => p.name)
+				: s(d.program_participation) ? [{ id: null, name: s(d.program_participation), year: '', added: null }] : [],
 			twitter: s(d.twitter_url), instagram: s(d.instagram_url), facebook: s(d.facebook_url),
 			linkedin_co: s(d.linkedin_url), companyEmail: s(d.public_email),
 			contactFirst: s(d.contact_first_name), contactLast: s(d.contact_last_name),
 			contactPosition: s(d.contact_position), contactEmail: s(d.contact_email), contactLinkedin: s(d.contact_linkedin),
 			rounds: arr(co.funding_rounds).map((r): RoundRow => ({
 				roundType: s(r.round_label) || (r.round_type_id ? roundName.get(String(r.round_type_id)) ?? '' : ''),
-				amount: numStr(r.amount_usd), date: s(r.round_date), investors: s(r.investors), source: s(r.source_url),
+				amount: numStr(r.amount_usd), date: s(r.round_date), investors: '', source: s(r.source_url),
+				// Older rounds have only "A, B" text: one bare-name entry each, so picking
+				// or removing one doesn't drop or keep the others by accident.
+				invs: (Array.isArray(r.investor_refs) ? arr(r.investor_refs).map((x) => pick(x.investor_id, x.name, x.new_investor))
+					: s(r.investors).split(',').map((n) => pick(null, n.trim(), null))).filter((x): x is EntityPick => !!x),
 			})),
 			mna: arr(co.mna).map((m): MnaRow => ({
 				dealType: s(m.deal_type) || 'Acquisition', counterparty: s(m.counterparty), amount: numStr(m.amount_usd), date: s(m.deal_date),
+				cp: pick(m.counterparty_company_id, m.counterparty, m.new_counterparty),
 			})),
 		};
 	}
@@ -101,7 +124,7 @@ export function decodeClaimForm(data: Record<string, unknown>, ref: ClaimReferen
 			buildThesis: sectors.length > 0 || tech.length > 0 || continents.length > 0 || stages.length > 0
 				|| revenue.length > 0 || !!d.thesis_amount_min_usd || !!d.thesis_amount_max_usd,
 			funds: arr(inv.funds).map((f): FundRow => ({ name: s(f.name), year: numStr(f.fund_year), size: numStr(f.size_usd) })),
-			portfolio: arr(inv.portfolio).map((p): PortfolioRow => ({ name: s(p.company_name), stage: s(p.stage), year: numStr(p.invest_year) })),
+			portfolio: arr(inv.portfolio).map((p): PortfolioRow => ({ name: s(p.company_name), stage: s(p.stage), year: numStr(p.invest_year), co: pick(p.company_id, p.company_name, p.new_company) })),
 		};
 	}
 
