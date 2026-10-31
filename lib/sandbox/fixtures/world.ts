@@ -262,6 +262,25 @@ export const DEALS: WDeal[] = [
 	deal('Respawn Arena', 'Seed', 1_000_000, 90, ['Brightpost Ventures']),
 	deal('Courtline', 'Grant', 150_000, 12, []),
 	deal('Shirtfront Metrics', 'Seed', 1_200_000, 210, ['Brightpost Ventures']),
+	// Follow-ons and bridges, so every recent month of the Monthly Roundup has a few rounds.
+	deal('Velodata', 'Seed', 600_000, 8, ['Halfway Line Partners']),
+	deal('Laneline', 'Seed', 1_100_000, 26, ['Fieldhouse Capital', 'Tidepool Sport']),
+	deal('Huddle Health', 'Seed', 500_000, 40, ['Extra Time Angels']),
+	deal('Replaykit', 'Series B', 9_000_000, 55, ['Brightpost Ventures', 'Podium Capital']),
+	deal('Gripstat', 'Seed', 700_000, 66, ['Sideline Family Office']),
+	deal('Tifo Studio', 'Seed', 900_000, 100, ['Corner Flag Ventures', 'Kestrel Field Ventures']),
+	deal('Oddsmith', 'Series A', 3_000_000, 125, ['Brightpost Ventures']),
+	deal('Clubvault', 'Series A', 2_000_000, 150, ['Northline Capital']),
+	deal('Snowpath', 'Seed', 800_000, 185, ['Sideline Family Office']),
+	deal('Respawn Arena', 'Pre-Seed', 250_000, 200, ['Extra Time Angels']),
+	deal('Goalsight', 'Pre-Seed', 300_000, 215, ['Corner Flag Ventures']),
+	deal('Coachboard', 'Seed', 750_000, 240, ['Kestrel Field Ventures']),
+	deal('Pacekeeper', 'Seed', 1_500_000, 270, ['Breakaway Fund']),
+	deal('Racketlab', 'Pre-Seed', 400_000, 300, ['Halfway Line Partners']),
+	deal('Kitroom', 'Grant', 100_000, 320, []),
+	deal('Arenaflow', 'Grant', 250_000, 335, []),
+	deal('Velodata', 'Pre-Seed', 200_000, 350, ['Extra Time Angels']),
+	deal('Shirtfront Metrics', 'Pre-Seed', 300_000, 360, ['Brightpost Ventures']),
 ];
 
 // ─── Acquisitions ────────────────────────────────────────────────────────────
@@ -285,6 +304,10 @@ export const ACQUISITIONS: WAcquisition[] = [
 	acquisition('Linesman AI', 'Arenaflow', 12_000_000, 85, 'acquisition', 'SE'),
 	acquisition('Ticketnest', 'Clubvault', 3_500_000, 260, 'merger', 'FR'),
 	acquisition('Stadium Stories', 'Strikezone Media', 6_000_000, 35, 'acquisition', 'US'),
+	acquisition('Pitchside Clips', 'Replaykit', 2_500_000, 15, 'acquisition', 'FR'),
+	acquisition('Rinkside Data', 'Pitchmark Analytics', null, 110, 'acquisition', 'GB'),
+	acquisition('Padelpoint', 'Courtline', 1_800_000, 200, 'acquisition', 'ES'),
+	acquisition('Fanpass Loyalty', 'Kitroom', null, 290, 'acquisition', 'DE'),
 ];
 
 // ─── Ecosystem: events and programs ──────────────────────────────────────────
