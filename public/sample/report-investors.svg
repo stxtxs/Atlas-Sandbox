@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="600" height="800">
+<rect width="600" height="800" fill="#060A17"/>
+<circle cx="520" cy="120" r="260" fill="#0FB86A" opacity="0.22"/>
+<circle cx="80" cy="760" r="200" fill="#0FB86A" opacity="0.14"/>
+<rect x="48" y="56" width="64" height="6" fill="#0FB86A"/>
+<text x="48" y="110" fill="#FFFFFF" opacity="0.6" font-family="Helvetica, Arial, sans-serif" font-size="18" letter-spacing="4">SAMPLE REPORT</text>
+<text x="48" y="520" fill="#FFFFFF" font-family="Helvetica, Arial, sans-serif" font-size="52" font-weight="700">Investor Sourcing</text>
+<text x="48" y="584" fill="#FFFFFF" font-family="Helvetica, Arial, sans-serif" font-size="52" font-weight="700">Benchmark</text>
+<text x="48" y="660" fill="#0FB86A" font-family="Helvetica, Arial, sans-serif" font-size="44" font-weight="700">2026</text>
+<text x="48" y="740" fill="#FFFFFF" opacity="0.5" font-family="Helvetica, Arial, sans-serif" font-size="16">Atlas by SportsTechX · tutorial sample</text>
+</svg>

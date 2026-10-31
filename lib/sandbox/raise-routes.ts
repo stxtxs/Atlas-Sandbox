@@ -19,6 +19,7 @@
  * Response shapes mirror server/src/modules/raise/* and recommendations/*
  * (money as strings, YYYY-MM-DD for date columns, ISO for timestamps).
  */
+import { mockFetch } from './mock-api';
 import { PIPELINE_STAGES, type PipelineActivity, type PipelineAdd, type PipelineStage, type PipelineUpdate, type RaiseCriteria, type RaiseUpsert } from '@/types/api';
 import { daysFromNow, json, type SandboxCtx, type SandboxRoute } from './types';
 
@@ -90,7 +91,7 @@ const badRequest = (message: string) => json({ error: { code: 'VALIDATION_ERROR'
 
 async function getJson<T>(path: string): Promise<T | null> {
 	try {
-		const res = await fetch(path);
+		const res = await mockFetch(path, undefined, { quiet: true });
 		return res.ok ? ((await res.json()) as T) : null;
 	} catch { return null; }
 }

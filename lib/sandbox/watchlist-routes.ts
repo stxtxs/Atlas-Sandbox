@@ -9,6 +9,7 @@
  * Shapes follow the server controller (user-watchlists.controller.ts) and the
  * consuming types in components/features/watchlists/use-company-watchlists.ts.
  */
+import { mockFetch } from './mock-api';
 import type { CompanyWatchlist, WatchlistCompany } from '@/components/features/watchlists/use-company-watchlists';
 import { daysFromNow, json, type SandboxCtx, type SandboxRoute } from './types';
 
@@ -50,7 +51,7 @@ const toCompany = (c: CompanyRow, addedDaysAgo: number): StoredCompany | null =>
 
 async function getJson<T>(path: string): Promise<T | null> {
 	try {
-		const res = await fetch(path);
+		const res = await mockFetch(path, undefined, { quiet: true });
 		return res.ok ? ((await res.json()) as T) : null;
 	} catch { return null; }
 }

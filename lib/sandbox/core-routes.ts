@@ -188,6 +188,23 @@ ${CHAT_ANSWERS[product]}
 	// Exports: a small sample CSV, whatever was asked for.
 	['POST', '/api/exports/:entity', ({ params }) => new Response(SAMPLE_CSV, { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="atlas-${params.entity}-sample.csv"` } })],
 
+	// The visitor: one made-up person whose tier is the tour being run. Every
+	// real page that branches on the profile's tier (home, recommended, deck…)
+	// renders that tier's version from this alone.
+	['GET', '/api/profiles/me', ({ product }) => ({
+		id: 'demo-user', email: 'you@example.com', full_name: 'Alex Morgan', display_name: 'Alex',
+		referral_code: null, user_role: 'user', user_type: product, user_type_detail: null, background: null,
+		account_type: product === 'raise' ? 'founder' : product === 'scout' ? 'investor' : 'user',
+		paywall_shown_at: daysFromNow(-30), avatar_url: null,
+		company_name: product === 'raise' ? 'Fanloop' : product === 'scout' ? 'Kestrel Field Ventures' : null,
+		job_title: product === 'raise' ? 'Co-founder & CEO' : product === 'scout' ? 'Partner' : null,
+		is_trial: false, trial_ends_at: null, stripe_customer_id: null, intercom_hash: null,
+		notification_newsletter: true, notification_email: true, notification_marketing: false, notification_updates: true,
+		notification_funding_alerts: true, notification_ma_alerts: true, notification_report_releases: true, notification_programs_deadline: true,
+		onboarding_stage: 'done', onboarding_complete_explore: true, onboarding_complete_raise: true, onboarding_complete_scout: true,
+		created_at: daysFromNow(-120),
+	})],
+
 	// No grants, nothing locked: the tutorial has no paywall (contexts/feature-access-context.tsx).
 	['GET', '/api/features', () => []],
 	['GET', '/api/me/feature-grants', () => ({ data: [] })],

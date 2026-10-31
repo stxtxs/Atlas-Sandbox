@@ -30,6 +30,7 @@
  * listings are fictional on purpose: a listing asserts a live round, valuation
  * and commitments, which would be invented claims about a real business.
  */
+import { mockFetch } from './mock-api';
 import type { DealRow, MyDealRow } from '@/components/scout/deal-types';
 import type { ScoutProfile, ServerThesis, TaxonomyRef } from '@/components/scout/thesis-codec';
 import { daysFromNow, json, type SandboxCtx, type SandboxRoute } from './types';
@@ -203,7 +204,7 @@ const refCache = new Map<string, Promise<RefRow[]>>();
 function reference(ctx: SandboxCtx, path: string): Promise<RefRow[]> {
 	const hit = refCache.get(path);
 	if (hit) return hit;
-	const p = fetch(new URL(path, ctx.url.origin))
+	const p = mockFetch(new URL(path, ctx.url.origin), undefined, { quiet: true })
 		.then((r) => (r.ok ? r.json() : []))
 		.then((d: unknown) => (Array.isArray(d) ? d : isRecord(d) && Array.isArray(d.data) ? d.data : []) as RefRow[])
 		.catch(() => {
@@ -335,7 +336,7 @@ let companyCache: Promise<CompanyLite[]> | null = null;
 /** One public fetch per page load. Fictional fallback on failure (not cached, so it retries). */
 function sampleCompanies(ctx: SandboxCtx): Promise<CompanyLite[]> {
 	if (companyCache) return companyCache;
-	const p = fetch(new URL(COMPANY_SAMPLE_PATH, ctx.url.origin))
+	const p = mockFetch(new URL(COMPANY_SAMPLE_PATH, ctx.url.origin), undefined, { quiet: true })
 		.then(async (res) => {
 			if (!res.ok) throw new Error(String(res.status));
 			const body: unknown = await res.json();
@@ -457,7 +458,7 @@ const HOME_NO_ROW = {
 /** `new_matches` server-side: fundraising signals in the last 7 days (scout.repository.ts homeCounts). */
 async function newMatchCount(ctx: SandboxCtx): Promise<number> {
 	try {
-		const res = await fetch(new URL('/api/signals?type=fundraising&limit=100', ctx.url.origin));
+		const res = await mockFetch(new URL('/api/signals?type=fundraising&limit=100', ctx.url.origin), undefined, { quiet: true });
 		if (!res.ok) return 0;
 		const body: unknown = await res.json();
 		const rows = isRecord(body) && Array.isArray(body.data) ? body.data : [];
@@ -475,7 +476,7 @@ async function newMatchCount(ctx: SandboxCtx): Promise<number> {
  */
 async function watchlistCompanyCount(ctx: SandboxCtx): Promise<number> {
 	try {
-		const res = await fetch(new URL('/api/user-watchlists', ctx.url.origin));
+		const res = await mockFetch(new URL('/api/user-watchlists', ctx.url.origin), undefined, { quiet: true });
 		if (!res.ok) return 0;
 		const body: unknown = await res.json();
 		const lists = isRecord(body) && Array.isArray(body.data) ? body.data : [];
@@ -534,7 +535,7 @@ async function home(ctx: SandboxCtx) {
 /** Same rows as the public feed; un-gated by setup server-side (scout.controller.ts:146-157). */
 async function signals(ctx: SandboxCtx) {
 	try {
-		const res = await fetch(new URL(`/api/signals${ctx.url.search}`, ctx.url.origin));
+		const res = await mockFetch(new URL(`/api/signals${ctx.url.search}`, ctx.url.origin), undefined, { quiet: true });
 		if (!res.ok) throw new Error(String(res.status));
 		return await res.json();
 	} catch {
