@@ -1,6 +1,7 @@
 'use client';
 
 import { useLayoutEffect, type RefObject } from 'react';
+import { visibleBottom } from '@/lib/sandbox/visible-bottom';
 
 const MARGIN = 8;
 const GAP = 6;
@@ -31,7 +32,7 @@ export function useKeepInViewport(ref: RefObject<HTMLElement | null>, open: unkn
 			el.style.maxHeight = '';
 			el.style.overflowY = '';
 			const r = el.getBoundingClientRect();
-			const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+			const vw = document.documentElement.clientWidth, vh = visibleBottom(); // the tour's bottom sheet ends the page
 			const dx = r.left < MARGIN ? MARGIN - r.left : r.right > vw - MARGIN ? vw - MARGIN - r.right : 0;
 			let dy = 0, cap: number | null = null;
 			if (r.bottom > vh - MARGIN) {

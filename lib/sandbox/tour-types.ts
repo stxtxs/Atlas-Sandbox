@@ -79,6 +79,12 @@ export interface TourStep {
 	 * Back to this step doesn't reopen it fresh.
 	 */
 	alsoOn?: string;
+	/**
+	 * Only shown on screens at least this wide — for a part of the page the app
+	 * itself hides on narrow screens (the chat history rail below 861px). Skipped
+	 * otherwise, going forward and back.
+	 */
+	minWidth?: number;
 	/** Short headline, at most 7 words — the biggest text in the panel. */
 	title: string;
 	/**

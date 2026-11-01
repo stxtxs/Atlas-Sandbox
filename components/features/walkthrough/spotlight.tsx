@@ -2,11 +2,10 @@
 
 import { useEffect, useRef } from 'react';
 import { mergeAdjacent, type TargetBox } from './use-tour-target';
+import { SHEET_BREAKPOINT, visibleBottom } from '@/lib/sandbox/visible-bottom';
 
 /** How long a step waits for its element to render before offering "Next". */
 const FIND_TIMEOUT_MS = 5000;
-/** At or below this width the coach is a bottom sheet, so targets scroll to the top half instead of the centre. */
-const SHEET_BREAKPOINT = 1024;
 /** Breathing room around a highlighted element. */
 const PAD = 8;
 /** Highlight elements kept in the pool — a step never shows more. */
@@ -25,9 +24,7 @@ function boxOf(el: Element | null): TargetBox | null {
 /** Whether the element sits comfortably inside the area the visitor can see beside the panel. */
 function inView(el: Element): boolean {
 	const r = el.getBoundingClientRect();
-	const sheet = window.innerWidth <= SHEET_BREAKPOINT;
-	const bottom = sheet ? window.innerHeight * 0.4 : window.innerHeight;
-	return r.top >= EDGE && r.bottom <= bottom - EDGE / 2;
+	return r.top >= EDGE && r.bottom <= visibleBottom() - 12;
 }
 
 function place(node: HTMLDivElement, b: TargetBox | undefined) {

@@ -47,7 +47,7 @@ export const exploreTour: Tour = {
 				{ id: 'chat-type', path: '/chat', target: 'chat-composer', title: 'Ask a question', do: 'Click the box at the bottom, then type.', advance: { kind: 'type', value: 'Who is funding fan engagement?' } },
 				{ id: 'chat-send', path: '/chat', target: 'chat-composer', only: `${scoped('chat-composer', '.atlas-composer-send')}, ${scoped('chat-composer', 'textarea')}`, title: 'Send it', do: 'Press {{Enter}} or click the send arrow.', advance: { kind: 'request', method: 'POST', pattern: '/api/chat' } },
 				{ id: 'chat-answer', path: '/chat/:id', target: 'chat-thread', title: 'Your answer', body: 'Figures and names you can follow up on. In the real Atlas it reads the live database.', advance: { kind: 'next' } },
-				{ id: 'chat-history', path: '/chat/:id', target: 'chat-history', title: 'Your conversations', body: 'Every chat is kept here. New chat starts a fresh one.', advance: { kind: 'next' } },
+				{ id: 'chat-history', path: '/chat/:id', target: 'chat-history', minWidth: 861, title: 'Your conversations', body: 'Every chat is kept here. New chat starts a fresh one.', advance: { kind: 'next' } },
 			],
 		},
 		{

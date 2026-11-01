@@ -11,7 +11,7 @@ leaves the browser.
 | --- | --- |
 | Tier chooser | `app/page.tsx` (`/`). `/preview/<tier>` deep-links into a tour. |
 | Product pages | `app/(dashboard)/*`: the client's real pages, plus `data-tour` anchors. |
-| Frame | `components/shell/tutorial-shell.tsx`: AtlasShell with no sidebar, the tutorial bar and the tour panel. |
+| Frame | `components/shell/tutorial-shell.tsx`: AtlasShell with no sidebar and no top bar, plus the tour panel (Get Atlas, theme and Exit in its footer). |
 | Tour panel (coach) | `components/features/walkthrough/*`: guard, highlight, advance, contents menu. |
 | Tours | `lib/sandbox/tours/{explore,raise,scout}-tour.ts`: chapters of steps (`tour-types.ts`). |
 | State | `lib/sandbox/store.ts`: tier, step and per-tier sample workspace, in this browser only. |
@@ -45,6 +45,12 @@ Anchor elements with `data-tour="<page>-<thing>"`. The first step of every
 chapter must have a concrete `path` (no `:param`), because the Contents menu
 jumps straight to it.
 
+## Timing rules the engine relies on
+
+- **Progress lives in the URL** (`?tour=&step=`, `tutorial-url.ts`). The shell rewrites it with Next's own history state, so Next's router never sees the write (a router-visible write cancels navigations in flight and remounts lists keyed on the query).
+- **Never update tour state mid-navigation.** Next runs navigations in a transition; an urgent update in between (a step advance, a URL write) makes it drop them. `nav-pending.ts` tracks router pushes and `useUrlModal` opens; the coach advances and the shell writes only once they land.
+- **Only the visitor's own clicks advance a step** (`isTrusted`); the coach closes overlays and stale menus by script without advancing anything.
+
 ## Rules
 
 - **Fake data only.** Every entity comes from `fixtures/world.ts`. Names are fictional; rename any that ever collides with a real company.
@@ -56,4 +62,6 @@ jumps straight to it.
   - Supabase uploads → `demoUpload`;
   - `entity-logo` and `ui/atoms` → local flags, no favicon lookup;
   - account tabs → product settings tab only; Explore hides `advanced_filters` and `company_contacts` (feature-access stub);
+  - `hooks/use-url-state.ts` → `useUrlModal` opens with native `pushState` (a router push of a query-only change could resolve back to the old URL here) and marks it in `nav-pending.ts`; `useDeepLinkKey` ignores `tour`/`step`;
+  - dropdown flip logic (`use-keep-in-viewport`, combobox, date-picker, city-input, company-picker) → room below measured to `visibleBottom()`, so menus open above the phone bottom sheet instead of under it;
   - the `data-tour` anchors.

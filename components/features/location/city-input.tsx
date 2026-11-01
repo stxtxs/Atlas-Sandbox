@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import useSWR from 'swr';
 import { Input, cx } from '@/components/atlas';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { visibleBottom } from '@/lib/sandbox/visible-bottom';
 
 /**
  * City field with a debounced, Atlas-styled autocomplete.
@@ -78,7 +79,7 @@ export function CityInput({ value, onChange, onPick, id, disabled, className, pl
 		const r = wrapRef.current?.getBoundingClientRect();
 		if (!r) return;
 		const gap = 4, margin = 8, want = 260;
-		const below = window.innerHeight - r.bottom - margin;
+		const below = visibleBottom() - r.bottom - margin;
 		const above = r.top - margin;
 		if (below >= Math.min(want, 160) || below >= above) {
 			setPos({ left: r.left, width: r.width, top: r.bottom + gap, maxH: Math.min(want, below) });

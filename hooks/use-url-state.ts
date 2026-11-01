@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { STEP_PARAM, TOUR_PARAM } from '@/lib/sandbox/tutorial-url';
+import { markNavStart } from '@/lib/sandbox/nav-pending';
 
 /**
  * URL-as-state helpers. Two jobs:
@@ -162,7 +163,6 @@ export function useUrlModal(
 	opts?: { validate?: (value: string) => boolean },
 ): [string | null, (value: string | null) => void] {
 	const sp = useSearchParams();
-	const router = useRouter();
 	const validate = opts?.validate ?? isSafeId;
 	const raw = sp.get(key);
 	const value = raw != null && validate(raw) ? raw : null;
@@ -184,8 +184,13 @@ export function useUrlModal(
 		// navigation that only REMOVES query params (verified live on Next 16 — the
 		// URL and the drawer stayed put), while native replaceState is mirrored into
 		// useSearchParams, so the modal closes. Opening still pushes (Back closes it).
-		if (open) router.push(url, { scroll: false });
+		// Tutorial: opening uses native pushState too. A router push of a query-only
+		// change on these static pages could resolve back to the old URL (the drawer
+		// never opened); Next mirrors pushState into useSearchParams synchronously,
+		// and Back still closes the modal. The tour waits for it to land (nav-pending).
+		markNavStart();
+		if (open) window.history.pushState(null, '', url);
 		else window.history.replaceState(null, '', url);
-	}, [router, key, validate]);
+	}, [key, validate]);
 	return [value, set];
 }

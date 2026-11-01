@@ -6,6 +6,7 @@ import { Building2, Search } from 'lucide-react';
 import { useClaimSearch, type ClaimSearchResult } from '@/components/claim/use-claim-search';
 import type { Draft } from './deal-draft-codec';
 import { canonicalCountry } from '@/lib/catalog-options';
+import { visibleBottom } from '@/lib/sandbox/visible-bottom';
 
 /**
  * Company picker for Share-a-deal — a directory search, not free text.
@@ -48,7 +49,7 @@ export function CompanyPicker({ d, patch }: Props) {
 		const r = wrapRef.current?.getBoundingClientRect();
 		if (!r) return;
 		const gap = 4, margin = 8, want = 320;
-		const below = window.innerHeight - r.bottom - margin;
+		const below = visibleBottom() - r.bottom - margin;
 		const above = r.top - margin;
 		if (below >= Math.min(want, 180) || below >= above) setPos({ left: r.left, width: r.width, top: r.bottom + gap, maxH: Math.min(want, below) });
 		else setPos({ left: r.left, width: r.width, bottom: window.innerHeight - r.top + gap, maxH: Math.min(want, above) });

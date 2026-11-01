@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cx } from './cx';
+import { visibleBottom } from '@/lib/sandbox/visible-bottom';
 
 /**
  * Atlas date picker — a themed calendar, replacing the native `<input type=date>`
@@ -66,7 +67,7 @@ export function DatePicker({ value, onChange, id, disabled, placeholder = 'Selec
 		const gap = 4, margin = 8;
 		const width = Math.max(r.width, PANEL_W);
 		const left = Math.min(r.left, window.innerWidth - width - margin);
-		const below = window.innerHeight - r.bottom - margin;
+		const below = visibleBottom() - r.bottom - margin;
 		if (below >= PANEL_H || below >= r.top) setPos({ left, width, top: r.bottom + gap });
 		else setPos({ left, width, bottom: window.innerHeight - r.top + gap });
 	};

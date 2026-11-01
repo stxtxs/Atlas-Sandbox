@@ -9,6 +9,7 @@ import { SCOUT_COLOR } from '@/components/scout/shell-config';
 import { PRODUCT_NAME } from '@/components/features/walkthrough/tours';
 import { activeSandbox, currentStep, openTour, restoreStepSnapshot, setTourStep, usePractice } from '@/lib/sandbox/store';
 import { readTutorialParams, withTutorialParams } from '@/lib/sandbox/tutorial-url';
+import { markNavDone, navPending, trackRouterNavigations } from '@/lib/sandbox/nav-pending';
 import type { SandboxProduct } from '@/lib/sandbox/types';
 import '@/components/raise/raise.css';
 import '@/components/explore/explore.css';
@@ -60,13 +61,25 @@ export function TutorialShell({ children }: { children: React.ReactNode }) {
 	}, []);
 	useEffect(() => { if (mounted && !active) window.location.replace('/'); }, [mounted, active]);
 
+	// Router navigations in flight (lib/sandbox/nav-pending.ts): the tour holds its
+	// own updates until they land, or Next loses them. A navigation has landed
+	// once the pathname or query actually changes.
+	const [retry, setRetry] = useState(0);
+	useEffect(() => trackRouterNavigations(), []);
+	useEffect(() => { markNavDone(); }, [pathname, searchParams]);
+
 	// Keep the URL on the current position; pages and links that rewrite the query drop it.
 	useEffect(() => {
 		if (!mounted || !active) return;
+		// A navigation still in flight: try again shortly (it commits within a few frames; 3s caps a no-op push).
+		if (navPending()) {
+			const t = window.setTimeout(() => setRetry((n) => n + 1), 120);
+			return () => window.clearTimeout(t);
+		}
 		const here = `${window.location.pathname}${window.location.search}${window.location.hash}`;
 		const want = withTutorialParams(here, { tier: active, step });
 		if (want !== here) writeUrl(want);
-	}, [mounted, active, step, pathname, searchParams]);
+	}, [mounted, active, step, pathname, searchParams, retry]);
 
 	// Browser Back/Forward: the URL's step wins (with that step's sample data when going back).
 	useEffect(() => {

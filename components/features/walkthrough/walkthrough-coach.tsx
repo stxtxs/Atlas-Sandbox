@@ -5,10 +5,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useSWRConfig } from 'swr';
 import { useTheme } from 'next-themes';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, ListOrdered, LogOut, Moon, MousePointerClick, RotateCcw, Shuffle, Sun } from 'lucide-react';
-import { recordStepPath, restoreStepSnapshot, saveStepSnapshot, setTourStep, stepPath, usePractice } from '@/lib/sandbox/store';
+import { currentStep, recordStepPath, restoreStepSnapshot, saveStepSnapshot, setTourStep, stepPath, usePractice } from '@/lib/sandbox/store';
 import { matchPath } from '@/lib/sandbox/match-path';
 import { ATLAS_SIGNUP_URL } from '@/lib/sandbox/signup';
 import { flatIndexOf, urlStepOf, withTutorialParams } from '@/lib/sandbox/tutorial-url';
+import { afterNavigation } from '@/lib/sandbox/nav-pending';
 import type { Tour, TourStep } from '@/lib/sandbox/tour-types';
 import type { SandboxProduct } from '@/lib/sandbox/types';
 import { CoachText } from './coach-text';
@@ -25,6 +26,8 @@ const NO_SELECTORS: string[] = [];
 const ACCENT: Record<SandboxProduct, string> = { explore: '#F32163', raise: '#348DDE', scout: '#0FB86A' };
 
 const hasParams = (path: string) => /\/:/.test(path);
+/** A step the app's own layout leaves nothing to point at on this screen (see TourStep.minWidth). */
+const tooNarrow = (s: TourStep) => !!s.minWidth && window.innerWidth < s.minWidth;
 
 /**
  * Close any drawer or modal the app has open (export, company/event/program
@@ -96,6 +99,11 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 		const dest = hasParams(current.path) ? stepPath(product, step) : current.path;
 		if (dest) router.push(withTutorialParams(dest, { tier: product, step }));
 	}, [current, stepKey, step, pathname, router, product]);
+
+	// A step this screen is too narrow for moves straight on (Back skips it too).
+	useEffect(() => {
+		if (current && tooNarrow(current)) setTourStep(step + 1);
+	}, [current, step]);
 
 	// Read-only view of the open step, for automated walkthroughs of the tours.
 	useEffect(() => {
@@ -174,7 +182,9 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 	const advance = useCallback(() => {
 		if (!current || pauseTimer.current !== null) return;
 		// The step moves on — Contents (if open) must not hide what comes next.
-		const go = () => { setContents(false); setTourStep(step + 1); };
+		// Never while a navigation the visitor's click started is in flight (a
+		// drawer opening via the URL): an update now would make Next drop it.
+		const go = () => afterNavigation(() => { if (currentStep() !== step) return; setContents(false); setTourStep(step + 1); });
 		if (!current.pause) { go(); return; }
 		pauseTimer.current = window.setTimeout(() => { pauseTimer.current = null; go(); }, current.pause);
 	}, [current, step]);
@@ -187,7 +197,7 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 		// It also skips `:param` steps never visited in this tab (e.g. after a
 		// Contents jump): there is no page to reopen for them.
 		let prev = index - 1;
-		while (prev > 0 && (steps[prev].continues || (hasParams(steps[prev].path) && !stepPath(product, urlStepOf(prev))))) prev -= 1;
+		while (prev > 0 && (steps[prev].continues || tooNarrow(steps[prev]) || (hasParams(steps[prev].path) && !stepPath(product, urlStepOf(prev))))) prev -= 1;
 		goTo(prev < 0 ? 0 : urlStepOf(prev));
 	}, [showIntro, isFinale, index, steps, goTo, product]);
 

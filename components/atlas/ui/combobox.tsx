@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { RemoveScroll } from 'react-remove-scroll';
 import { Check, ChevronDown, Search } from 'lucide-react';
 import { cx } from './cx';
+import { visibleBottom } from '@/lib/sandbox/visible-bottom';
 
 /**
  * One custom dropdown for the whole app, replacing the native `<select>`.
@@ -84,7 +85,7 @@ export function Combobox({ value, onChange, options, groups, placeholder = 'Sele
 		const r = triggerRef.current?.getBoundingClientRect();
 		if (!r) return;
 		const gap = 4, margin = 8, want = 320;
-		const below = window.innerHeight - r.bottom - margin;
+		const below = visibleBottom() - r.bottom - margin;
 		const above = r.top - margin;
 		// Match the trigger width — long labels (e.g. full sector paths) wrap
 		// rather than widening the panel, so short dropdowns aren't oversized.
