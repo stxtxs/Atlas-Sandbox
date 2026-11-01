@@ -135,7 +135,7 @@ const SEED: SeedTemplate[] = [
 	{ investor: 'Extra Time Angels', stage: 'in_conversation', contact: 'Ciara Byrne', amount: 100_000, lastContact: -11, nextStep: 'Follow up on the syndicate call', due: -4, notes: 'Pre-seed investors; three angels keen to follow on.', addedDay: -44, lastMoveDay: -6 },
 	{ investor: 'Halfway Line Partners', stage: 'in_conversation', contact: 'Lucía Romero', amount: null, lastContact: -5, nextStep: 'Intro call with a portfolio founder', due: 8, notes: null, addedDay: -36, lastMoveDay: -9 },
 	{ investor: 'Tidepool Sport', stage: 'contacted', contact: 'Daan de Vries', amount: null, lastContact: -9, nextStep: null, due: null, notes: 'Sent deck via a warm intro from Extra Time Angels.', addedDay: -30, lastMoveDay: -9 },
-	{ investor: 'Breakaway Fund', stage: 'contacted', contact: null, amount: null, lastContact: -12, nextStep: 'Send updated deck after the warm intro', due: -2, notes: null, addedDay: -25, lastMoveDay: -12 },
+	{ investor: 'Stoppage Time Capital', stage: 'contacted', contact: null, amount: null, lastContact: -12, nextStep: 'Send updated deck after the warm intro', due: -2, notes: null, addedDay: -25, lastMoveDay: -12 },
 	{ investor: 'Podium Capital', stage: 'target', contact: null, amount: null, lastContact: null, nextStep: 'Ask Giulia for a warm intro', due: 10, notes: 'Also in Munich — worth a coffee.', addedDay: -14, lastMoveDay: -14 },
 	{ investor: 'Grandstand Growth', stage: 'target', contact: null, amount: null, lastContact: null, nextStep: null, due: null, notes: 'Too late-stage for this round; keep warm for the Series A.', addedDay: -8, lastMoveDay: -8 },
 ];

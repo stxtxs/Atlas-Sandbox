@@ -279,12 +279,12 @@ export const scoutTour: Tour = {
 				{
 					id: 'funded-search', path: '/recently-funded', target: 'filters-search',
 					title: 'Fresh rounds',
-					body: 'Newly disclosed rounds, newest first; Pitchmark’s is the biggest of the last two months.',
-					advance: { kind: 'type', value: 'Pitchmark' },
+					body: 'Newly disclosed rounds, newest first; Kickframe’s is the biggest of the last two months.',
+					advance: { kind: 'type', value: 'Kickframe' },
 				},
 				{
 					id: 'funded-result', path: '/recently-funded',
-					title: 'Pitchmark’s $14M Series B',
+					title: 'Kickframe’s $14M Series B',
 					body: 'Led by Podium Capital. Filters narrow rounds by type, country and period.',
 					advance: { kind: 'next' },
 				},

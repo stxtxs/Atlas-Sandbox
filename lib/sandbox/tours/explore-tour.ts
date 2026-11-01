@@ -3,7 +3,7 @@ import type { Tour } from '../tour-types';
 /*
  * Atlas Explore — the free tier — one chapter per page. Every step says exactly
  * what to click or type; the data is the made-up world in fixtures/world.ts
- * (Kitroom, Pitchmark Analytics, the Matchpoint summit…).
+ * (Kitroom, Kickframe Analytics, the Matchpoint summit…).
  *
  * Anchors are `data-tour` attributes on the real components; shared ones:
  * filters-search / filters-add / filters-sort (FilterBar), resources-* (Reports
@@ -75,7 +75,7 @@ export const exploreTour: Tour = {
 				{ id: 'company-save-name', path: '/companies/kitroom', target: 'company-save', only: scoped('company-save', '.atlas-wl-new input'), continues: true, title: 'Name it', do: 'Click the name box, then type.', advance: { kind: 'type', value: 'Fan engagement watch' } },
 				{ id: 'company-save-create', path: '/companies/kitroom', target: 'company-save', only: scoped('company-save', '.atlas-wl-create'), continues: true, title: 'Create and save', do: 'Click {{Create}}.', body: 'Kitroom goes into your new list.', advance: { kind: 'request', method: 'POST', pattern: '/api/user-watchlists/:id/companies/:companyId' } },
 				{ id: 'company-rail', path: '/companies/kitroom', target: 'company-signals', highlights: ['company-related'], title: 'Signals and related companies', body: 'Recent Kitroom news on the right, similar companies below — a quick way to map a niche.', advance: { kind: 'next' } },
-				{ id: 'company-ma', path: '/companies/pitchmark-analytics', target: 'company-ma', title: 'M&A activity', body: 'Pitchmark Analytics bought Rinkside Data and Scrumcap Labs. In Atlas, clicking a row opens the full deal.', advance: { kind: 'next' } },
+				{ id: 'company-ma', path: '/companies/kickframe-analytics', target: 'company-ma', title: 'M&A activity', body: 'Kickframe Analytics bought Rinkside Data and Scrumcap Labs. In Atlas, clicking a row opens the full deal.', advance: { kind: 'next' } },
 			],
 		},
 		{

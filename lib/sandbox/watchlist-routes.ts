@@ -35,7 +35,7 @@ export const PORTFOLIO_ID = 'sample-wl-portfolio';
 /** [company, days since added, Scout board stage]. */
 const SEED: Record<string, [string, number, string][]> = {
 	[SHORTLIST_ID]: [['Matchday Loop', 3, 'meeting'], ['Courtline', 6, 'reviewing'], ['Stridewise', 9, 'identified'], ['Goalsight', 14, 'due_diligence']],
-	[PORTFOLIO_ID]: [['Pitchmark Analytics', 20, 'invested'], ['Arenaflow', 33, 'invested'], ['Replaykit', 41, 'passed']],
+	[PORTFOLIO_ID]: [['Kickframe Analytics', 20, 'invested'], ['Arenaflow', 33, 'invested'], ['Replaykit', 41, 'passed']],
 };
 
 function stored(idOrSlug: string, addedDaysAgo: number, stage: string | null = null): StoredCompany | null {
