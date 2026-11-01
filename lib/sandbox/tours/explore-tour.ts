@@ -33,11 +33,11 @@ export const exploreTour: Tour = {
 		{
 			id: 'interests', title: 'Interests', steps: [
 				{ id: 'interests-sector', path: '/interests', target: 'interests-sectors', only: scoped('interests-sectors', '.explore-chip:first-child'), title: 'Pick a sector', do: 'Click the first sector.', advance: { kind: 'click' } },
-				{ id: 'interests-sub', path: '/interests', target: 'interests-subs', only: scoped('interests-subs', '.explore-chip:first-child'), title: 'Narrow it down', do: 'Click the first sub-sector.', advance: { kind: 'click' } },
-				{ id: 'interests-sport', path: '/interests', target: 'interests-sports', only: scoped('interests-sports', '.explore-chip:first-child'), title: 'Add a sport', do: 'Click the first sport.', advance: { kind: 'click' } },
-				{ id: 'interests-geo', path: '/interests', target: 'interests-geos', only: scoped('interests-geos', '[data-value="Europe"]'), title: 'Where you look', do: 'Click {{Europe}}.', advance: { kind: 'click' } },
-				{ id: 'interests-goal', path: '/interests', target: 'interests-goals', only: scoped('interests-goals', '[data-value="Track companies"]'), title: 'What you’re here for', do: 'Click {{Track companies}}.', advance: { kind: 'click' } },
-				{ id: 'interests-save', path: '/interests', target: 'interests-save', only: scoped('interests-save', 'button:first-child'), title: 'Save your interests', do: 'Click {{Save interests}}.', body: 'Interests shape your home page — they never hide anything from you.', advance: { kind: 'request', method: 'PUT', pattern: '/api/explore/interests' } },
+				{ id: 'interests-sub', continues: true, path: '/interests', target: 'interests-subs', only: scoped('interests-subs', '.explore-chip:first-child'), title: 'Narrow it down', do: 'Click the first sub-sector.', advance: { kind: 'click' } },
+				{ id: 'interests-sport', continues: true, path: '/interests', target: 'interests-sports', only: scoped('interests-sports', '.explore-chip:first-child'), title: 'Add a sport', do: 'Click the first sport.', advance: { kind: 'click' } },
+				{ id: 'interests-geo', continues: true, path: '/interests', target: 'interests-geos', only: scoped('interests-geos', '[data-value="Europe"]'), title: 'Where you look', do: 'Click {{Europe}}.', advance: { kind: 'click' } },
+				{ id: 'interests-goal', continues: true, path: '/interests', target: 'interests-goals', only: scoped('interests-goals', '[data-value="Track companies"]'), title: 'What you’re here for', do: 'Click {{Track companies}}.', advance: { kind: 'click' } },
+				{ id: 'interests-save', continues: true, path: '/interests', target: 'interests-save', only: scoped('interests-save', 'button:first-child'), title: 'Save your interests', do: 'Click {{Save interests}}.', body: 'Interests shape your home page — they never hide anything from you.', advance: { kind: 'request', method: 'PUT', pattern: '/api/explore/interests' } },
 				{ id: 'interests-result', path: '/home', target: 'home-feed', title: 'Home, personalised', body: 'The “For you” card now points at companies in the sector you picked.', advance: { kind: 'next' } },
 			],
 		},
@@ -69,7 +69,7 @@ export const exploreTour: Tour = {
 			id: 'company', title: 'Company profile', steps: [
 				{ id: 'company-head', path: '/companies/kitroom', target: 'company-head', title: 'Kitroom at a glance', body: 'The check mark means Kitroom’s team verified this profile; the badge means it’s raising now.', advance: { kind: 'next' } },
 				{ id: 'company-facts', path: '/companies/kitroom', target: 'company-facts', title: 'Key facts', body: 'Founded, sports, technology, headquarters, model, category, stage and total raised — in one card.', advance: { kind: 'next' } },
-				{ id: 'company-funding', path: '/companies/kitroom', target: 'company-funding', title: 'Funding history', body: 'Every disclosed round with its date, size and investors. Investor names link to their profiles.', advance: { kind: 'next' } },
+				{ id: 'company-funding', path: '/companies/kitroom', target: 'company-funding', title: 'Funding history', body: 'Every disclosed round with its date, size and investors.', advance: { kind: 'next' } },
 				{ id: 'company-save-open', path: '/companies/kitroom', target: 'company-save', only: scoped('company-save', '.atlas-action--save'), title: 'Save it to a watchlist', do: 'Click {{Add to watchlist}}.', advance: { kind: 'click' } },
 				{ id: 'company-save-new', path: '/companies/kitroom', target: 'company-save', only: scoped('company-save', '.atlas-switcher__foot .atlas-menu__item'), continues: true, title: 'Start a new list', do: 'Click {{New watchlist}}.', advance: { kind: 'click' } },
 				{ id: 'company-save-name', path: '/companies/kitroom', target: 'company-save', only: scoped('company-save', '.atlas-wl-new input'), continues: true, title: 'Name it', do: 'Click the name box, then type.', advance: { kind: 'type', value: 'Fan engagement watch' } },
@@ -126,7 +126,7 @@ export const exploreTour: Tour = {
 		},
 		{
 			id: 'roundup', title: 'Monthly Roundup', steps: [
-				{ id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', only: '[data-tour="roundup-pickers"]', title: 'One month at a glance', body: 'A month of funding and M&A, summed up. Pick any month and year here.', advance: { kind: 'next' } },
+				{ id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', only: '[data-tour="roundup-pickers"]', allow: ['.atlas-combo-panel'], title: 'One month at a glance', body: 'A month of funding and M&A, summed up. Pick any month and year here.', advance: { kind: 'next' } },
 				{ id: 'roundup-kpis', path: '/roundup', target: 'roundup-kpis', title: 'The headline numbers', body: 'Capital raised, average deal size and deal count — with the change on the month before.', advance: { kind: 'next' } },
 				{ id: 'roundup-count', path: '/roundup', target: 'roundup-metric', only: scoped('roundup-metric', '[data-key="count"]'), title: 'Count instead of amount', do: 'Click {{Count}}.', body: 'The breakdowns now count deals instead of dollars.', advance: { kind: 'click' } },
 				{ id: 'roundup-donuts', path: '/roundup', target: 'roundup-donuts', title: 'The breakdown', body: 'By sector, business model and country.', advance: { kind: 'next' } },

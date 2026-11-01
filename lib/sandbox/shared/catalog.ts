@@ -69,6 +69,8 @@ function sectorFilter(url: URL): Set<string> | null {
 
 const usd = (n: number | null) => (n == null ? null : String(n));
 const dealsOf = (c: WCompany) => DEALS.filter((d) => d.company === c.name).sort((a, b) => a.daysAgo - b.daysAgo);
+/** Programs and cohorts stay current, like every relative date in the sample data. */
+const THIS_YEAR = new Date().getFullYear();
 export const fundingOf = (c: WCompany) => dealsOf(c).reduce((sum, d) => sum + (d.amount_usd ?? 0), 0);
 /** Added to Atlas at a steady pace, newest last in the list — stable "Newest" sort. */
 const addedAt = (c: WCompany) => ago(30 + COMPANIES.indexOf(c) * 23);
@@ -84,7 +86,7 @@ export function companyListItem(c: WCompany): Company & { total_funding: number 
 		location_id: null, social_profile_id: null, is_verified: !!c.is_verified, is_unicorn: false,
 		is_actively_raising: !!c.is_actively_raising,
 		poc_first_name: null, poc_last_name: null, poc_job_position: null, poc_email: null, poc_linkedin: null,
-		accelerator: c.accelerator ?? null, cohort: c.accelerator ? '2026' : null, added_by_profile_id: null,
+		accelerator: c.accelerator ?? null, cohort: c.accelerator ? String(THIS_YEAR) : null, added_by_profile_id: null,
 		created_at: addedAt(c), updated_at: ago(7),
 		primary_sector: sector.name, primary_sector_slug: sector.slug, hq_city: c.city, hq_country: country.name,
 		primary_sport: c.sport, total_funding_usd: funding,
@@ -253,7 +255,7 @@ export function listInvestors(url: URL) {
 		if (ids.length && !ids.includes(i.id)) return false;
 		if (q && !has([i.name, i.description, i.website], q)) return false;
 		if (sp.get('category') && i.category !== sp.get('category')) return false;
-		if (sp.get('round_type_slug') && !i.stages.some((s) => slugify(s) === sp.get('round_type_slug'))) return false;
+		if (sp.get('round_type_slug') && !i.stages.some((s) => roundByName(s).slug === sp.get('round_type_slug'))) return false;
 		if (sectors && !i.focus.some((f) => sectors.has(slugify(f))) && !companies.some((c) => sectors.has(sectorByName(c.sector).slug))) return false;
 		if (sport && !companies.some((c) => c.sport === sport)) return false;
 		if (sp.get('country') && country.name !== sp.get('country')) return false;
@@ -384,7 +386,7 @@ export function programRow(p: WProgram) {
 	return {
 		id: p.id, name: p.name, slug: p.slug, entity_type: 'program', category: PROGRAM_CATEGORY[p.kind], description: p.description,
 		website: `${p.slug.replace(/-/g, '')}.example`, hq_country: countryByCode(p.country).name, hq_city: p.city,
-		start_date: null, end_date: null, mode: null, cover_url: null, founded_year: 2018 + (PROGRAMS.indexOf(p) % 5), latest_activity_year: 2026,
+		start_date: null, end_date: null, mode: null, cover_url: null, founded_year: 2018 + (PROGRAMS.indexOf(p) % 5), latest_activity_year: THIS_YEAR,
 	};
 }
 
@@ -436,7 +438,7 @@ export function programDetails(p: WProgram) {
 	return {
 		duration_label: `${p.weeks} weeks`, interval_label: 'Once a year', investment_label: p.kind === 'incubator' ? 'No investment' : 'Up to $100k',
 		equity_label: p.kind === 'incubator' ? 'None' : '6%', stage_label: 'Pre-Seed – Seed', cohort_size: Math.max(6, p.cohort.length * 4),
-		virtual_mode: p.kind === 'corporate' ? 'hybrid' : 'no', has_office_space: p.kind !== 'corporate', latest_cohort_year: 2026,
+		virtual_mode: p.kind === 'corporate' ? 'hybrid' : 'no', has_office_space: p.kind !== 'corporate', latest_cohort_year: THIS_YEAR,
 		details: p.description, entries_open: p.deadlineInDays > 0,
 	} as const;
 }
@@ -447,7 +449,7 @@ export function listParticipations(url: URL) {
 	const rows = PROGRAMS.flatMap((p) => p.cohort.map((name, n) => {
 		const c = companyByName(name);
 		return {
-			id: `${p.id}-${c.id}`, program_entity_id: p.id, company_id: c.id, cohort_year: 2026 - (n % 2), cohort_name: `Cohort ${2026 - (n % 2)}`,
+			id: `${p.id}-${c.id}`, program_entity_id: p.id, company_id: c.id, cohort_year: THIS_YEAR - (n % 2), cohort_name: `Cohort ${THIS_YEAR - (n % 2)}`,
 			participation_status: 'graduated' as const, program_name: p.name, program_website: `${p.slug.replace(/-/g, '')}.example`,
 			startup_name_snapshot: c.name, startup_website_snapshot: c.website,
 		};

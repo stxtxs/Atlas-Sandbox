@@ -103,7 +103,7 @@ export interface TourStep {
 	advance: TourAdvance;
 	/** Milliseconds to hold on the page once the step is done, so its result is seen before the tour moves on. */
 	pause?: number;
-	/** The second interaction of the previous numbered step: shares its step number. */
+	/** Builds on what the step before left on screen (an open menu, unsaved picks): Back skips past it to the start of the run. */
 	continues?: boolean;
 	/** A simulated confirmation, shown as a card over the page instead of a real action. */
 	confirm?: { title: string; body: string };

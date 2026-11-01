@@ -61,7 +61,7 @@ export const raiseTour: Tour = {
 		},
 		{
 			id: 'deck', title: 'Pitch Deck', steps: [
-				{ id: 'deck-summary', path: '/deck', allow: ['.atlas-card--glow'], title: 'How investors read your deck',
+				{ id: 'deck-summary', path: '/deck', target: 'deck-latest', title: 'How investors read your deck',
 					body: 'Atlas scores a deck out of 100, gives one verdict and the top three fixes. Fanloop’s seed deck scored 71.', advance: { kind: 'next' } },
 				{ id: 'deck-open', path: '/deck', target: 'deck-view-analysis', title: 'Open the full analysis',
 					do: 'Click {{View full analysis}}.', advance: { kind: 'path', pattern: `/deck/${SAMPLE_DECK_ID}` } },
@@ -98,7 +98,7 @@ export const raiseTour: Tour = {
 				{ id: 'profile-save', path: `/investors/${KESTREL}`, target: 'investor-record-save', continues: true,
 					title: 'Save it', do: 'Click {{Save changes}}.', advance: { kind: 'request', method: 'PATCH', pattern: '/api/raise/pipeline/:id' }, pause: 900 },
 				{ id: 'profile-activity', path: `/investors/${KESTREL}`, target: 'investor-activity', title: 'Every move, logged',
-					body: 'Stage moves, amounts and notes build a history, so you know where each conversation stands.', advance: { kind: 'next' } },
+					body: 'Stage moves and committed amounts build a history, so you know where each conversation stands.', advance: { kind: 'next' } },
 			],
 		},
 		{
@@ -112,13 +112,13 @@ export const raiseTour: Tour = {
 					title: 'Not a fit? Hide it', do: 'Click {{Not relevant}} (the ✕) on the first card.', body: 'Atlas leaves it out of your matches from now on.',
 					advance: { kind: 'request', method: 'POST', pattern: '/api/recommendations/investors/:id/dismiss' }, pause: 600 },
 				{ id: 'matches-undo', path: '/recommended', allow: ['[data-sonner-toast] button'], continues: true,
-					title: 'Changed your mind?', body: 'Undo on the message at the top right brings it back. Either way, carry on with Next.', advance: { kind: 'next' } },
+					title: 'Changed your mind?', body: 'The message at the top right offers Undo for a few seconds. Either way, carry on with Next.', advance: { kind: 'next' } },
 			],
 		},
 		{
 			id: 'pipeline', title: 'Investor pipeline', steps: [
 				{ id: 'pipeline-board', path: '/pipeline', target: 'pipeline-board', title: 'Your raise as a board',
-					body: 'Every investor in your Main watchlist, stage by stage, from Target to Committed.', advance: { kind: 'next' } },
+					body: 'Every investor in your Main watchlist, stage by stage, from Target through to Closed or Passed.', advance: { kind: 'next' } },
 				{ id: 'pipeline-drag', path: '/pipeline', target: 'pipe-card-sample-pipe-7', highlights: ['pipeline-col-contacted'],
 					dropOn: '[data-tour="pipeline-col-contacted"]',
 					allow: ['[data-tour="pipeline-stage"]', '[role="option"][data-value="contacted"]', '[data-tour="pipeline-save"]'],
@@ -200,8 +200,8 @@ export const raiseTour: Tour = {
 		},
 		{
 			id: 'programs', title: 'Programs', steps: [
-				{ id: 'programs-table', path: '/programs', target: 'programs-table', title: 'Accelerators and programmes',
-					body: 'Sports tech accelerators, incubators and corporate programmes, with deadlines and past cohorts.', advance: { kind: 'next' } },
+				{ id: 'programs-table', path: '/programs', target: 'programs-table', title: 'Accelerators and programs',
+					body: 'Sports tech accelerators, incubators and corporate programs, with deadlines and past cohorts.', advance: { kind: 'next' } },
 			],
 		},
 		{
@@ -218,7 +218,7 @@ export const raiseTour: Tour = {
 		},
 		{
 			id: 'signals', title: 'Signals', steps: [
-				{ id: 'signals-filters', path: '/signals', target: 'signals-filters', title: 'Who is raising right now',
+				{ id: 'signals-filters', path: '/signals', target: 'signals-filters', highlights: ['signals-filters', 'signals-filter-row'], title: 'Who is raising right now',
 					body: 'Companies that just raised or are raising. Filter by type, sector, country or your watchlists.', advance: { kind: 'next' } },
 				{ id: 'signals-list', path: '/signals', target: 'signals-list', title: 'Read the market',
 					body: 'Rounds in your space show which investors are active this month.', advance: { kind: 'next' } },
@@ -227,7 +227,7 @@ export const raiseTour: Tour = {
 		{
 			id: 'analysis', title: 'Market analysis', steps: [
 				{ id: 'analysis-kpis', path: '/analytics', target: 'analysis-kpis', title: 'The whole market in numbers',
-					body: 'Funding, deal counts and M&A across sports tech.', advance: { kind: 'next' } },
+					body: 'Funding and deal counts across sports tech. Switch the series above to see M&A.', advance: { kind: 'next' } },
 				{ id: 'analysis-series', path: '/analytics', target: 'analysis-series', only: '[data-tour="analysis-series"], [data-tour="analysis-range"]', title: 'Funding or M&A',
 					body: 'Switch between the two, and change the period with the range beside it.', advance: { kind: 'next' } },
 				{ id: 'analysis-sectors', path: '/analytics', target: 'analysis-sectors', title: 'Where the money goes',
@@ -236,7 +236,7 @@ export const raiseTour: Tour = {
 		},
 		{
 			id: 'roundup', title: 'Monthly Roundup', steps: [
-				{ id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', only: '[data-tour="roundup-pickers"]', title: 'One month at a time',
+				{ id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', only: '[data-tour="roundup-pickers"]', allow: ['.atlas-combo-panel'], title: 'One month at a time',
 					body: 'Pick a month to see every round and acquisition, summed up.', advance: { kind: 'next' } },
 				{ id: 'roundup-kpis', path: '/roundup', target: 'roundup-kpis', title: 'The month in numbers',
 					body: 'Capital raised, average deal size and deal count, with sector and country breakdowns below.', advance: { kind: 'next' } },

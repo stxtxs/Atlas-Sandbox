@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useSWRConfig } from 'swr';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { AtlasShell } from '@/components/atlas';
 import { EXPLORE_COLOR } from '@/components/explore/shell-config';
 import { SCOUT_COLOR } from '@/components/scout/shell-config';
 import { PRODUCT_NAME } from '@/components/features/walkthrough/tours';
-import { activeSandbox, currentStep, openTour, restoreStepSnapshot, setTourStep, usePractice } from '@/lib/sandbox/store';
+import { activeSandbox, currentStep, openTour, restoreStepSnapshot, setTourStep, usePractice, useRestoreCount } from '@/lib/sandbox/store';
 import { readTutorialParams, withTutorialParams } from '@/lib/sandbox/tutorial-url';
 import { markNavDone, navPending, trackRouterNavigations } from '@/lib/sandbox/nav-pending';
 import type { SandboxProduct } from '@/lib/sandbox/types';
@@ -47,6 +47,7 @@ function writeUrl(url: string) {
  */
 export function TutorialShell({ children }: { children: React.ReactNode }) {
 	const { active, step } = usePractice();
+	const restores = useRestoreCount();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
 	const { mutate } = useSWRConfig();
@@ -97,7 +98,8 @@ export function TutorialShell({ children }: { children: React.ReactNode }) {
 	if (!mounted || !active) return null;
 	return (
 		<AtlasShell product={PRODUCT_NAME[active]} productColor={COLOR[active]} homePath={pathname ?? '/home'} nav={[]} overlay={<WalkthroughCoach />}>
-			{children}
+			{/* Remounted when Back restores the workspace: the page's own state starts over with it. */}
+			<Fragment key={restores}>{children}</Fragment>
 		</AtlasShell>
 	);
 }

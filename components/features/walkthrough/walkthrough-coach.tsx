@@ -17,7 +17,7 @@ import { leavePractice, restartPractice } from './practice-actions';
 import { Spotlight } from './spotlight';
 import { PRODUCT_NAME, TOURS, flatten } from './tours';
 import { useTourAdvance } from './use-tour-advance';
-import { useTourGuard } from './use-tour-guard';
+import { TOUR_ESCAPE, useTourGuard } from './use-tour-guard';
 import { tourSelector } from './use-tour-target';
 import './walkthrough.css';
 
@@ -36,7 +36,7 @@ const tooNarrow = (s: TourStep) => !!s.minWidth && window.innerWidth < s.minWidt
  * a Contents jump and opening Contents, so the step you land on is never stuck
  * under an overlay from a later step.
  */
-const OVERLAY_CLOSERS = ['.export-modal__x', '.co-drawer-head .icon-btn[title="Close"]', '.pipe-drawer [aria-label="Close"]', '.scout-dd-modal__x'];
+const OVERLAY_CLOSERS = ['.export-modal__x', '.co-drawer-head .icon-btn[title="Close"]', '.pipe-drawer [aria-label="Close"]', '.scout-dd-modal__x', '.setup-modal__x', '.ma-panel [aria-label="Close"]'];
 function closeOverlays() {
 	for (const sel of OVERLAY_CLOSERS) document.querySelector<HTMLElement>(sel)?.click();
 }
@@ -93,16 +93,18 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 	// Open the step's page once per step — with the tour position already in the URL.
 	const navigatedFor = useRef('');
 	useEffect(() => {
-		if (!current || navigatedFor.current === stepKey) return;
+		if (!current || tooNarrow(current) || navigatedFor.current === stepKey) return;
 		navigatedFor.current = stepKey;
-		if (matchPath(current.path, pathname) || (current.alsoOn && matchPath(current.alsoOn, pathname))) return;
+		// The address bar, not usePathname(): after browser Back/Forward the hook still holds the old page for a render.
+		const here = window.location.pathname;
+		if (matchPath(current.path, here) || (current.alsoOn && matchPath(current.alsoOn, here))) return;
 		const dest = hasParams(current.path) ? stepPath(product, step) : current.path;
 		if (dest) router.push(withTutorialParams(dest, { tier: product, step }));
 	}, [current, stepKey, step, pathname, router, product]);
 
 	// A step this screen is too narrow for moves straight on (Back skips it too).
 	useEffect(() => {
-		if (current && tooNarrow(current)) setTourStep(step + 1);
+		if (current && tooNarrow(current)) return afterNavigation(() => { if (currentStep() === step) setTourStep(step + 1); });
 	}, [current, step]);
 
 	// Read-only view of the open step, for automated walkthroughs of the tours.
@@ -158,6 +160,15 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 			if (menus.some((m) => m !== used)) (used ?? document.body).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 		}, 0);
 		return () => window.clearTimeout(timer);
+	}, [stepKey, current, allowedKey]);
+
+	// A field still focused from an earlier (typing) step would swallow this step's keys, Enter for Next included:
+	// focus moves to the new headline instead, which also brings a screen reader to the new step.
+	useEffect(() => {
+		if (!current || current.advance.kind === 'type') return;
+		const el = document.activeElement;
+		if (!(el instanceof HTMLElement) || !isTyping(el) || allowedKey.split('\n').some((sel) => sel && el.closest(sel))) return;
+		document.querySelector<HTMLElement>('.wt-coach .wt-coach__title')?.focus({ preventScroll: true });
 	}, [stepKey, current, allowedKey]);
 
 	// A step with no target leads with its first allowed element, so it can still be "missing".
@@ -307,7 +318,7 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 						<>
 							{/* Only the headline and the action are announced — not the whole panel each step. */}
 							<div className="wt-coach__focus" aria-live="polite">
-								<h2 className="wt-coach__title">{current.title}</h2>
+								<h2 className="wt-coach__title" tabIndex={-1}>{current.title}</h2>
 								<ActionCue step={current} onNext={advance} canNext={canNext && !current.confirm} />
 							</div>
 							{current.body && <p className="wt-coach__info"><CoachText text={current.body} /></p>}
@@ -402,7 +413,10 @@ function useCoachKeys(back: () => void, primary: () => void, enterEnabled: boole
 			e.preventDefault();
 			primary();
 		};
+		// An Escape the guard took from the page (focus on the page, not the panel).
+		const onTourEscape = () => { if (!document.querySelector('[role="dialog"], [role="alertdialog"]')) back(); };
 		window.addEventListener('keydown', onKey);
-		return () => window.removeEventListener('keydown', onKey);
+		window.addEventListener(TOUR_ESCAPE, onTourEscape);
+		return () => { window.removeEventListener('keydown', onKey); window.removeEventListener(TOUR_ESCAPE, onTourEscape); };
 	}, [back, primary, enterEnabled]);
 }

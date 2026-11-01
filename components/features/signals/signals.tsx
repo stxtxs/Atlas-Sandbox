@@ -54,7 +54,7 @@ export function Signals({ companiesHref }: { companiesHref: string }) {
 				<PillTabs ariaLabel="Signal type" value={type} onChange={setType} options={FILTERS} />
 				<ViewToggle value={view} onChange={setView} />
 			</div>
-			<div className="atlas-sig-filter atlas-sig-filter--row">
+			<div className="atlas-sig-filter atlas-sig-filter--row" data-tour="signals-filter-row">
 				<Select aria-label="Sector" placeholder="All sectors" value={sector} onChange={(e) => setSector(e.target.value)} options={sectorTiers.topOptions} />
 				<Select aria-label="Country" placeholder="All countries" value={country} onChange={(e) => setCountry(e.target.value)} options={loc.country} />
 				<button type="button" className={watchlistOnly ? 'atlas-pilltab on' : 'atlas-pilltab'} aria-pressed={watchlistOnly} onClick={() => setWatchlistOnly((v) => !v)}>My watchlists</button>

@@ -50,6 +50,9 @@ jumps straight to it.
 - **Progress lives in the URL** (`?tour=&step=`, `tutorial-url.ts`). The shell rewrites it with Next's own history state, so Next's router never sees the write (a router-visible write cancels navigations in flight and remounts lists keyed on the query).
 - **Never update tour state mid-navigation.** Next runs navigations in a transition; an urgent update in between (a step advance, a URL write) makes it drop them. `nav-pending.ts` tracks router pushes and `useUrlModal` opens; the coach advances and the shell writes only once they land.
 - **Only the visitor's own clicks advance a step** (`isTrusted`); the coach closes overlays and stale menus by script without advancing anything.
+- **Escape belongs to the tour.** The guard lets it reach the app only inside a menu, list or combobox the step allows. Anywhere else it is the panel's Escape (Back, or close Contents), so it never closes a drawer or wizard a step relies on.
+- **Back puts the page back too.** Back restores the step's workspace snapshot and the shell remounts the page, so the page's own state (wizard step, unsaved picks) starts over with it. Steps that build on unsaved picks from the step before are `continues`, and Back skips to the start of that run.
+- **Storage can be blocked.** `store.ts` falls back to memory, so the tour still runs. The step still survives a reload through the URL; the sample workspace starts fresh.
 
 ## Rules
 

@@ -89,6 +89,8 @@ body.wt-soft-open .atlas-main { filter: blur(5px) saturate(0.85); }
 .atlas .wt-coach__main { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 20px; padding: 28px 0; }
 .atlas .wt-coach__focus { display: grid; gap: 20px; }
 .atlas .wt-coach__title { margin: 0; font-family: var(--a-font); font-size: 31px; font-weight: 700; line-height: 1.12; letter-spacing: -0.015em; color: var(--wt-ink); text-wrap: balance; }
+/* Focus lands here programmatically between steps (tabIndex -1): no ring on a headline. */
+.atlas .wt-coach__title:focus { outline: none; }
 .atlas .wt-coach__title--hero { font-size: 36px; line-height: 1.06; }
 .atlas .wt-coach__lead { margin: 0; font-size: 17px; line-height: 1.55; color: var(--wt-muted); }
 .atlas .wt-coach__info { margin: 0; padding-top: 16px; border-top: 1px solid var(--wt-line); font-size: 15px; line-height: 1.6; color: var(--wt-muted); }

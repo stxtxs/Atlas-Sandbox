@@ -182,7 +182,7 @@ export const scoutTour: Tour = {
 				{
 					id: 'watchlists-list', path: '/watchlists', target: 'watchlists-list',
 					title: 'Your watchlists',
-					body: 'Companies you follow, kept together; Kitroom is in your Shortlist now.',
+					body: 'Companies you follow, kept together in lists. Anything you saved earlier is in your Shortlist.',
 					advance: { kind: 'next' },
 				},
 				{
@@ -245,7 +245,7 @@ export const scoutTour: Tour = {
 				{
 					id: 'analysis-kpis', path: '/analytics', target: 'analysis-kpis',
 					title: 'The market in numbers',
-					body: 'Funding, deal count and M&A for the period you pick.',
+					body: 'Funding and deal count for the period you pick; switch the series above for M&A.',
 					advance: { kind: 'next' },
 				},
 				{
@@ -260,7 +260,7 @@ export const scoutTour: Tour = {
 			id: 'roundup', title: 'Monthly Roundup',
 			steps: [
 				{
-					id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', only: '[data-tour="roundup-pickers"]',
+					id: 'roundup-pickers', path: '/roundup', target: 'roundup-pickers', only: '[data-tour="roundup-pickers"]', allow: ['.atlas-combo-panel'],
 					title: 'A month at a glance',
 					body: 'Pick a month to see its rounds, deals and news on one page.',
 					advance: { kind: 'next' },
@@ -321,7 +321,7 @@ export const scoutTour: Tour = {
 				{
 					id: 'dealflow-filter', path: '/deal-flow', target: 'dealflow-filter',
 					title: 'Filter by valuation',
-					body: 'A €10m maximum valuation hides rounds above your range.',
+					body: 'A €10m maximum hides euro rounds valued above it. Rounds in other currencies stay listed.',
 					advance: { kind: 'type', value: '10000000' },
 				},
 				{
@@ -418,63 +418,63 @@ export const scoutTour: Tour = {
 					advance: { kind: 'click', on: '.fundpicker__panel [data-ci="0"]' },
 				},
 				{
-					id: 'share-desc', path: SHARE, target: 'share-description',
+					id: 'share-desc', continues: true, path: SHARE, target: 'share-description',
 					title: 'What it does',
 					body: 'One line for Circle members.',
 					advance: { kind: 'type', value: 'In-arena fan shows for basketball clubs' },
 				},
 				{
-					id: 'share-next-1', path: SHARE, target: 'share-continue',
+					id: 'share-next-1', continues: true, path: SHARE, target: 'share-continue',
 					title: 'On to the round',
 					do: 'Click {{Continue}}.',
 					advance: { kind: 'click' },
 				},
 				{
-					id: 'share-round', path: SHARE, target: 'share-round',
+					id: 'share-round', continues: true, path: SHARE, target: 'share-round',
 					title: 'The round',
 					do: 'Pick {{Pre-seed}}.',
 					body: 'Tifo Studio is raising a pre-seed.',
 					advance: { kind: 'click', on: '[data-tour="share-round"] [data-value="Pre-seed"]' },
 				},
 				{
-					id: 'share-target', path: SHARE, target: 'share-target',
+					id: 'share-target', continues: true, path: SHARE, target: 'share-target',
 					title: 'How much',
 					body: 'The target raise, in euros.',
 					advance: { kind: 'type', value: '500000' },
 				},
 				{
-					id: 'share-next-2', path: SHARE, target: 'share-continue',
+					id: 'share-next-2', continues: true, path: SHARE, target: 'share-continue',
 					title: 'On to your involvement',
 					do: 'Click {{Continue}}.',
 					advance: { kind: 'click' },
 				},
 				{
-					id: 'share-note', path: SHARE, target: 'share-note',
+					id: 'share-note', continues: true, path: SHARE, target: 'share-note',
 					title: 'Your take',
 					body: 'Why should other members look at it?',
 					advance: { kind: 'type', value: 'Strong club pipeline in Italy' },
 				},
 				{
-					id: 'share-consent', path: SHARE, target: 'share-consent',
+					id: 'share-consent', continues: true, path: SHARE, target: 'share-consent',
 					title: 'Founder consent',
 					do: 'Tick the consent box.',
 					body: 'A deal is only shared with the founder’s agreement.',
 					advance: { kind: 'click' },
 				},
 				{
-					id: 'share-next-3', path: SHARE, target: 'share-continue',
+					id: 'share-next-3', continues: true, path: SHARE, target: 'share-continue',
 					title: 'Review',
 					do: 'Click {{Continue}}.',
 					advance: { kind: 'click' },
 				},
 				{
-					id: 'share-review', path: SHARE, target: 'share-review',
+					id: 'share-review', continues: true, path: SHARE, target: 'share-review',
 					title: 'Check before you send',
 					body: 'Every answer in one place, with Edit links back to each step.',
 					advance: { kind: 'next' },
 				},
 				{
-					id: 'share-submit', path: SHARE, target: 'share-continue',
+					id: 'share-submit', continues: true, path: SHARE, target: 'share-continue',
 					title: 'Submit',
 					do: 'Click {{Submit deal}}.',
 					body: 'SportsTechX checks eligibility before it goes live.',
@@ -501,8 +501,8 @@ export const scoutTour: Tour = {
 				},
 				{
 					id: 'deck-detail', path: '/deck/:id',
-					title: 'Scores, strengths and diligence flags',
-					body: 'An overall verdict, a score per area with its source page, and the gaps to probe before a meeting.',
+					title: 'Fit, red flags and questions',
+					body: 'How the deck fits your thesis, its red flags, the questions to ask, and a score for each area.',
 					advance: { kind: 'next' },
 				},
 			],
@@ -523,19 +523,19 @@ export const scoutTour: Tour = {
 					advance: { kind: 'click' },
 				},
 				{
-					id: 'thesis-stage-edit', path: '/thesis', target: 'thesis-review-edit-2',
+					id: 'thesis-stage-edit', continues: true, path: '/thesis', target: 'thesis-review-edit-2',
 					title: 'Widen your stages',
 					do: 'Click {{Edit}} next to Stage & cheque.',
 					advance: { kind: 'click' },
 				},
 				{
-					id: 'thesis-series-b', path: '/thesis', target: 'thesis-stages',
+					id: 'thesis-series-b', continues: true, path: '/thesis', target: 'thesis-stages',
 					title: 'Add Series B',
 					do: 'Pick {{Series B}}.',
 					advance: { kind: 'click', on: '[data-tour="thesis-stages"] [data-value="Series B"]' },
 				},
 				{
-					id: 'thesis-next-1', path: '/thesis', target: 'thesis-next',
+					id: 'thesis-next-1', continues: true, path: '/thesis', target: 'thesis-next',
 					title: 'Save as you go',
 					do: 'Click {{Continue}}.',
 					body: 'Each step is saved as you leave it.',
@@ -549,7 +549,7 @@ export const scoutTour: Tour = {
 					advance: { kind: 'click' },
 				},
 				{
-					id: 'thesis-save', path: '/thesis', target: 'thesis-next',
+					id: 'thesis-save', continues: true, path: '/thesis', target: 'thesis-next',
 					title: 'Save your thesis',
 					do: 'Click {{Save changes}}.',
 					body: 'Recommendations, signals and Deal Flow re-rank straight away.',

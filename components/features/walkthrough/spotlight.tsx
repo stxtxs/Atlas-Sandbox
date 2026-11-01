@@ -128,7 +128,8 @@ export function Spotlight({ primary, action, extra, stepKey, merge, onMissing }:
 			}
 
 			const now = performance.now();
-			const found = primary ? !!main : rest.length > 0;
+			// The control the visitor must use counts too: a target on screen without it (a reload mid-step) still needs Next.
+			const found = (primary ? !!main : rest.length > 0) && (!action || !!document.querySelector(action));
 			if (found) lastSeen = now;
 			const next = !!(primary || others.length) && !found && now - lastSeen > FIND_TIMEOUT_MS;
 			if (next !== missing) { missing = next; missingCb.current(next); }

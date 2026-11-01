@@ -20,6 +20,12 @@ const KEY = 'stx:tutorial:v4';
 const EVENT = 'stx:tutorial';
 const PRODUCTS: SandboxProduct[] = ['explore', 'raise', 'scout'];
 const EMPTY: PracticeState = { active: null, step: 0 };
+// Where storage is blocked (site data off, some embeds) the tour runs from memory for this page's life.
+const memory = new Map<string, string>();
+const inMemory = { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => { memory.set(k, v); }, removeItem: (k: string) => { memory.delete(k); } };
+function box(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
+	try { window.sessionStorage.getItem(KEY); return window.sessionStorage; } catch { return inMemory; }
+}
 
 function parse(raw: string | null): PracticeState {
 	if (!raw) return EMPTY;
@@ -33,13 +39,13 @@ function parse(raw: string | null): PracticeState {
 
 function rawState(): string | null {
 	if (typeof window === 'undefined') return null;
-	try { return sessionStorage.getItem(KEY); } catch { return null; }
+	try { return box().getItem(KEY); } catch { return null; }
 }
 
 const read = (): PracticeState => parse(rawState());
 
 function write(next: PracticeState) {
-	try { sessionStorage.setItem(KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+	try { box().setItem(KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
 	window.dispatchEvent(new Event(EVENT));
 }
 
@@ -55,7 +61,7 @@ export function currentStep(): number {
 
 /** Start a tier's tour at its first step, on a fresh sample workspace. */
 export function startWalkthrough(product: SandboxProduct) {
-	try { sessionStorage.removeItem(DATA_KEY(product)); } catch { /* storage unavailable */ }
+	try { box().removeItem(DATA_KEY(product)); } catch { /* storage unavailable */ }
 	clearStepSnapshots(product);
 	write({ active: product, step: 0 });
 }
@@ -91,10 +97,10 @@ export function usePractice(): PracticeState {
 /** Per-tier sample workspace for the mock API's write handlers. */
 const DATA_KEY = (p: SandboxProduct) => `stx:tutorial:v4:data:${p}`;
 export function readSandboxData(p: SandboxProduct): Record<string, unknown> {
-	try { return JSON.parse(sessionStorage.getItem(DATA_KEY(p)) ?? '{}') as Record<string, unknown>; } catch { return {}; }
+	try { return JSON.parse(box().getItem(DATA_KEY(p)) ?? '{}') as Record<string, unknown>; } catch { return {}; }
 }
 export function writeSandboxData(p: SandboxProduct, data: Record<string, unknown>) {
-	try { sessionStorage.setItem(DATA_KEY(p), JSON.stringify(data)); } catch { /* storage unavailable */ }
+	try { box().setItem(DATA_KEY(p), JSON.stringify(data)); } catch { /* storage unavailable */ }
 }
 
 /*
@@ -105,17 +111,24 @@ const SNAP_KEY = (p: SandboxProduct) => `stx:tutorial:v4:snap:${p}`;
 const PATHS_KEY = (p: SandboxProduct) => `stx:tutorial:v4:paths:${p}`;
 
 function readSnapshots(p: SandboxProduct): Record<string, string | null> {
-	try { return JSON.parse(sessionStorage.getItem(SNAP_KEY(p)) ?? '{}') as Record<string, string | null>; } catch { return {}; }
+	try { return JSON.parse(box().getItem(SNAP_KEY(p)) ?? '{}') as Record<string, string | null>; } catch { return {}; }
 }
 function clearStepSnapshots(p: SandboxProduct) {
-	try { sessionStorage.removeItem(SNAP_KEY(p)); sessionStorage.removeItem(PATHS_KEY(p)); } catch { /* storage unavailable */ }
+	try { box().removeItem(SNAP_KEY(p)); box().removeItem(PATHS_KEY(p)); } catch { /* storage unavailable */ }
 }
 
 /** Record the workspace as step `step` opens — once; re-entering the step keeps the first one. */
 export function saveStepSnapshot(p: SandboxProduct, step: number) {
 	const all = readSnapshots(p);
 	if (step in all) return;
-	try { sessionStorage.setItem(SNAP_KEY(p), JSON.stringify({ ...all, [step]: sessionStorage.getItem(DATA_KEY(p)) })); } catch { /* storage unavailable */ }
+	try { box().setItem(SNAP_KEY(p), JSON.stringify({ ...all, [step]: box().getItem(DATA_KEY(p)) })); } catch { /* storage unavailable */ }
+}
+
+/** How many times the workspace was put back (Back, browser Back). The shell remounts the page on each, so
+    state the page keeps itself (a wizard's step, unsaved picks) matches the restored data. */
+let restores = 0;
+export function useRestoreCount(): number {
+	return useSyncExternalStore(subscribe, () => restores, () => 0);
 }
 
 /** Put the workspace back to how it was when step `step` opened. False when there is no snapshot. */
@@ -124,21 +137,22 @@ export function restoreStepSnapshot(p: SandboxProduct, step: number): boolean {
 	if (!(step in all)) return false;
 	try {
 		const data = all[step];
-		if (data === null) sessionStorage.removeItem(DATA_KEY(p));
-		else sessionStorage.setItem(DATA_KEY(p), data);
+		if (data === null) box().removeItem(DATA_KEY(p));
+		else box().setItem(DATA_KEY(p), data);
 		// Later snapshots describe a future that no longer happened.
-		sessionStorage.setItem(SNAP_KEY(p), JSON.stringify(Object.fromEntries(Object.entries(all).filter(([k]) => Number(k) <= step))));
+		box().setItem(SNAP_KEY(p), JSON.stringify(Object.fromEntries(Object.entries(all).filter(([k]) => Number(k) <= step))));
 	} catch { return false; }
+	restores += 1;
 	return true;
 }
 
 /** Where each step actually ran — the concrete URL behind a `:param` step path, so Back can reopen it. */
 export function recordStepPath(p: SandboxProduct, step: number, path: string) {
 	try {
-		const all = JSON.parse(sessionStorage.getItem(PATHS_KEY(p)) ?? '{}') as Record<string, string>;
-		if (all[step] !== path) sessionStorage.setItem(PATHS_KEY(p), JSON.stringify({ ...all, [step]: path }));
+		const all = JSON.parse(box().getItem(PATHS_KEY(p)) ?? '{}') as Record<string, string>;
+		if (all[step] !== path) box().setItem(PATHS_KEY(p), JSON.stringify({ ...all, [step]: path }));
 	} catch { /* storage unavailable */ }
 }
 export function stepPath(p: SandboxProduct, step: number): string | null {
-	try { return (JSON.parse(sessionStorage.getItem(PATHS_KEY(p)) ?? '{}') as Record<string, string>)[step] ?? null; } catch { return null; }
+	try { return (JSON.parse(box().getItem(PATHS_KEY(p)) ?? '{}') as Record<string, string>)[step] ?? null; } catch { return null; }
 }

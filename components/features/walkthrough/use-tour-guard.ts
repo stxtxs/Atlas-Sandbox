@@ -10,8 +10,10 @@ const ALWAYS = ['.wt-coach', '.wt-confirm'];
 
 // Not touchstart: cancelling it would stop touch scrolling, and the tap's click is caught anyway.
 const POINTER_EVENTS = ['pointerdown', 'mousedown', 'mouseup', 'click', 'dblclick', 'auxclick', 'contextmenu', 'dragstart'] as const;
-/** Moving focus and dismissing stay possible; they can't trigger anything on their own. */
-const FREE_KEYS = new Set(['Tab', 'Escape', 'Shift']);
+/** Moving focus stays possible; it can't trigger anything on its own. */
+const FREE_KEYS = new Set(['Tab', 'Shift']);
+/** Fired for an Escape the guard took from the page — the panel reads it as its own Escape (Back / close Contents). */
+export const TOUR_ESCAPE = 'wt:escape';
 /** The pointer events that pick something up — everything a drag needs, nothing that clicks. */
 const DRAG_EVENTS = new Set(['pointerdown', 'mousedown', 'mouseup', 'dragstart']);
 
@@ -27,8 +29,8 @@ function within(el: EventTarget | null, selectors: string[]): boolean {
  * `window`, the first listener on the path, so React's own handlers (attached
  * at the root) never run.
  *
- * Keys aimed at the page itself (`body`) pass, so the coach's Enter/Escape
- * shortcuts keep working; `pointerOnly` blocks keys on the allowed elements
+ * Keys aimed at the page itself (`body`) pass, so the coach's Enter shortcut
+ * keeps working (Escape is handed to the coach as TOUR_ESCAPE); `pointerOnly` blocks keys on the allowed elements
  * too, for a control whose keyboard could make a choice the step forbids.
  * `dragFrom` can be dragged without being clickable. Drags can only be dropped on `dropOn` (or, without it, inside the allowed
  * elements). Scrolling is never blocked — reading the page is part of the demo.
@@ -40,6 +42,7 @@ export function useTourGuard(allowed: string[], pointerOnly: boolean, dropOn?: s
 		const pointerOk = [...ALWAYS, ...(allowedKey ? allowedKey.split('\n') : [])];
 		const dropOk = dropOn ? [dropOn] : pointerOk;
 		const keysOk = pointerOnly ? ALWAYS : pointerOk;
+		const stepOk = allowedKey ? allowedKey.split('\n') : [];
 		const swallow = (e: Event) => { e.preventDefault(); e.stopImmediatePropagation(); };
 
 		// `dragFrom` can be picked up (press + drag) but not clicked — its links stay dead.
@@ -53,6 +56,15 @@ export function useTourGuard(allowed: string[], pointerOnly: boolean, dropOn?: s
 			swallow(e);
 		};
 		const onKey = (e: KeyboardEvent) => {
+			// Escape closes the step's own menu; anywhere else (the panel included) it is the panel's —
+			// it never reaches the drawer or dialog a step relies on.
+			if (e.key === 'Escape') {
+				const popover = e.target instanceof Element ? e.target.closest('.atlas-menu, [role="menu"], [role="listbox"], [role="combobox"]') : null;
+				if (!pointerOnly && popover && within(popover, stepOk)) return;
+				swallow(e);
+				window.dispatchEvent(new Event(TOUR_ESCAPE));
+				return;
+			}
 			if (FREE_KEYS.has(e.key) || e.target === document.body || e.target === document.documentElement) return;
 			if (!within(e.target, keysOk)) swallow(e);
 		};

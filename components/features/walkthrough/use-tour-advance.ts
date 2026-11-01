@@ -59,7 +59,9 @@ export function useTourAdvance(step: TourStep | null, pathname: string, onDone: 
 			// After the app has handled this click: advancing now (capture phase)
 			// would arm the next step's `request` listener in time to catch the
 			// request this very click sends (e.g. a wizard's per-step save).
-			window.setTimeout(() => done.current(), 0);
+			// This step's advance, taken now: a click + change pair must not run the next step's.
+			const advanceThis = done.current;
+			window.setTimeout(() => advanceThis(), 0);
 		};
 		document.addEventListener('click', onEvent, true);
 		document.addEventListener('change', onEvent, true);
@@ -145,8 +147,9 @@ export function useTourAdvance(step: TourStep | null, pathname: string, onDone: 
 	const armed = useRef<{ id: string; armed: boolean }>({ id: '', armed: false });
 	const stepId = step?.id ?? '';
 	useEffect(() => {
-		if (!pathPattern) return;
+		// Reset on every step, not only path steps: coming Back to a path step must wait for the visitor to leave and return.
 		if (armed.current.id !== stepId) armed.current = { id: stepId, armed: false };
+		if (!pathPattern) return;
 		if (!matchPath(pathPattern, pathname)) { armed.current.armed = true; return; }
 		if (armed.current.armed) done.current();
 	}, [pathPattern, pathname, stepId]);

@@ -8,6 +8,8 @@ import type { DeckScorecard } from '@/lib/deck-analysis';
 import { daysFromNow, json, sse, type SandboxProduct, type SandboxRoute } from './types';
 import { watchlistSandboxRoutes } from './watchlist-routes';
 import { catalogSandboxRoutes } from './shared/catalog-routes';
+import { fundingOf } from './shared/catalog';
+import { companyByName, countryByCode } from './fixtures/world';
 
 /** The one sample deck (Fanloop's), at `/deck/<id>`. */
 export const SAMPLE_DECK_ID = 'sandbox-deck';
@@ -36,14 +38,36 @@ const SCORECARD: DeckScorecard = {
 		{ area: 'Financials', suggestion: 'Tie each hire in the use of funds to a revenue milestone.', page_ref: 11, quote: null },
 	],
 };
-const ANALYSIS_MD = `## Overall\n\n${SCORECARD.verdict}\n\n## Strengths\n\n${SCORECARD.strengths.map((s) => `- ${s}`).join('\n')}\n\n## Main investor concerns\n\n${SCORECARD.risks.map((s) => `- ${s}`).join('\n')}\n`;
+/** Scout's Deck Screener reads the same deck as an investor, judged against the sample thesis (scout-routes.ts). */
+const INVESTOR_SCORECARD: DeckScorecard = {
+	...SCORECARD,
+	stage: 'Seed',
+	snapshot: { company: 'Fanloop', one_liner: 'A live second-screen app clubs give fans on match days, built to lift season-ticket renewals.', sector: 'Second Screen', geography: 'Munich, Germany', business_model: 'B2B' },
+	thesis_fit: {
+		score: 7,
+		summary: 'A seed round from a European B2B football company. Its sector sits next to Fan Engagement rather than inside your thesis.',
+		matches: ['Seed round', 'Football', 'Europe', 'B2B'],
+		misses: ['Second Screen is not one of your thesis sectors'],
+	},
+	red_flags: SCORECARD.risks,
+	diligence_questions: [
+		'How many of the 14 live clubs have renewed after their first season?',
+		'Who signs at the club, and what does a season cost them?',
+		'What does entering a second league take in sales time and money?',
+	],
+	comparables: ['Kitroom', 'Matchday Loop'].map((name) => {
+		const c = companyByName(name);
+		return { id: c.id, name: c.name, slug: c.slug, website: c.website, custom_logo_url: null, description: c.description };
+	}),
+};
+const ANALYSIS_MD =`## Overall\n\n${SCORECARD.verdict}\n\n## Strengths\n\n${SCORECARD.strengths.map((s) => `- ${s}`).join('\n')}\n\n## Main investor concerns\n\n${SCORECARD.risks.map((s) => `- ${s}`).join('\n')}\n`;
 const sampleDeck = () => ({ id: SAMPLE_DECK_ID, filename: 'Sample — Fanloop Seed Deck.pdf', status: 'done', overall_score: SCORECARD.overall_score, created_at: daysFromNow(-3) });
 
 /** The co-pilot's canned answers — sample data from fixtures/world.ts, written like a real reply. */
 const CHAT_ANSWERS = {
 	explore: 'Here is who is funding **fan engagement** right now (sample data):\n\n- **Kestrel Field Ventures** led Kitroom’s $2M seed and is in Matchday Loop’s Series A\n- **Brightpost Ventures** led Matchday Loop’s $5.1M Series A\n- **Corner Flag Ventures** backs early club tools, including Kitroom and Tifo Studio\n\nWant me to open these investors or the companies they backed?',
 	raise: 'For Fanloop’s seed (sample data), these investors fit best:\n\n1. **Kestrel Field Ventures** — leads seed rounds in fan engagement, cheques of $500k–2M\n2. **Corner Flag Ventures** — pre-seed and seed, built by club executives\n3. **Brightpost Ventures** — media and fan products, Seed to Series A\n\nI can add them to your pipeline or draft an intro email.',
-	scout: 'Against your thesis (sample data), these seed and Series A companies are raising now:\n\n- **Matchday Loop** — fan engagement, verified on Atlas, Series A\n- **Goalsight** — video scouting for academies, seed\n- **Courtline** — padel club software, seed\n\nShall I open their profiles or add them to a watchlist?',
+	scout: 'Two recent seed rounds sit in your thesis sectors in Europe (sample data):\n\n- **Laneline** — swim goggles with a heads-up display, Copenhagen; $1.1M seed about four weeks ago\n- **Velodata** — training plans from cyclists’ power and GPS data, Girona; $600k seed last week\n\nBoth sell to consumers, so they miss the B2B part of your thesis. **Matchday Loop**, a fan engagement company verified on Atlas, is raising a Series A extension in Deal Flow.\n\nShall I open their profiles or add them to a watchlist?',
 } as const;
 
 /** The Raise follow-up the tour types ("Draft an intro email"). */
@@ -65,12 +89,12 @@ export const coreSandboxRoutes: SandboxRoute[] = [
 	// Deck analysis / Deck Screener: one sample deck with a full analysis. An upload "analyses" into it.
 	['GET', '/api/deck-analysis', () => [sampleDeck()]],
 	['POST', '/api/deck-analysis', () => ({ id: SAMPLE_DECK_ID })],
-	['GET', '/api/deck-analysis/:id', () => ({ ...sampleDeck(), analysis_md: ANALYSIS_MD, result_json: SCORECARD })],
+	['GET', '/api/deck-analysis/:id', ({ product }) => ({ ...sampleDeck(), analysis_md: ANALYSIS_MD, result_json: product === 'scout' ? INVESTOR_SCORECARD : SCORECARD })],
 	['GET', '/api/deck-analysis/:id/file', () => ({ url: '/sample/sample-deck.pdf' })],
 	['POST', '/api/deck-analysis/:id/reanalyze', () => ({ ok: true })],
-	['POST', '/api/deck-analysis/:id/stream', () => sse([
+	['POST', '/api/deck-analysis/:id/stream', ({ product }) => sse([
 		...ANALYSIS_MD.match(/[\s\S]{1,60}/g)!.map((text) => ({ event: 'delta', data: { text } })),
-		{ event: 'done', data: { scorecard: SCORECARD } },
+		{ event: 'done', data: { scorecard: product === 'scout' ? INVESTOR_SCORECARD : SCORECARD } },
 	])],
 
 	// AI chat: canned, tier-specific answers streamed like the real co-pilot.
@@ -133,11 +157,12 @@ export const coreSandboxRoutes: SandboxRoute[] = [
 
 ];
 
+// The same companies and totals the pages show.
 const SAMPLE_CSV = [
 	'name,sector,country,total_funding_usd',
-	'Kitroom,Fan Engagement,Germany,2400000',
-	'Matchday Loop,Fan Engagement,United Kingdom,5100000',
-	'Courtline,Facility Management,Spain,1800000',
-	'Stridewise,Wearables,Netherlands,3200000',
+	...['Kitroom', 'Matchday Loop', 'Courtline', 'Stridewise'].map((name) => {
+		const c = companyByName(name);
+		return `${c.name},"${c.sector}",${countryByCode(c.country).name},${fundingOf(c)}`;
+	}),
 	'',
 ].join('\n');

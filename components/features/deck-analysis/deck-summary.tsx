@@ -174,7 +174,7 @@ export function DeckSummary({ header, copy = FOUNDER_DECK_COPY, mode = 'founder'
 	const improvements = (card?.suggestions ?? []).slice(0, 3);
 	return (
 		<Screen>{head}{fileInput}
-			<Card glow="blue" style={{ padding: '21px 23px 28px' }}>
+			<div data-tour="deck-latest"><Card glow="blue" style={{ padding: '21px 23px 28px' }}>
 				<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
 					<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 						<Badge>latest</Badge><span style={{ fontSize: 15, fontFamily: 'var(--a-font)', fontWeight: 700 }}>{latest.filename ?? copy.fallbackName}</span>
@@ -202,7 +202,7 @@ export function DeckSummary({ header, copy = FOUNDER_DECK_COPY, mode = 'founder'
 					<Button data-tour="deck-view-analysis" onClick={() => router.push(`${DECK}/${latest.id}`)}>View full analysis <ArrowUpRight /></Button>
 					<Button variant="outline" onClick={trigger} disabled={uploading}>{uploading ? <Loader2 className="animate-spin" size={13} /> : 'Analyse revised deck'}</Button>
 				</div>
-			</Card>
+			</Card></div>
 
 			{list.length > 1 && <>
 				<div className="atlas-eyebrow" style={{ margin: '32px 0 12px' }}>Previous analyses</div>
