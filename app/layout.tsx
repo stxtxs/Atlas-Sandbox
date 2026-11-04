@@ -39,11 +39,15 @@ const TITLE = 'Atlas Tutorial | Sports Tech Intelligence by SportsTechX';
 const DESCRIPTION =
   'A guided, hands-on tour of Atlas Explore, Raise and Scout on sample data. No account needed.';
 
+export const SITE_URL = 'https://www.sandbox.sportstechx.com';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  alternates: { canonical: '/' },
   title: { default: TITLE, template: '%s | Atlas Tutorial' },
   description: DESCRIPTION,
   applicationName: 'Atlas Tutorial',
-  authors: [{ name: 'SportsTechX', url: 'https://sportstechx.com' }],
+  authors: [{ name: 'SportsTechX', url: 'https://www.sportstechx.com' }],
   creator: 'SportsTechX',
   publisher: 'SportsTechX GmbH',
   openGraph: { type: 'website', siteName: 'Atlas by SportsTechX', locale: 'en_US', title: TITLE, description: DESCRIPTION },
