@@ -14,6 +14,9 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
  * Name + email before a tour starts. It cannot be dismissed (no close button,
  * Escape and outside clicks do nothing): the only way on is to submit.
  *
+ * No honeypot: a hidden field got filled by browser autofill, and real people
+ * were silently dropped as bots. A junk row is the worst a bot can do here.
+ *
  * Saved through this site's /api/visitor (forwarded to the platform API). If
  * the platform can't be reached the visitor still gets into the tour, but the
  * browser is not marked as done, so the details are asked for again next time
@@ -22,7 +25,6 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export function VisitorGate({ tier, onDone }: { tier: GatedTier; onDone: () => void }) {
 	const [name, setName] = useState('');
 	const [email, setEmail] = useState('');
-	const [website, setWebsite] = useState('');
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const nameRef = useRef<HTMLInputElement>(null);
@@ -42,7 +44,7 @@ export function VisitorGate({ tier, onDone }: { tier: GatedTier; onDone: () => v
 		const res = await fetch('/api/visitor', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ name: name.trim(), email: email.trim(), tier, website }),
+			body: JSON.stringify({ name: name.trim(), email: email.trim(), tier }),
 		}).catch(() => null);
 		if (res?.status === 400) {
 			setBusy(false);
@@ -50,7 +52,7 @@ export function VisitorGate({ tier, onDone }: { tier: GatedTier; onDone: () => v
 			requestAnimationFrame(() => fail('Enter a valid email address.', 'email'));
 			return;
 		}
-		if (res?.ok) rememberVisitor();
+		if (res?.ok) rememberVisitor(((await res.json().catch(() => null)) as { id?: string } | null)?.id);
 		onDone();
 	};
 
@@ -66,15 +68,6 @@ export function VisitorGate({ tier, onDone }: { tier: GatedTier; onDone: () => v
 				<Field label="Work email" required>
 					<Input ref={emailRef} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" maxLength={320} aria-invalid={error === 'Enter a valid email address.' || undefined} />
 				</Field>
-				{/* Honeypot: invisible to people, filled by bots. NOT named "website"
-				    (or anything autofill knows): browsers and password managers filled
-				    that, and real visitors were silently dropped as bots. */}
-				<input
-					name="stx_hp" value={website} onChange={(e) => setWebsite(e.target.value)}
-					tabIndex={-1} autoComplete="off" aria-hidden
-					data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
-					style={{ position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0 }}
-				/>
 				{error && <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--a-danger, #e5484d)' }}>{error}</p>}
 				<Button type="submit" variant="primary" disabled={busy}>{busy ? 'Starting…' : 'Start the tour'}</Button>
 				<p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--a-faint)' }}>

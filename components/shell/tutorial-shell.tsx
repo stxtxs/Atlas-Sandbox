@@ -8,7 +8,7 @@ import { EXPLORE_COLOR } from '@/components/explore/shell-config';
 import { SCOUT_COLOR } from '@/components/scout/shell-config';
 import { PRODUCT_NAME } from '@/components/features/walkthrough/tours';
 import { activeSandbox, currentStep, exitPractice, openTour, restoreStepSnapshot, setTourStep, usePractice, useRestoreCount } from '@/lib/sandbox/store';
-import { hasVisitor } from '@/lib/sandbox/visitor';
+import { hasVisitor, reportTour } from '@/lib/sandbox/visitor';
 import { VisitorGate } from '@/components/features/walkthrough/visitor-gate';
 import { TOUR_PARAM, readTutorialParams, withTutorialParams } from '@/lib/sandbox/tutorial-url';
 import { markNavDone, navPending, trackRouterNavigations } from '@/lib/sandbox/nav-pending';
@@ -110,6 +110,10 @@ export function TutorialShell({ children }: { children: React.ReactNode }) {
 		window.addEventListener('popstate', onPop);
 		return () => window.removeEventListener('popstate', onPop);
 	}, [mutate]);
+
+	// Which tours each visitor took: reported once the gate is passed (the gate's
+	// own submit already counts as a start; this covers a second tier later).
+	useEffect(() => { if (mounted && active && !gated) reportTour(active, 'started'); }, [mounted, active, gated]);
 
 	if (!mounted || !active || active === 'explore') return null;
 	return (

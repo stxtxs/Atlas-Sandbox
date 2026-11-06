@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, ListOrdered, L
 import { currentStep, recordStepPath, restoreStepSnapshot, saveStepSnapshot, setTourStep, stepPath, usePractice } from '@/lib/sandbox/store';
 import { matchPath } from '@/lib/sandbox/match-path';
 import { ATLAS_SIGNUP_URL } from '@/lib/sandbox/signup';
+import { reportTour } from '@/lib/sandbox/visitor';
 import { flatIndexOf, urlStepOf, withTutorialParams } from '@/lib/sandbox/tutorial-url';
 import { afterNavigation } from '@/lib/sandbox/nav-pending';
 import type { Tour, TourStep } from '@/lib/sandbox/tour-types';
@@ -80,6 +81,8 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 	const index = flatIndexOf(step);
 	const current: TourStep | null = showIntro || isFinale ? null : steps[index];
 	const stepKey = current ? `${step}:${current.id}` : showIntro ? 'intro' : 'finale';
+	// Reaching the finale = this tier's tour completed (kept per visitor, first time).
+	useEffect(() => { if (isFinale) reportTour(product, 'completed'); }, [isFinale, product]);
 	const missing = missingFor === stepKey;
 	const onMissing = useCallback((m: boolean) => setMissingFor(m ? stepKey : ''), [stepKey]);
 	const chapter = current ? chapterOf[index] : -1;
