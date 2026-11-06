@@ -71,7 +71,14 @@ export function TutorialShell({ children }: { children: React.ReactNode }) {
 		setGated(!hasVisitor());
 		setMounted(true);
 	}, []);
-	useEffect(() => { if (mounted && !active) window.location.replace('/'); }, [mounted, active]);
+	useEffect(() => {
+		if (!mounted || active) return;
+		// The URL wins: an empty tour state with a tour in the address re-opens it
+		// (only an address with no tour goes back to the chooser).
+		const pos = readTutorialParams(window.location.search);
+		if (pos) openTour(pos.tier, pos.step);
+		else window.location.replace('/');
+	}, [mounted, active]);
 	// Explore has no tour any more: a tab still holding one goes back to the chooser.
 	useEffect(() => {
 		if (mounted && active === 'explore') { exitPractice(); window.location.replace('/'); }

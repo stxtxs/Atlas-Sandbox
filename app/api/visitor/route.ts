@@ -30,11 +30,11 @@ export async function POST(req: Request) {
 			email,
 			name,
 			tier: body.tier === 'raise' || body.tier === 'scout' ? body.tier : undefined,
+			...(body.event === 'completed' ? { event: 'completed' } : {}),
 		}),
 		signal: AbortSignal.timeout(8000),
 	}).catch(() => null);
 	if (res?.status === 400) return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 });
 	if (!res || !res.ok) return NextResponse.json({ error: 'unavailable' }, { status: 502 });
-	const data = (await res.json().catch(() => ({}))) as { id?: string };
-	return NextResponse.json({ ok: true, ...(data.id ? { id: data.id } : {}) });
+	return NextResponse.json({ ok: true });
 }

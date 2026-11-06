@@ -3,7 +3,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Button, Field, Input } from '@/components/atlas';
 import { Modal } from '@/components/atlas/patterns/modal';
-import { rememberVisitor } from '@/lib/sandbox/visitor';
+import { markStarted, rememberVisitor } from '@/lib/sandbox/visitor';
 
 export type GatedTier = 'raise' | 'scout';
 
@@ -52,7 +52,10 @@ export function VisitorGate({ tier, onDone }: { tier: GatedTier; onDone: () => v
 			requestAnimationFrame(() => fail('Enter a valid email address.', 'email'));
 			return;
 		}
-		if (res?.ok) rememberVisitor(((await res.json().catch(() => null)) as { id?: string } | null)?.id);
+		if (res?.ok) {
+			rememberVisitor({ name: name.trim(), email: email.trim().toLowerCase() });
+			markStarted(tier);
+		}
 		onDone();
 	};
 
