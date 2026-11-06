@@ -5,7 +5,8 @@
  * Storage can be unavailable (private mode, blocked site data): then the gate
  * simply asks again, which is the safe direction.
  */
-const KEY = 'stx-sandbox-visitor';
+// v2 (6 Nov 2026): v1 flags were set for submissions the old honeypot dropped.
+const KEY = 'stx-sandbox-visitor-v2';
 
 export function hasVisitor(): boolean {
 	try {

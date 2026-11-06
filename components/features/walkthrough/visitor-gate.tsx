@@ -66,10 +66,13 @@ export function VisitorGate({ tier, onDone }: { tier: GatedTier; onDone: () => v
 				<Field label="Work email" required>
 					<Input ref={emailRef} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" maxLength={320} aria-invalid={error === 'Enter a valid email address.' || undefined} />
 				</Field>
-				{/* Honeypot: invisible to people, filled by bots. */}
+				{/* Honeypot: invisible to people, filled by bots. NOT named "website"
+				    (or anything autofill knows): browsers and password managers filled
+				    that, and real visitors were silently dropped as bots. */}
 				<input
-					name="website" value={website} onChange={(e) => setWebsite(e.target.value)}
+					name="stx_hp" value={website} onChange={(e) => setWebsite(e.target.value)}
 					tabIndex={-1} autoComplete="off" aria-hidden
+					data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
 					style={{ position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0 }}
 				/>
 				{error && <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--a-danger, #e5484d)' }}>{error}</p>}
