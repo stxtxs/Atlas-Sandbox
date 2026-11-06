@@ -5,7 +5,7 @@
  * session and the Investor Circle opt-in — answered from a workspace kept in
  * this browser (store.ts).
  *
- * The visitor plays Robin Keller, co-founder of Fanloop (fixtures/world.ts): a
+ * The visitor plays Lena Hoffmann, co-founder of Fanloop (fixtures/world.ts): a
  * Munich second-screen start-up that raised a pre-seed from Extra Time Angels and
  * Corner Flag Ventures and is now raising a €1.5m seed with €300k committed.
  * The first request builds that workspace — raise set up, criteria filled,
@@ -122,8 +122,8 @@ const sampleCriteria = (): CriteriaRow => ({
 /**
  * Eight investors already in the Main watchlist. Kestrel Field Ventures and
  * Brightpost Ventures — the two best fits — are deliberately NOT here, so the
- * tour can add them; Podium Capital (sample-pipe-7) is the Target card the tour
- * drags to Contacted.
+ * tour can add them; the tour adds Kestrel (sample-pipe-kestrel-field-ventures,
+ * in Target) and drags it to Contacted.
  */
 interface SeedTemplate {
 	investor: string; stage: PipelineStage; contact: string | null; amount: number | null; lastContact: number | null;
@@ -306,8 +306,13 @@ const addToPipeline = withWs((ws, ctx) => {
 	if (body.investor_id && !inv) return notFound('investor not found');
 	const now = daysFromNow(0);
 	const stage = body.stage ?? 'target';
+	// A known investor gets an id from its slug (sample-pipe-kestrel-field-ventures),
+	// so a tour step can point at the card the visitor just added. Anything else,
+	// or a slug already taken by an archived row, gets a unique one.
+	const bySlug = inv ? `sample-pipe-${inv.slug}` : null;
+	const id = bySlug && !ws.pipeline.some((r) => r.id === bySlug) ? bySlug : `sample-pipe-${Date.now().toString(36)}`;
 	const row: PipeRow = {
-		id: `sample-pipe-${Date.now().toString(36)}`, raise_id: RAISE_ID,
+		id, raise_id: RAISE_ID,
 		...(inv ? investorFields(inv) : { investor_id: null, custom_name: body.custom_name!.trim(), investor_name: null, investor_slug: null, investor_logo_url: null, investor_website: null }),
 		stage, contact_name: body.contact_name ?? null, potential_amount: money(body.potential_amount),
 		last_contact_at: null, next_step: body.next_step ?? null, next_step_due: body.next_step_due ?? null,
@@ -344,7 +349,8 @@ const updatePipeline = withWs((ws, ctx) => {
 // ─── My Market ──────────────────────────────────────────────────────────────
 
 const raisedBy = (company: string) => DEALS.filter((d) => d.company === company).reduce((n, d) => n + (d.amount_usd ?? 0), 0);
-const fmtUsd = (n: number) => (!n ? 'Undisclosed' : n >= 1e6 ? `$${(n / 1e6).toFixed(1).replace(/\.0$/, '')}m raised` : `$${Math.round(n / 1e3)}k raised`);
+/** Competitor funding, in € like every amount on My Market. */
+const fmtUsd = (n: number) => (!n ? 'Undisclosed' : n >= 1e6 ? `€${(n / 1e6).toFixed(1).replace(/\.0$/, '')}m raised` : `€${Math.round(n / 1e3)}k raised`);
 
 /** raise-market.service.ts — no sector → `{ unavailable, reason: 'no_sector' }` (only after a Settings edit clears it). */
 function buildMarket(ctx: SandboxCtx, force: boolean) {

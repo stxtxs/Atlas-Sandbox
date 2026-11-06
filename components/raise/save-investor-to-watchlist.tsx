@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useSWR from 'swr';
 import { toast } from 'sonner';
+import { briefToast } from '@/lib/sandbox/brief-toast';
 import { Bookmark, Check, Loader2, Plus } from 'lucide-react';
 import { cx } from '@/components/atlas';
 import { useKeepInViewport } from '@/components/atlas/ui/use-keep-in-viewport';
@@ -95,7 +96,7 @@ export function SaveInvestorToWatchlist({ investorId, investorName, align = 'sta
 			if (row) await apiRequest('PATCH', `/api/raise/pipeline/${row.id}`, { watchlist_id: listId });
 			else await apiRequest('POST', '/api/raise/pipeline', { investor_id: investorId, stage: 'target', watchlist_id: listId });
 			await refreshPipeline();
-			toast.success(row ? `Moved ${investorName} to ${label}` : `Added ${investorName} to ${label}`);
+			briefToast(row ? `Moved ${investorName} to ${label}` : `Added ${investorName} to ${label}`);
 			close();
 		} catch (e) { toast.error((e as Error).message); }
 		finally { setBusy(null); }
@@ -132,7 +133,7 @@ export function SaveInvestorToWatchlist({ investorId, investorName, align = 'sta
 						{options.map(([id, name, count]) => {
 							const on = (id ?? 'main') === current;
 							return (
-								<button key={id ?? 'main'} type="button" className={cx('atlas-menu__item', 'atlas-menu__item--plain', on && 'on')} aria-pressed={on} disabled={busy !== null} onClick={() => void fileIn(id, name)}>
+								<button key={id ?? 'main'} type="button" data-tour-option={name} className={cx('atlas-menu__item', 'atlas-menu__item--plain', on && 'on')} aria-pressed={on} disabled={busy !== null} onClick={() => void fileIn(id, name)}>
 									<span className="atlas-wl-check" aria-hidden="true">{busy === (id ?? 'main') ? <Loader2 className="animate-spin" size={10} /> : on ? <Check size={10} /> : null}</span>
 									<span className="atlas-switcher__name">{name}</span>
 									{count != null && <span className="atlas-switcher__meta">{count}</span>}

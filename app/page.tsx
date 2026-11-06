@@ -6,7 +6,6 @@ import { AtlasLogo } from '@/components/atlas';
 import { enterPractice } from '@/components/features/walkthrough/practice-actions';
 import type { GatedTier } from '@/components/features/walkthrough/visitor-gate';
 import { TUTORIAL_STORE_KEY } from '@/lib/sandbox/store';
-import { ENTRY_KEY } from '@/lib/sandbox/visitor';
 import './chooser.css';
 
 const TIERS: { product: GatedTier; name: string; color: string; audience: string; body: string; covers: string[] }[] = [
@@ -28,12 +27,12 @@ const tierFromHash = (hash: string): GatedTier | null =>
 
 /**
  * Runs while the HTML is still parsing, before the chooser paints: a `#raise` /
- * `#scout` link goes straight to that tier's tour screen (fresh tour state),
- * so the chooser never shows, and marks the entry so that tier's visit is
- * counted. The tour screen asks for name + email (VisitorGate). The landing
- * page itself (no hash) always shows the chooser: that is where people choose.
+ * `#scout` link goes to that tier's own link, `/preview/<tier>`, which starts
+ * the tour on fresh sample data and counts the visit, so the chooser never
+ * shows. The landing page itself (no hash) always shows the chooser: that is
+ * where people choose.
  */
-const HASH_REDIRECT = `(function(){var h=location.hash;if(h==='#raise'||h==='#scout'){try{sessionStorage.removeItem(${JSON.stringify(TUTORIAL_STORE_KEY)});sessionStorage.setItem(${JSON.stringify(ENTRY_KEY)},h.slice(1))}catch(e){}location.replace('/home?tour='+h.slice(1)+'&step=0')}})();`;
+const HASH_REDIRECT = `(function(){var h=location.hash;if(h==='#raise'||h==='#scout'){try{sessionStorage.removeItem(${JSON.stringify(TUTORIAL_STORE_KEY)})}catch(e){}location.replace('/preview/'+h.slice(1))}})();`;
 
 /**
  * The tutorial's front door: pick Raise or Scout, then a short guided tour runs

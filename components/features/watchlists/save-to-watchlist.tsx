@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { briefToast } from '@/lib/sandbox/brief-toast';
 import { Bookmark, Check, Loader2, Plus, Search } from 'lucide-react';
 import { cx, useDismiss } from '@/components/atlas';
 import { useKeepInViewport } from '@/components/atlas/ui/use-keep-in-viewport';
@@ -37,8 +38,8 @@ export function SaveToWatchlist({ companyId, companyName }: { companyId: string;
 	const toggle = async (id: string, name: string) => {
 		setBusy(id);
 		try {
-			if (ids.includes(id)) { await removeFromWatchlist(id, companyId); toast.success(`Removed from ${name}`); }
-			else { await addToWatchlist(id, companyId); toast.success(`Added ${companyName} to ${name}`); }
+			if (ids.includes(id)) { await removeFromWatchlist(id, companyId); briefToast(`Removed from ${name}`); }
+			else { await addToWatchlist(id, companyId); briefToast(`Added ${companyName} to ${name}`); }
 		} catch (e) { toast.error((e as Error).message); }
 		finally { setBusy(null); }
 	};
@@ -49,7 +50,7 @@ export function SaveToWatchlist({ companyId, companyName }: { companyId: string;
 		try {
 			const w = await createWatchlist(name);
 			await addToWatchlist(w.id, companyId);
-			toast.success(`Created ${name} and added ${companyName}`);
+			briefToast(`Created ${name} and added ${companyName}`);
 			setCreating(false); setNewName('');
 		} catch (e) { toast.error((e as Error).message); }
 		finally { setBusy(null); }
@@ -77,7 +78,7 @@ export function SaveToWatchlist({ companyId, companyName }: { companyId: string;
 						{shown.map((l) => {
 							const on = ids.includes(l.id);
 							return (
-								<button key={l.id} type="button" className={cx('atlas-menu__item', 'atlas-menu__item--plain', on && 'on')} aria-pressed={on} disabled={busy !== null} onClick={() => void toggle(l.id, l.name)}>
+								<button key={l.id} type="button" data-tour-option={l.name} className={cx('atlas-menu__item', 'atlas-menu__item--plain', on && 'on')} aria-pressed={on} disabled={busy !== null} onClick={() => void toggle(l.id, l.name)}>
 									<span className="atlas-wl-check" aria-hidden="true">{busy === l.id ? <Loader2 className="animate-spin" size={10} /> : on ? <Check size={10} /> : null}</span>
 									<span className="atlas-switcher__name">{l.name}</span>
 									{l.company_count != null && <span className="atlas-switcher__meta">{l.company_count}</span>}

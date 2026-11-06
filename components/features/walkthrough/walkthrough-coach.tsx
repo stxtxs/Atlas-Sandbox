@@ -10,7 +10,7 @@ import { matchPath } from '@/lib/sandbox/match-path';
 import { ATLAS_SIGNUP_URL } from '@/lib/sandbox/signup';
 import { reportTour } from '@/lib/sandbox/visitor';
 import { flatIndexOf, urlStepOf, withTutorialParams } from '@/lib/sandbox/tutorial-url';
-import { afterNavigation } from '@/lib/sandbox/nav-pending';
+import { afterNavigation, navPending } from '@/lib/sandbox/nav-pending';
 import type { Tour, TourStep } from '@/lib/sandbox/tour-types';
 import type { SandboxProduct } from '@/lib/sandbox/types';
 import { CoachText } from './coach-text';
@@ -19,6 +19,7 @@ import { Spotlight } from './spotlight';
 import { PRODUCT_NAME, TOURS, flatten } from './tours';
 import { useTourAdvance } from './use-tour-advance';
 import { TOUR_ESCAPE, useTourGuard } from './use-tour-guard';
+import { useInactiveOptions } from './use-inactive-options';
 import { tourSelector } from './use-tour-target';
 import './walkthrough.css';
 
@@ -96,14 +97,40 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 
 	// Open the step's page once per step — with the tour position already in the URL.
 	const navigatedFor = useRef('');
+	// Re-pushes until the step's page is up (below); dropped when the step changes.
+	const arriveTimer = useRef<number | null>(null);
+	useEffect(() => () => {
+		if (arriveTimer.current !== null) window.clearInterval(arriveTimer.current);
+		arriveTimer.current = null;
+	}, [stepKey]);
 	useEffect(() => {
 		if (!current || tooNarrow(current) || navigatedFor.current === stepKey) return;
 		navigatedFor.current = stepKey;
 		// The address bar, not usePathname(): after browser Back/Forward the hook still holds the old page for a render.
-		const here = window.location.pathname;
-		if (matchPath(current.path, here) || (current.alsoOn && matchPath(current.alsoOn, here))) return;
+		const onStepPage = () => {
+			const here = window.location.pathname;
+			return !!(matchPath(current.path, here) || (current.alsoOn && matchPath(current.alsoOn, here)));
+		};
+		if (onStepPage()) return;
 		const dest = hasParams(current.path) ? stepPath(product, step) : current.path;
-		if (dest) router.push(withTutorialParams(dest, { tier: product, step }));
+		if (!dest) return;
+		const url = withTutorialParams(dest, { tier: product, step });
+		router.push(url);
+		// Make sure the page actually arrives. A push made while the step before's
+		// URL drawer was closing (Raise: the pipeline card's edit panel, saved
+		// straight into My Market) was dropped: the panel showed My Market over the
+		// pipeline, and Next then flashed My Market and skipped it. Push again until
+		// the step's page is up, for about three seconds at most.
+		let tries = 0;
+		arriveTimer.current = window.setInterval(() => {
+			tries += 1;
+			if (currentStep() !== step || onStepPage() || tries > 10) {
+				if (arriveTimer.current !== null) window.clearInterval(arriveTimer.current);
+				arriveTimer.current = null;
+				return;
+			}
+			if (!navPending()) router.push(url);
+		}, 300);
 	}, [current, stepKey, step, pathname, router, product]);
 
 	// A step this screen is too narrow for moves straight on (Back skips it too).
@@ -148,6 +175,8 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 	const usable = current?.only ?? (current?.target && current.advance.kind !== 'next' ? tourSelector(current.target) : null);
 	const allowed = current ? [...(usable ? [usable] : []), ...(current.allow ?? [])] : NO_SELECTORS;
 	useTourGuard(allowed, !!current?.pointerOnly, current?.dropOn, current?.dragFrom);
+	// The other options in the step's menu look unavailable, not just ignore clicks.
+	useInactiveOptions(current?.allow);
 
 	// A menu left open by an earlier step (Add filter, Sort…) that this step doesn't
 	// use is closed — the way a click elsewhere would — so it never covers what
@@ -314,6 +343,11 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 							{tour.finale.body.split('\n\n').map((p) => <p key={p} className="wt-coach__lead"><CoachText text={p} /></p>)}
 							<div className="wt-coach__stack">
 								<a className="wt-btn wt-btn--primary" href={ATLAS_SIGNUP_URL} target="_blank" rel="noopener">Get Atlas {label} <ArrowRight size={15} aria-hidden="true" /></a>
+								{/* Under the main button: a small line (Raise's guarantee) or a secondary link (Scout's demo). */}
+								{tour.finale.note && <p className="wt-coach__finale-note">{tour.finale.note}</p>}
+								{tour.finale.secondary && (
+									<a className="wt-coach__finale-link" href={tour.finale.secondary.href} target="_blank" rel="noopener">{tour.finale.secondary.label}</a>
+								)}
 								<button type="button" className="wt-btn wt-btn--ghost" onClick={() => restartPractice()}><RotateCcw size={14} aria-hidden="true" /> Replay this tour</button>
 								<button type="button" className="wt-btn wt-btn--ghost" onClick={() => leavePractice()}><Shuffle size={14} aria-hidden="true" /> Try another plan</button>
 							</div>
@@ -326,7 +360,9 @@ function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; s
 								<ActionCue step={current} onNext={advance} canNext={canNext && !current.confirm} />
 							</div>
 							{current.body && <p className="wt-coach__info"><CoachText text={current.body} /></p>}
-							{current.points && <Points points={current.points} />}
+							{/* Expanded to start with (the "Explore the platform" list is the
+							    point of that step); still collapsible. */}
+							{current.points && <Points points={current.points} defaultOpen />}
 							{missing && adv !== 'next' && <p className="wt-coach__hint">Can&apos;t spot it on this page? Carry on with Next.</p>}
 						</>
 					)}
@@ -380,7 +416,7 @@ function ActionCue({ step, onNext, canNext }: { step: TourStep; onNext: () => vo
 	);
 }
 
-function Points({ points, open }: { points: { label: string; text: string }[]; open?: boolean }) {
+function Points({ points, open, defaultOpen }: { points: { label: string; text: string }[]; open?: boolean; defaultOpen?: boolean }) {
 	const list = (
 		<dl className="wt-coach__points">
 			{points.map((p) => <div key={p.label}><dt>{p.label}</dt><dd>{p.text}</dd></div>)}
@@ -388,7 +424,7 @@ function Points({ points, open }: { points: { label: string; text: string }[]; o
 	);
 	if (open) return list;
 	return (
-		<details className="wt-more">
+		<details className="wt-more" open={defaultOpen}>
 			<summary>More about this <ChevronDown size={14} aria-hidden="true" /></summary>
 			{list}
 		</details>

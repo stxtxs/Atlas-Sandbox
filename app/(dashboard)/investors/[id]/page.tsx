@@ -34,9 +34,24 @@ import { categoryLabel } from '@/components/raise/investors';
  * and already renders above as "Overview"; pointing this at the same field
  * would have shown it twice.
  *
- * `thesis.amount_min_usd` / `amount_max_usd` DO exist and are still unused —
- * "Typical cheque size" below is hardcoded to "Not confirmed".
+ * `thesis.amount_min_usd` / `amount_max_usd` DO exist: the sandbox shows them
+ * as "Typical cheque size" (in €, the sample data's currency), and "Not
+ * confirmed" only when an investor has no range.
  */
+/** €250k, €2m, €1.5m: the compact amounts the sample data is written in. */
+function euros(raw: string | null | undefined): string | null {
+	const n = Number(raw);
+	if (!raw || !Number.isFinite(n) || n <= 0) return null;
+	if (n >= 1_000_000) return `€${Number((n / 1_000_000).toFixed(1))}m`;
+	return `€${Math.round(n / 1_000)}k`;
+}
+/** "€250k–€2m", or null when the investor has no range. */
+function chequeRange(min: string | null | undefined, max: string | null | undefined): string | null {
+	const lo = euros(min);
+	const hi = euros(max);
+	return lo && hi ? `${lo}–${hi}` : lo ?? hi;
+}
+
 interface ThesisBundle {
 	thesis: { amount_min_usd?: string | null; amount_max_usd?: string | null } | null;
 	round_types: Array<{ name: string }>;
@@ -77,6 +92,7 @@ export default function InvestorProfilePage() {
 	if (isLoading || !inv) return <Screen><Loading /></Screen>;
 
 	const stages = bundle?.round_types?.map((r) => r.name).join(', ') || 'Not specified';
+	const cheque = chequeRange(bundle?.thesis?.amount_min_usd, bundle?.thesis?.amount_max_usd);
 	const geoText = bundle?.geo?.map((g) => g.scope_value).join(', ') || [inv.hq_country, inv.hq_region].filter(Boolean).join(', ') || '—';
 
 	return (
@@ -111,7 +127,7 @@ export default function InvestorProfilePage() {
 			<div className="atlas-eyebrow" style={{ margin: record ? '32px 0 14px' : '0 0 14px' }}>{record ? 'About this investor' : ''}</div>
 			<div className="atlas-kpis" style={{ marginBottom: 24 }} data-tour="investor-kpis">
 				<Tile label="Stages" value={stages} />
-				<Tile label="Typical cheque size" value="Not confirmed" muted />
+				<Tile label="Typical cheque size" value={cheque ?? 'Not confirmed'} muted={!cheque} />
 				<Tile label="Geography" value={geoText} />
 				<Tile label="Website" value={inv.website ? <a href={/^https?:\/\//i.test(inv.website) ? inv.website : `https://${inv.website}`} target="_blank" rel="noreferrer" style={{ color: 'var(--a-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Visit</a> : '—'} />
 			</div>

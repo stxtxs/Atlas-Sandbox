@@ -9,7 +9,7 @@ import { SCOUT_COLOR } from '@/components/scout/shell-config';
 import { PRODUCT_NAME } from '@/components/features/walkthrough/tours';
 import { isLeavingPractice } from '@/components/features/walkthrough/practice-actions';
 import { activeSandbox, currentStep, exitPractice, openTour, restoreStepSnapshot, setTourStep, usePractice, useRestoreCount } from '@/lib/sandbox/store';
-import { hasVisitor, reportTour, takeEntry } from '@/lib/sandbox/visitor';
+import { hasVisitor, markEntry, reportTour, takeEntry } from '@/lib/sandbox/visitor';
 import { VisitorGate } from '@/components/features/walkthrough/visitor-gate';
 import { TOUR_PARAM, readTutorialParams, withTutorialParams } from '@/lib/sandbox/tutorial-url';
 import { markNavDone, navPending, trackRouterNavigations } from '@/lib/sandbox/nav-pending';
@@ -67,7 +67,13 @@ export function TutorialShell({ children }: { children: React.ReactNode }) {
 		// A `tour=` this build doesn't run (the retired Explore): start over at
 		// the chooser rather than resuming whatever this tab held.
 		if (q.has(TOUR_PARAM) && !pos) { exitPractice(); window.location.replace('/'); return; }
-		if (pos) openTour(pos.tier, pos.step);
+		if (pos) {
+			// A tour link opened straight (new tab, bookmark, pasted URL) is an entry
+			// like /preview/<tier>: count the visit. A reload keeps this tab's tour
+			// state, so it doesn't count again.
+			if (activeSandbox() !== pos.tier) markEntry(pos.tier);
+			openTour(pos.tier, pos.step);
+		}
 		// eslint-disable-next-line react-hooks/set-state-in-effect
 		setGated(!hasVisitor());
 		setMounted(true);

@@ -1,7 +1,8 @@
 /**
  * "The Warm-Up" for Atlas Raise: a short run over the real app, played as
- * Robin Keller, co-founder of Fanloop (raise-routes.ts builds that workspace;
- * every company and investor comes from fixtures/world.ts).
+ * Lena Hoffmann, co-founder of Fanloop (raise-routes.ts builds that workspace;
+ * every company and investor comes from fixtures/world.ts). A different name
+ * from the Scout persona (Robin Keller, partner at Kestrel), whom Lena pitches.
  *
  * Each `target` is a `data-tour` attribute on the real element (lists mark
  * every item; the first on screen is used). Every step says exactly what to
@@ -10,7 +11,8 @@
  *
  * Story beats the steps rely on (see raise-routes.ts SEED):
  *   - Kestrel Field Ventures is the top match and NOT in the watchlist (the tour adds it);
- *   - sample-pipe-7 is Podium Capital, a Target card to drag to Contacted.
+ *   - once added it sits in Target as sample-pipe-kestrel-field-ventures, the card
+ *     the visitor then drags to Contacted.
  *
  * Left out: chat, the deck and every other page. The tutorial has no sidebar,
  * so the last step lists what else Atlas Raise covers.
@@ -18,16 +20,19 @@
 import { investorByName } from '../fixtures/world';
 import type { Tour } from '../tour-types';
 
-const KESTREL = `/investors/${investorByName('Kestrel Field Ventures').id}`;
+const KESTREL_INVESTOR = investorByName('Kestrel Field Ventures');
+const KESTREL = `/investors/${KESTREL_INVESTOR.id}`;
+/** Kestrel's watchlist card once the tour adds it (raise-routes.ts addToPipeline). */
+const KESTREL_CARD = `pipe-card-sample-pipe-${KESTREL_INVESTOR.slug}`;
 
-/** The investor watchlist menu (portalled to <body>). */
-const WATCHLIST_MENU = '.atlas-wl-menu .atlas-menu__item';
+/** The one option the profile step allows in the investor watchlist menu (portalled to <body>). */
+const MAIN_WATCHLIST = '.atlas-wl-menu .atlas-menu__item[data-tour-option="Main watchlist"]';
 
 export const raiseTour: Tour = {
 	product: 'raise',
 	intro: {
 		title: 'Welcome to Atlas Raise',
-		body: 'You’re Robin Keller, co-founder of Fanloop, a Munich start-up building match-day apps for football clubs.',
+		body: 'You’re Lena Hoffmann, co-founder of Fanloop, a Munich start-up building match-day apps for football clubs.',
 		points: [
 			{ label: 'Round', text: '€1.5m seed, €300k committed' },
 			{ label: 'Investors', text: 'Eight already in your watchlist' },
@@ -51,7 +56,7 @@ export const raiseTour: Tour = {
 		},
 		{
 			id: 'investor-profile', title: 'Investor profile', steps: [
-				{ id: 'profile-add', path: KESTREL, target: 'investor-save', allow: [WATCHLIST_MENU],
+				{ id: 'profile-add', path: KESTREL, target: 'investor-save', allow: [MAIN_WATCHLIST],
 					title: 'Check the fit, then add', do: 'Click {{Add to watchlist}}, then pick {{Main watchlist}}.',
 					body: 'Stages, geography and recent deals show whether they back teams like yours.',
 					advance: { kind: 'request', method: 'POST', pattern: '/api/raise/pipeline' }, pause: 900 },
@@ -59,11 +64,11 @@ export const raiseTour: Tour = {
 		},
 		{
 			id: 'pipeline', title: 'Investor pipeline', steps: [
-				{ id: 'pipeline-drag', path: '/pipeline', target: 'pipe-card-sample-pipe-7', highlights: ['pipeline-col-contacted'],
+				{ id: 'pipeline-drag', path: '/pipeline', target: KESTREL_CARD, highlights: ['pipeline-col-contacted'],
 					dropOn: '[data-tour="pipeline-col-contacted"]',
 					allow: ['[data-tour="pipeline-stage"]', '[role="option"][data-value="contacted"]', '[data-tour="pipeline-save"]'],
 					pointerOnly: true,
-					title: 'You reached out to Podium Capital', do: 'Drag the Podium Capital card to {{Contacted}}.',
+					title: 'You reached out to Kestrel Field Ventures', do: 'Drag the Kestrel Field Ventures card to {{Contacted}}.',
 					body: 'Your watchlist tracks every investor, stage by stage. Or open the card, set Stage to Contacted and save.',
 					advance: { kind: 'request', method: 'PATCH', pattern: '/api/raise/pipeline/:id', body: { stage: 'contacted' } }, pause: 1000 },
 			],
@@ -79,10 +84,10 @@ export const raiseTour: Tour = {
 				{ id: 'platform', path: '/home', title: 'Explore the platform',
 					body: 'Atlas Raise has more for your round than this warm-up showed:',
 					points: [
-						{ label: 'Raise', text: 'Search every sports tech investor and accelerator program.' },
-						{ label: 'Discover', text: 'Find the companies and investors that matter to your round.' },
-						{ label: 'Intelligence', text: 'Research your market, competitors and funding trends.' },
+						{ label: 'Pitch Deck', text: 'Upload your deck to see strengths, gaps and likely investor concerns.' },
+						{ label: 'Investors', text: 'Search every sports tech investor and accelerator programme.' },
 						{ label: 'Watchlists', text: 'Track every investor conversation, stage by stage.' },
+						{ label: 'Intelligence', text: 'Research your market, competitors and funding trends.' },
 					],
 					cta: 'Finish Warm-Up', advance: { kind: 'next' } },
 			],
@@ -90,6 +95,7 @@ export const raiseTour: Tour = {
 	],
 	finale: {
 		title: 'Warm-Up Complete. Ready to Play?',
-		body: 'You’ve seen your raise at a glance, found investors who fit, moved one through your pipeline and sized up your market.\n\nNow put Atlas Raise to work with your own company and live investor data.',
+		body: 'You’ve seen your raise at a glance, found investors who fit, moved one through your pipeline and sized up your market.\n\nNow put Atlas Raise to work with your own deck, company and live investor data.',
+		note: '30-day money-back guarantee',
 	},
 };

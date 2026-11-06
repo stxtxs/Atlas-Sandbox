@@ -28,12 +28,11 @@ interface Market {
 
 // One decimal, dropping a trailing ".0" so round values stay clean (2.3m / 340m).
 const d1 = (x: number) => x.toFixed(1).replace(/\.0$/, '');
-const eur = (v: string | null) => {
-	if (v == null) return '—';
-	const n = Number(v);
-	return n >= 1e9 ? `EUR ${d1(n / 1e9)}bn` : n >= 1e6 ? `EUR ${d1(n / 1e6)}m` : `EUR ${n.toLocaleString()}`;
-};
-const usd = (n?: number | null) => (n == null ? '—' : n >= 1e9 ? `$${d1(n / 1e9)}bn` : n >= 1e6 ? `$${d1(n / 1e6)}m` : n > 0 ? `$${n.toLocaleString()}` : '—');
+// Every amount on this page in € (the sample data's currency), written short so
+// the five tiles fit beside the tour panel at 1440px: €1.2bn, €340m.
+const euro = (n: number) => (n >= 1e9 ? `€${d1(n / 1e9)}bn` : n >= 1e6 ? `€${d1(n / 1e6)}m` : `€${n.toLocaleString()}`);
+const eur = (v: string | null) => (v == null ? '—' : euro(Number(v)));
+const usd = (n?: number | null) => (n == null || n <= 0 ? '—' : euro(n));
 
 export function MyMarket() {
 	const [tab, setTab] = useState<'size' | 'competitors'>('size');
@@ -75,10 +74,10 @@ export function MyMarket() {
 				</Button>
 			</div>
 
-			<div className="atlas-kpis" data-tour="my-market-kpis">
+			<div className="atlas-kpis atlas-kpis--compact" data-tour="my-market-kpis">
 				<Kpi label="Total market (TAM)" value={eur(data.tam)} note={sizeNote(data.tam)} />
 				<Kpi label="Addressable market (SAM)" value={eur(data.sam)} note={sizeNote(data.sam)} />
-				<Kpi label="Market growth" value={data.cagr != null ? `${Number(data.cagr).toFixed(1)}% CAGR` : '—'} />
+				<Kpi label="Market growth" value={data.cagr != null ? `${Number(data.cagr).toFixed(1)}%` : '—'} note={data.cagr != null ? 'CAGR' : undefined} />
 				<Kpi label="Competitors tracked" value={String(g?.companies_tracked ?? competitors.length)} />
 				<Kpi label="Total funding raised" value={usd(g?.total_funding_usd)} />
 			</div>

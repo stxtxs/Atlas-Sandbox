@@ -240,3 +240,12 @@ body.wt-coach-open [data-sonner-toast] :is(button, a) { pointer-events: auto; }
 /* ── No sidebar: the tour does the navigating, so the rail and its menu button are gone. ── */
 .atlas.atlas-shell, .atlas.atlas-shell.is-collapsed { grid-template-columns: minmax(0, 1fr); }
 .atlas-shell .atlas-rail, .atlas-shell .atlas-hamburger, .atlas-shell .atlas-backdrop, .atlas-shell .atlas-tip { display: none; }
+
+/* One target per step: the other options in the step's menu (use-inactive-options.ts). */
+.atlas [data-wt-inactive] { opacity: 0.38; cursor: not-allowed; }
+.atlas [data-wt-inactive]:hover { background: transparent; }
+
+/* Completion screen: the line or link under "Get Atlas …". */
+.atlas .wt-coach__finale-note { margin: -2px 0 4px; text-align: center; font-family: var(--a-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--wt-muted); }
+.atlas .wt-coach__finale-link { margin: -2px 0 4px; text-align: center; font-family: var(--a-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--wt-ink); text-decoration: none; }
+.atlas .wt-coach__finale-link:hover { text-decoration: underline; text-underline-offset: 3px; }

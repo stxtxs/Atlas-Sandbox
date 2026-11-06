@@ -11,7 +11,6 @@ import type { Company, Deal } from '@/types/api';
 import { Action, Empty, Loading, Logo } from '@/components/atlas';
 import { RaisingPill } from '@/components/ui/atoms';
 import { ago, fmtUsd, place } from '@/components/features/market/format';
-import { VerifyButton } from '@/components/features/verify/verify-cta';
 import { SuggestCorrection } from '@/components/features/verify/suggest-correction';
 import { CompanyMa } from '@/components/features/company/company-ma';
 import { CompanyPrograms } from '@/components/features/company/company-programs';
@@ -177,16 +176,9 @@ export function CompanyProfile({ idOrSlug, backHref, companyHref, listHref, rail
 				</div>
 				<div className="atlas-co__actions">
 					<SaveToWatchlist companyId={c.id} companyName={c.name} />
-					{/* The highest-intent moment: they are looking at data about
-						    themselves that may be wrong. Pre-filling the target skips
-						    the search step the modal would otherwise open with. */}
-					<VerifyButton
-						role="founder"
-						entityId={c.id}
-						target={{ role: 'founder', id: c.id, name: c.name, website: c.website ?? undefined, verified: c.is_verified }}
-						label="Is this your company?"
-						hideWhenVerifiedElsewhere
-					/>
+					{/* Sandbox: no "Is this your company?" claim button. There are no
+					    accounts to claim with, and the tour step on this page has one
+					    target (Add to watchlist). The client shows it here. */}
 					{/* Renders only once their claim on this company is verified. */}
 					<SuggestCorrection companyId={c.id} companyName={c.name} current={{
 						website: c.website ?? '', description: c.description ?? '',

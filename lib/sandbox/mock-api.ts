@@ -18,6 +18,7 @@ import { exploreSandboxRoutes } from './explore-routes';
 import { raiseSandboxRoutes } from './raise-routes';
 import { scoutSandboxRoutes } from './scout-routes';
 import { matchPath } from './match-path';
+import { readTutorialParams } from './tutorial-url';
 import { PRACTICE_REQUEST_EVENT, type PracticeRequestDetail } from './events';
 import { json, type SandboxProduct, type SandboxRoute } from './types';
 
@@ -47,7 +48,12 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit, { 
 		throw new Error(`The tutorial has no backend: refused ${method} ${raw}`);
 	}
 
-	const product = activeSandbox() ?? 'explore';
+	// The URL's tour first: a tour link opened in a new tab, a bookmark or a
+	// pasted link asks for data before the shell has adopted the URL into the
+	// tour state, and answering those first requests from the generic workspace
+	// left the page on it (Scout crashed on the wrong shape). Sample data is
+	// built on demand from each tier's seed, so nothing else needs preparing.
+	const product = readTutorialParams(window.location.search)?.tier ?? activeSandbox() ?? 'explore';
 	const body = parseBody(init?.body);
 	let res: Response | undefined;
 	for (const [m, pattern, handler] of ROUTES[product]) {

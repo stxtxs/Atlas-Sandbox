@@ -27,3 +27,7 @@
 	.raise-home { padding: 24px 16px 0; }
 	.raise-attn { padding-top: 48px; padding-bottom: 88px; }
 }
+
+/* My Market: five tiles beside the tour panel at 1440px. A touch smaller, and
+   allowed to wrap rather than cut a value off ("EUR …", "11.8%…"). */
+.atlas .atlas-kpis--compact .atlas-kpi__value { font-size: 30px; white-space: normal; overflow-wrap: anywhere; }

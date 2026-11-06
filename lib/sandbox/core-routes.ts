@@ -71,7 +71,7 @@ const CHAT_ANSWERS = {
 } as const;
 
 /** The Raise follow-up the tour types ("Draft an intro email"). */
-const RAISE_EMAIL = 'Here is a first draft (sample):\n\n**Subject:** Fanloop — seed round, match-day engagement for clubs\n\nHi Hannah,\n\nKestrel led Kitroom’s seed, so I think Fanloop fits your fan engagement thesis. We run live second-screen apps for 14 clubs and grew revenue 3x last year. We are raising a €1.5M seed with €300k committed.\n\nWould you have 20 minutes next week?\n\nBest,\nRobin';
+const RAISE_EMAIL = 'Here is a first draft (sample):\n\n**Subject:** Fanloop — seed round, match-day engagement for clubs\n\nHi Hannah,\n\nKestrel led Kitroom’s seed, so I think Fanloop fits your fan engagement thesis. We run live second-screen apps for 14 clubs and grew revenue 3x last year. We are raising a €1.5M seed with €300k committed.\n\nWould you have 20 minutes next week?\n\nBest,\nLena';
 
 const chatAnswer = (product: SandboxProduct, message: string): string =>
 	product === 'raise' && /email|intro|draft/i.test(message) ? RAISE_EMAIL : CHAT_ANSWERS[product];
@@ -132,9 +132,13 @@ export const coreSandboxRoutes: SandboxRoute[] = [
 
 	// The visitor: one made-up person whose tier is the tour being run. Every
 	// real page that branches on the profile's tier (home, recommended, deck…)
-	// renders that tier's version from this alone.
+	// renders that tier's version from this alone. Two personas: Raise is Lena
+	// Hoffmann (Fanloop), Scout is Robin Keller (Kestrel Field Ventures), so the
+	// founder never shares a name with the investor she pitches.
 	['GET', '/api/profiles/me', ({ product }) => ({
-		id: 'demo-user', email: 'you@example.com', full_name: 'Robin Keller', display_name: 'Robin',
+		id: 'demo-user', email: 'you@example.com',
+		full_name: product === 'raise' ? 'Lena Hoffmann' : 'Robin Keller',
+		display_name: product === 'raise' ? 'Lena' : 'Robin',
 		referral_code: null, user_role: 'user', user_type: product, user_type_detail: null, background: null,
 		account_type: product === 'raise' ? 'founder' : product === 'scout' ? 'investor' : 'user',
 		paywall_shown_at: daysFromNow(-30), avatar_url: null,

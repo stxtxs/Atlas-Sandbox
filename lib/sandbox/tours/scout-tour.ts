@@ -4,8 +4,9 @@
  * finished thesis (scout-routes.ts).
  *
  * Steps are pinned to the same sample objects — Laneline (the top thesis
- * match) and the Shortlist watchlist (Stridewise waiting in "Identified") — so
- * every path is concrete and Back can always reopen it. Each `target` is a
+ * match, which the visitor adds to Shortlist and then moves from "Identified"
+ * to "Reviewing") and the Shortlist watchlist — so every path is concrete and
+ * Back can always reopen it. Each `target` is a
  * `data-tour` attribute on the real page.
  *
  * Left out: chat, Deal Flow ("Coming soon" in Atlas) and every other page.
@@ -15,7 +16,7 @@ import type { Tour } from '../tour-types';
 import { SHORTLIST_ID } from '../watchlist-routes';
 import { companyByName } from '../fixtures/world';
 
-const STRIDEWISE = companyByName('Stridewise').id;
+const LANELINE_ID = companyByName('Laneline').id;
 
 const LANELINE = '/companies/laneline';
 const SHORTLIST = `/watchlists/${SHORTLIST_ID}`;
@@ -63,7 +64,8 @@ export const scoutTour: Tour = {
 			steps: [
 				{
 					id: 'company-save', path: LANELINE, target: 'company-save',
-					allow: ['.atlas-wl-menu .atlas-menu__item'],
+					// Only Shortlist: the other lists and "New watchlist" stay inactive.
+					allow: ['.atlas-wl-menu .atlas-menu__item[data-tour-option="Shortlist"]'],
 					title: 'Add to watchlist',
 					do: 'Click {{Add to watchlist}}, then pick {{Shortlist}}.',
 					body: 'Found something interesting? Save it so you can keep track of the company.',
@@ -99,17 +101,18 @@ export const scoutTour: Tour = {
 					id: 'watchlist-stage', path: SHORTLIST, continues: true,
 					// Two ways, both landing in Reviewing: drag the card onto that column
 					// only, or pick it in the card's stage menu.
-					target: 'board-card-stridewise',
-					only: '[data-tour="board-card-stridewise"] .scout-board__select',
-					dragFrom: '[data-tour="board-card-stridewise"]',
+					// Laneline, added to Shortlist two chapters back, waits in Identified.
+					target: 'board-card-laneline',
+					only: '[data-tour="board-card-laneline"] .scout-board__select',
+					dragFrom: '[data-tour="board-card-laneline"]',
 					highlights: ['board-reviewing'],
 					dropOn: '[data-tour="board-reviewing"]',
 					allow: ['[role="option"][data-value="Reviewing"]'],
 					pointerOnly: true,
 					title: 'Move a deal forward',
-					do: 'Drag Stridewise to {{Reviewing}}, or pick it in the stage menu.',
-					body: 'Stridewise is waiting in Identified. Moving it tracks your progress.',
-					advance: { kind: 'request', method: 'PATCH', pattern: `/api/scout/watchlists/:id/companies/${STRIDEWISE}/stage`, body: { stage: 'reviewing' } },
+					do: 'Drag Laneline to {{Reviewing}}, or pick it in the stage menu.',
+					body: 'Laneline is waiting in Identified. Moving it tracks your progress.',
+					advance: { kind: 'request', method: 'PATCH', pattern: `/api/scout/watchlists/:id/companies/${LANELINE_ID}/stage`, body: { stage: 'reviewing' } },
 					pause: 1200,
 				},
 			],
@@ -136,5 +139,6 @@ export const scoutTour: Tour = {
 	finale: {
 		title: 'Warm-Up Complete. Ready to Play?',
 		body: 'You’ve found companies matching your thesis, built a watchlist and managed your pipeline.\n\nNow put Atlas Scout to work with your own investment thesis and real companies.',
+		secondary: { label: 'or book a demo →', href: 'https://cal.com/khyati/sportstechx' },
 	},
 };

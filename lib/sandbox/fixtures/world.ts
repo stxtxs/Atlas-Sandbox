@@ -187,7 +187,7 @@ const investor = (n: number, name: string, i: Omit<WInvestor, 'id' | 'name' | 's
 	({ id: uuid(0x1a, n), name, slug: slugify(name), website: `${slugify(name).replace(/-/g, '')}.example`, ...i });
 
 export const INVESTORS: WInvestor[] = [
-	investor(1, 'Kestrel Field Ventures', { category: 'venture_capital', country: 'GB', city: 'London', launched: 2016, cheque: [500_000, 2_000_000], stages: ['Seed', 'Series A'], focus: ['Fan Engagement', 'Media & Broadcasting'], aum_usd: 180_000_000, is_verified: true,
+	investor(1, 'Kestrel Field Ventures', { category: 'venture_capital', country: 'GB', city: 'London', launched: 2016, cheque: [250_000, 2_000_000], stages: ['Seed', 'Series A'], focus: ['Fan Engagement', 'Media & Broadcasting'], aum_usd: 180_000_000, is_verified: true,
 		description: 'Seed and Series A fund backing fan engagement and media companies across Europe. Usually leads, with a partner on the board.' }),
 	investor(2, 'Tidepool Sport', { category: 'venture_capital', country: 'NL', city: 'Amsterdam', launched: 2018, cheque: [250_000, 1_500_000], stages: ['Pre-Seed', 'Seed'], focus: ['Wearables', 'Health & Fitness'], aum_usd: 75_000_000, is_verified: true,
 		description: 'Early-stage fund for performance and health tech, with a lab programme that tests products with partner clubs.' }),

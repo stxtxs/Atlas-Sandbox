@@ -67,4 +67,16 @@ jumps straight to it.
   - account tabs → product settings tab only; Explore hides `advanced_filters` and `company_contacts` (feature-access stub);
   - `hooks/use-url-state.ts` → `useUrlModal` opens with native `pushState` (a router push of a query-only change could resolve back to the old URL here) and marks it in `nav-pending.ts`; `useDeepLinkKey` ignores `tour`/`step`;
   - dropdown flip logic (`use-keep-in-viewport`, combobox, date-picker, city-input, company-picker) → room below measured to `visibleBottom()`, so menus open above the phone bottom sheet instead of under it;
-  - the `data-tour` anchors.
+  - the `data-tour` anchors, and `data-tour-option` on watchlist menu options (`save-to-watchlist`, `save-investor-to-watchlist`) so a step can allow just one;
+  - watchlist save toasts → `briefToast` (`brief-toast.ts`), gone after ~3s even while Sonner's timer is paused;
+  - company profile → no "Is this your company?" button; Scout thesis-match card → no "match score isn't shown yet" sentence;
+  - investor profile → "Typical cheque size" from the thesis amounts (in €), not hardcoded "Not confirmed";
+  - My Market → amounts in €, CAGR as the tile's note, `atlas-kpis--compact` so five tiles fit beside the tour panel.
+
+## Entry links
+
+`/preview/raise` and `/preview/scout` are the links to share. `/#raise` and
+`/#scout` redirect to them. A tour URL opened straight (`/home?tour=scout&step=0`
+in a new tab, a bookmark) works too: `mockFetch` reads the tier from the URL
+before the shell has adopted it, so the first requests get that tier's sample
+data rather than the generic workspace.

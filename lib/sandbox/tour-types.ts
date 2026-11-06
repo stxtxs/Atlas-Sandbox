@@ -121,6 +121,11 @@ export interface Tour {
 	/** The welcome screen. Who the visitor is in this run. */
 	intro: { title: string; body: string; points?: { label: string; text: string }[] };
 	chapters: TourChapter[];
-	/** The completion screen: sign up, replay or another tier — no free exploring after it. */
-	finale: { title: string; body: string };
+	/**
+	 * The completion screen: sign up, replay or another tier — no free exploring
+	 * after it. `note` is a small line under "Get Atlas …" (Raise's money-back
+	 * guarantee); `secondary` a quieter link there instead (Scout's "or book a
+	 * demo"), opened in a new tab.
+	 */
+	finale: { title: string; body: string; note?: string; secondary?: { label: string; href: string } };
 }
