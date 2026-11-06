@@ -61,7 +61,13 @@ export function VisitorGate({ tier, onDone }: { tier: GatedTier; onDone: () => v
 
 	return (
 		<Modal open onOpenChange={() => { /* not dismissible: submit to continue */ }} title={`Start the ${TIER_NAME[tier]} tour`} width={460}>
-			<form onSubmit={(e) => void submit(e)} noValidate style={{ display: 'grid', gap: 14 }}>
+			{/* action + hidden tour/step: if anything submits this form natively
+			    (some autofill / password-manager extensions call form.submit(),
+			    which skips onSubmit), the browser reloads INTO this tour instead of
+			    to `/home?` with the tour dropped, which used to land on the chooser. */}
+			<form onSubmit={(e) => void submit(e)} action="/home" method="get" noValidate style={{ display: 'grid', gap: 14 }}>
+				<input type="hidden" name="tour" value={tier} />
+				<input type="hidden" name="step" value="0" />
 				<p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: 'var(--a-muted)' }}>
 					A short guided tour on sample data. Tell us who you are to begin.
 				</p>

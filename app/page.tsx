@@ -26,12 +26,15 @@ const tierFromHash = (hash: string): GatedTier | null =>
 	hash === '#raise' ? 'raise' : hash === '#scout' ? 'scout' : null;
 
 /**
- * Runs while the HTML is still parsing, before the chooser paints: a `#raise` /
- * `#scout` link goes straight to that tier's tour screen (fresh tour state),
- * so the chooser never shows. The tour screen asks for name + email
- * (VisitorGate in components/shell/tutorial-shell.tsx).
+ * Runs while the HTML is still parsing, before the chooser paints:
+ *  - a `#raise` / `#scout` link goes straight to that tier's tour screen (fresh
+ *    tour state); the tour screen asks for name + email (VisitorGate);
+ *  - otherwise, if this tab has a Raise/Scout tour in progress, it goes back
+ *    into it. The chooser only ever shows with no tour running: the tour's own
+ *    Exit / "Try another plan" (leavePractice) clear it first. Whatever else
+ *    lands on `/` mid-tour (a reload that lost the query, a stray link) resumes.
  */
-const HASH_REDIRECT = `(function(){var h=location.hash;if(h==='#raise'||h==='#scout'){try{sessionStorage.removeItem(${JSON.stringify(TUTORIAL_STORE_KEY)})}catch(e){}location.replace('/home?tour='+h.slice(1)+'&step=0')}})();`;
+const HASH_REDIRECT = `(function(){var K=${JSON.stringify(TUTORIAL_STORE_KEY)};var h=location.hash;if(h==='#raise'||h==='#scout'){try{sessionStorage.removeItem(K)}catch(e){}location.replace('/home?tour='+h.slice(1)+'&step=0');return}try{var s=JSON.parse(sessionStorage.getItem(K)||'null');if(s&&(s.active==='raise'||s.active==='scout')){var n=Number.isInteger(s.step)&&s.step>=0?s.step:0;location.replace('/home?tour='+s.active+'&step='+n)}}catch(e){}})();`;
 
 /**
  * The tutorial's front door: pick Raise or Scout, then a short guided tour runs
