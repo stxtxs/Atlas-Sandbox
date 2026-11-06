@@ -89,7 +89,8 @@ export const ROUTES: RouteDef[] = [
 		// heading and no tab strip, because NavSectionHeader can only find a
 		// section the viewer's sidebar actually has.
 		id: 'signals', icon: 'nav-signals', name: 'Signals',
-		path: '/signals', tier: ['raise', 'scout'],
+		// "Coming soon" in Atlas: a greyed SOON tab, not a link.
+		path: '/signals', tier: ['raise', 'scout'], soon: true,
 	},
 	{
 		// One URL, two different domain objects: recommended investors for a

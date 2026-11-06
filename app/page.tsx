@@ -46,7 +46,7 @@ export default function ChooserPage() {
 	useEffect(() => {
 		const fromHash = () => {
 			const tier = tierFromHash(window.location.hash);
-			if (tier) enterPractice(tier);
+			if (tier) enterPractice(tier, { replace: true });
 		};
 		window.addEventListener('hashchange', fromHash);
 		return () => window.removeEventListener('hashchange', fromHash);

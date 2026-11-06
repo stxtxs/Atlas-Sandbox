@@ -10,7 +10,7 @@ import { PRODUCT_NAME } from '@/components/features/walkthrough/tours';
 import { activeSandbox, currentStep, exitPractice, openTour, restoreStepSnapshot, setTourStep, usePractice, useRestoreCount } from '@/lib/sandbox/store';
 import { hasVisitor } from '@/lib/sandbox/visitor';
 import { VisitorGate } from '@/components/features/walkthrough/visitor-gate';
-import { readTutorialParams, withTutorialParams } from '@/lib/sandbox/tutorial-url';
+import { TOUR_PARAM, readTutorialParams, withTutorialParams } from '@/lib/sandbox/tutorial-url';
 import { markNavDone, navPending, trackRouterNavigations } from '@/lib/sandbox/nav-pending';
 import type { SandboxProduct } from '@/lib/sandbox/types';
 import '@/components/raise/raise.css';
@@ -56,10 +56,19 @@ export function TutorialShell({ children }: { children: React.ReactNode }) {
 	const [mounted, setMounted] = useState(false);
 
 	// Load: adopt the URL's position (the one render that must differ from the server's).
+	// A pasted tour link skips the chooser: ask for name + email here too. Set
+	// in the SAME commit as `mounted`, so the coach (its navigation and click
+	// guard, which would block the form) never mounts behind the gate.
+	const [gated, setGated] = useState(false);
 	useEffect(() => {
+		const q = new URLSearchParams(window.location.search);
 		const pos = readTutorialParams(window.location.search);
+		// A `tour=` this build doesn't run (the retired Explore): start over at
+		// the chooser rather than resuming whatever this tab held.
+		if (q.has(TOUR_PARAM) && !pos) { exitPractice(); window.location.replace('/'); return; }
 		if (pos) openTour(pos.tier, pos.step);
 		// eslint-disable-next-line react-hooks/set-state-in-effect
+		setGated(!hasVisitor());
 		setMounted(true);
 	}, []);
 	useEffect(() => { if (mounted && !active) window.location.replace('/'); }, [mounted, active]);
@@ -68,12 +77,6 @@ export function TutorialShell({ children }: { children: React.ReactNode }) {
 		if (mounted && active === 'explore') { exitPractice(); window.location.replace('/'); }
 	}, [mounted, active]);
 
-	// A pasted tour link skips the chooser: ask for name + email here too. While
-	// the gate is up the coach (and its click guard, which would block the form)
-	// is not mounted; the modal's overlay covers the page.
-	const [gated, setGated] = useState(false);
-	// eslint-disable-next-line react-hooks/set-state-in-effect
-	useEffect(() => { if (mounted && active) setGated(!hasVisitor()); }, [mounted, active]);
 
 	// Router navigations in flight (lib/sandbox/nav-pending.ts): the tour holds its
 	// own updates until they land, or Next loses them. A navigation has landed

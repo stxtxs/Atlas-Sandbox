@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Button, Field, Input } from '@/components/atlas';
 import { Modal } from '@/components/atlas/patterns/modal';
 import { rememberVisitor } from '@/lib/sandbox/visitor';
@@ -25,12 +25,18 @@ export function VisitorGate({ tier, onDone }: { tier: GatedTier; onDone: () => v
 	const [website, setWebsite] = useState('');
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const nameRef = useRef<HTMLInputElement>(null);
+	const emailRef = useRef<HTMLInputElement>(null);
+	const fail = (msg: string, field: 'name' | 'email') => {
+		setError(msg);
+		(field === 'name' ? nameRef : emailRef).current?.focus();
+	};
 
 	const submit = async (e: FormEvent) => {
 		e.preventDefault();
 		if (busy) return;
-		if (!name.trim()) return setError('Enter your name.');
-		if (!EMAIL.test(email.trim())) return setError('Enter a valid email address.');
+		if (!name.trim()) return fail('Enter your name.', 'name');
+		if (!EMAIL.test(email.trim())) return fail('Enter a valid email address.', 'email');
 		setError(null);
 		setBusy(true);
 		const res = await fetch('/api/visitor', {
@@ -40,7 +46,8 @@ export function VisitorGate({ tier, onDone }: { tier: GatedTier; onDone: () => v
 		}).catch(() => null);
 		if (res?.status === 400) {
 			setBusy(false);
-			setError('Enter a valid email address.');
+			// After the button re-enables, or focus would land on a disabled control.
+			requestAnimationFrame(() => fail('Enter a valid email address.', 'email'));
 			return;
 		}
 		if (res?.ok) rememberVisitor();
@@ -54,10 +61,10 @@ export function VisitorGate({ tier, onDone }: { tier: GatedTier; onDone: () => v
 					A short guided tour on sample data. Tell us who you are to begin.
 				</p>
 				<Field label="Name" required>
-					<Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" autoFocus maxLength={200} />
+					<Input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" autoFocus maxLength={200} aria-invalid={error === 'Enter your name.' || undefined} />
 				</Field>
 				<Field label="Work email" required>
-					<Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" maxLength={320} />
+					<Input ref={emailRef} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" maxLength={320} aria-invalid={error === 'Enter a valid email address.' || undefined} />
 				</Field>
 				{/* Honeypot: invisible to people, filled by bots. */}
 				<input

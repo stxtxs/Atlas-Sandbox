@@ -1,7 +1,7 @@
 'use client';
 
-import { cloneElement, isValidElement, useId } from 'react';
-import type { ChangeEvent, ReactElement, ReactNode, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
+import { cloneElement, isValidElement, useId, type ComponentProps } from 'react';
+import type { ChangeEvent, ReactElement, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { cx } from './cx';
 import { Combobox } from './combobox';
 import { DatePicker } from './date-picker';
@@ -33,7 +33,8 @@ export function Field({ label, required, info, children }: { label?: string; req
 	);
 }
 
-export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
+/** ComponentProps<'input'> (not InputHTMLAttributes): in React 19 that includes `ref`. */
+export function Input(props: ComponentProps<'input'>) {
 	return <input {...props} className={cx('atlas-input', props.className)} />;
 }
 
