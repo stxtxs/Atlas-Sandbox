@@ -16,7 +16,9 @@ export interface PracticeState {
 }
 
 // v4: `step` is numbered as in the URL (0 welcome) — older saved positions would land one step off.
-const KEY = 'stx:tutorial:v4';
+/** Exported for the chooser's pre-paint redirect (app/page.tsx), which clears it. */
+export const TUTORIAL_STORE_KEY = 'stx:tutorial:v4';
+const KEY = TUTORIAL_STORE_KEY;
 const EVENT = 'stx:tutorial';
 const PRODUCTS: SandboxProduct[] = ['explore', 'raise', 'scout'];
 const EMPTY: PracticeState = { active: null, step: 0 };
