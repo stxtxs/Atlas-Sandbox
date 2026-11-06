@@ -3,6 +3,7 @@
 import { activeSandbox, exitPractice, startWalkthrough } from '@/lib/sandbox/store';
 import type { SandboxProduct } from '@/lib/sandbox/types';
 import { withTutorialParams } from '@/lib/sandbox/tutorial-url';
+import { markEntry } from '@/lib/sandbox/visitor';
 
 /*
  * Starting, replaying and leaving a tour all end in a full page load, so the
@@ -12,6 +13,8 @@ import { withTutorialParams } from '@/lib/sandbox/tutorial-url';
 /** Start a tier's tour on its home page. `replace` for a deep link, so Back doesn't land on it and restart the tour. */
 export function enterPractice(product: SandboxProduct, { replace = false } = {}) {
 	startWalkthrough(product);
+	// One entry = one visit of this tier (counted by the tour screen).
+	markEntry(product);
 	const url = withTutorialParams('/home', { tier: product, step: 0 });
 	if (replace) window.location.replace(url);
 	else window.location.assign(url);

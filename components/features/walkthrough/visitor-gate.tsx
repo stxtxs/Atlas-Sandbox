@@ -3,7 +3,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Button, Field, Input } from '@/components/atlas';
 import { Modal } from '@/components/atlas/patterns/modal';
-import { markStarted, rememberVisitor } from '@/lib/sandbox/visitor';
+import { rememberVisitor, takeEntry } from '@/lib/sandbox/visitor';
 
 export type GatedTier = 'raise' | 'scout';
 
@@ -54,7 +54,8 @@ export function VisitorGate({ tier, onDone }: { tier: GatedTier; onDone: () => v
 		}
 		if (res?.ok) {
 			rememberVisitor({ name: name.trim(), email: email.trim().toLowerCase() });
-			markStarted(tier);
+			// This submit counted the visit: the entry that brought them here is used up.
+			takeEntry();
 		}
 		onDone();
 	};

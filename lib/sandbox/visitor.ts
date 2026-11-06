@@ -37,29 +37,46 @@ export function rememberVisitor(v: Visitor): void {
 	}
 }
 
-const onceKey = (tier: SandboxProduct, event: 'started' | 'completed') => `stx-sandbox-${event}-${tier}`;
+/**
+ * An entry to report: the tier a visitor just chose, by a link (`/#scout`,
+ * `/preview/raise`) or a chooser card. Set by every entry point, taken once by
+ * the tour screen, so a reload or moving around inside the tour never counts.
+ * Kept in sessionStorage (this tab only).
+ */
+export const ENTRY_KEY = 'stx-sandbox-entry';
 
-/** The gate's own submit already counted this tier's start in this tab. */
-export function markStarted(tier: SandboxProduct): void {
-	try { window.sessionStorage.setItem(onceKey(tier, 'started'), '1'); } catch { /* storage blocked */ }
+export function markEntry(tier: SandboxProduct): void {
+	try { window.sessionStorage.setItem(ENTRY_KEY, tier); } catch { /* storage blocked: that start goes uncounted */ }
+}
+
+/** The pending entry's tier, cleared as it is read. */
+export function takeEntry(): SandboxProduct | null {
+	try {
+		const t = window.sessionStorage.getItem(ENTRY_KEY) as SandboxProduct | null;
+		window.sessionStorage.removeItem(ENTRY_KEY);
+		return t;
+	} catch {
+		return null;
+	}
 }
 
 /**
- * Tell the platform a tour was started or finished. Fire-and-forget,
- * `keepalive` so a finale followed straight by a click away still lands.
- * A start counts once per tier per tab (a reload doesn't add a visit); a
- * finish once per tier per browser.
+ * Tell the platform a tour was started (one entry = one visit of that tier) or
+ * finished (once per tier per browser). Fire-and-forget, `keepalive` so a
+ * finale followed straight by a click away still lands.
  */
 export function reportTour(tier: SandboxProduct, event: 'started' | 'completed'): void {
 	if (tier !== 'raise' && tier !== 'scout') return;
 	const v = storedVisitor();
 	if (!v) return;
-	try {
-		const box = event === 'completed' ? window.localStorage : window.sessionStorage;
-		if (box.getItem(onceKey(tier, event))) return;
-		box.setItem(onceKey(tier, event), '1');
-	} catch {
-		/* storage blocked: report anyway */
+	if (event === 'completed') {
+		const once = `stx-sandbox-completed-${tier}`;
+		try {
+			if (window.localStorage.getItem(once)) return;
+			window.localStorage.setItem(once, '1');
+		} catch {
+			/* storage blocked: report anyway (the server keeps the first time) */
+		}
 	}
 	void fetch('/api/visitor', {
 		method: 'POST',

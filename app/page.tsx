@@ -6,6 +6,7 @@ import { AtlasLogo } from '@/components/atlas';
 import { enterPractice } from '@/components/features/walkthrough/practice-actions';
 import type { GatedTier } from '@/components/features/walkthrough/visitor-gate';
 import { TUTORIAL_STORE_KEY } from '@/lib/sandbox/store';
+import { ENTRY_KEY } from '@/lib/sandbox/visitor';
 import './chooser.css';
 
 const TIERS: { product: GatedTier; name: string; color: string; audience: string; body: string; covers: string[] }[] = [
@@ -26,15 +27,13 @@ const tierFromHash = (hash: string): GatedTier | null =>
 	hash === '#raise' ? 'raise' : hash === '#scout' ? 'scout' : null;
 
 /**
- * Runs while the HTML is still parsing, before the chooser paints:
- *  - a `#raise` / `#scout` link goes straight to that tier's tour screen (fresh
- *    tour state); the tour screen asks for name + email (VisitorGate);
- *  - otherwise, if this tab has a Raise/Scout tour in progress, it goes back
- *    into it. The chooser only ever shows with no tour running: the tour's own
- *    Exit / "Try another plan" (leavePractice) clear it first. Whatever else
- *    lands on `/` mid-tour (a reload that lost the query, a stray link) resumes.
+ * Runs while the HTML is still parsing, before the chooser paints: a `#raise` /
+ * `#scout` link goes straight to that tier's tour screen (fresh tour state),
+ * so the chooser never shows, and marks the entry so that tier's visit is
+ * counted. The tour screen asks for name + email (VisitorGate). The landing
+ * page itself (no hash) always shows the chooser: that is where people choose.
  */
-const HASH_REDIRECT = `(function(){var K=${JSON.stringify(TUTORIAL_STORE_KEY)};var h=location.hash;if(h==='#raise'||h==='#scout'){try{sessionStorage.removeItem(K)}catch(e){}location.replace('/home?tour='+h.slice(1)+'&step=0');return}try{var s=JSON.parse(sessionStorage.getItem(K)||'null');if(s&&(s.active==='raise'||s.active==='scout')){var n=Number.isInteger(s.step)&&s.step>=0?s.step:0;location.replace('/home?tour='+s.active+'&step='+n)}}catch(e){}})();`;
+const HASH_REDIRECT = `(function(){var h=location.hash;if(h==='#raise'||h==='#scout'){try{sessionStorage.removeItem(${JSON.stringify(TUTORIAL_STORE_KEY)});sessionStorage.setItem(${JSON.stringify(ENTRY_KEY)},h.slice(1))}catch(e){}location.replace('/home?tour='+h.slice(1)+'&step=0')}})();`;
 
 /**
  * The tutorial's front door: pick Raise or Scout, then a short guided tour runs

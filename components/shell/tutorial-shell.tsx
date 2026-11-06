@@ -9,7 +9,7 @@ import { SCOUT_COLOR } from '@/components/scout/shell-config';
 import { PRODUCT_NAME } from '@/components/features/walkthrough/tours';
 import { isLeavingPractice } from '@/components/features/walkthrough/practice-actions';
 import { activeSandbox, currentStep, exitPractice, openTour, restoreStepSnapshot, setTourStep, usePractice, useRestoreCount } from '@/lib/sandbox/store';
-import { hasVisitor, reportTour } from '@/lib/sandbox/visitor';
+import { hasVisitor, reportTour, takeEntry } from '@/lib/sandbox/visitor';
 import { VisitorGate } from '@/components/features/walkthrough/visitor-gate';
 import { TOUR_PARAM, readTutorialParams, withTutorialParams } from '@/lib/sandbox/tutorial-url';
 import { markNavDone, navPending, trackRouterNavigations } from '@/lib/sandbox/nav-pending';
@@ -119,9 +119,13 @@ export function TutorialShell({ children }: { children: React.ReactNode }) {
 		return () => window.removeEventListener('popstate', onPop);
 	}, [mutate]);
 
-	// Which tours each visitor took: reported once the gate is passed (the gate's
-	// own submit already counts as a start; this covers a second tier later).
-	useEffect(() => { if (mounted && active && !gated) reportTour(active, 'started'); }, [mounted, active, gated]);
+	// One link / card entry = one visit of that tier. Taken once, so a reload or
+	// moving through the tour never counts. While the gate is up its submit
+	// counts the entry instead (it takes it too).
+	useEffect(() => {
+		if (!mounted || !active || gated) return;
+		if (takeEntry() === active) reportTour(active, 'started');
+	}, [mounted, active, gated]);
 
 	if (!mounted || !active || active === 'explore') return null;
 	return (
