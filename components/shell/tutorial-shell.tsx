@@ -7,7 +7,9 @@ import { AtlasShell } from '@/components/atlas';
 import { EXPLORE_COLOR } from '@/components/explore/shell-config';
 import { SCOUT_COLOR } from '@/components/scout/shell-config';
 import { PRODUCT_NAME } from '@/components/features/walkthrough/tours';
-import { activeSandbox, currentStep, openTour, restoreStepSnapshot, setTourStep, usePractice, useRestoreCount } from '@/lib/sandbox/store';
+import { activeSandbox, currentStep, exitPractice, openTour, restoreStepSnapshot, setTourStep, usePractice, useRestoreCount } from '@/lib/sandbox/store';
+import { hasVisitor } from '@/lib/sandbox/visitor';
+import { VisitorGate } from '@/components/features/walkthrough/visitor-gate';
 import { readTutorialParams, withTutorialParams } from '@/lib/sandbox/tutorial-url';
 import { markNavDone, navPending, trackRouterNavigations } from '@/lib/sandbox/nav-pending';
 import type { SandboxProduct } from '@/lib/sandbox/types';
@@ -61,6 +63,17 @@ export function TutorialShell({ children }: { children: React.ReactNode }) {
 		setMounted(true);
 	}, []);
 	useEffect(() => { if (mounted && !active) window.location.replace('/'); }, [mounted, active]);
+	// Explore has no tour any more: a tab still holding one goes back to the chooser.
+	useEffect(() => {
+		if (mounted && active === 'explore') { exitPractice(); window.location.replace('/'); }
+	}, [mounted, active]);
+
+	// A pasted tour link skips the chooser: ask for name + email here too. While
+	// the gate is up the coach (and its click guard, which would block the form)
+	// is not mounted; the modal's overlay covers the page.
+	const [gated, setGated] = useState(false);
+	// eslint-disable-next-line react-hooks/set-state-in-effect
+	useEffect(() => { if (mounted && active) setGated(!hasVisitor()); }, [mounted, active]);
 
 	// Router navigations in flight (lib/sandbox/nav-pending.ts): the tour holds its
 	// own updates until they land, or Next loses them. A navigation has landed
@@ -95,11 +108,12 @@ export function TutorialShell({ children }: { children: React.ReactNode }) {
 		return () => window.removeEventListener('popstate', onPop);
 	}, [mutate]);
 
-	if (!mounted || !active) return null;
+	if (!mounted || !active || active === 'explore') return null;
 	return (
-		<AtlasShell product={PRODUCT_NAME[active]} productColor={COLOR[active]} homePath={pathname ?? '/home'} nav={[]} overlay={<WalkthroughCoach />}>
+		<AtlasShell product={PRODUCT_NAME[active]} productColor={COLOR[active]} homePath={pathname ?? '/home'} nav={[]} overlay={gated ? null : <WalkthroughCoach />}>
 			{/* Remounted when Back restores the workspace: the page's own state starts over with it. */}
 			<Fragment key={restores}>{children}</Fragment>
+			{gated && <VisitorGate tier={active} onDone={() => setGated(false)} />}
 		</AtlasShell>
 	);
 }

@@ -246,16 +246,13 @@ type AttentionCard = { id: string; title: string; why: string; cta_label: string
 
 /** Attention cards in the server's priority order; Home shows the first three. */
 function attentionFor(ws: Workspace): AttentionCard[] {
-	const { raise } = ws;
 	const s = pipelineStats(ws.pipeline);
 	const out: AttentionCard[] = [];
 	if (s.overdue > 0) out.push({ id: 'overdue', title: `Follow up with ${s.overdue} overdue investor${s.overdue > 1 ? 's' : ''}`, why: 'These conversations have a next step that is past due.', cta_label: 'Review overdue', cta_href: '/pipeline?filter=overdue', count: s.overdue });
 	if (s.total < 5) out.push({ id: 'add-first', title: 'Add your first investors to the pipeline', why: 'Build a target list of at least five relevant investors to get moving.', cta_label: 'Find investors', cta_href: '/investors' });
 	out.push({ id: 'matches', title: 'Investors who fit Fanloop', why: 'New matches on sector, stage and geography — with the reasons for each.', cta_label: 'See matches', cta_href: '/recommended' });
 	if (s.no_next_step > 0) out.push({ id: 'next-steps', title: 'Add next steps to your active investors', why: 'Some active conversations have no next action — they will stall.', cta_label: 'Review investors', cta_href: '/pipeline?filter=no_next_step', count: s.no_next_step });
-	if (raise.status === 'active' && !raise.dealflow_opt_in && raise.dealflow_status == null) {
-		out.push({ id: 'dealflow', title: 'Share your round with the Investor Circle', why: 'Opt in and SportsTechX verifies your round, then shows it to vetted investors in Atlas Scout.', cta_label: 'See how it works', cta_href: '/settings' });
-	}
+	// No Investor Circle nudge: sharing a round is "Coming soon" in Atlas.
 	if (s.total >= 5 && !ws.strategyRequestedAt) out.push({ id: 'strategy', title: 'Book your strategy session', why: 'You have unlocked a session with SportsTechX leadership to pressure-test the raise.', cta_label: 'Book call', cta_href: '/strategy' });
 	return out;
 }

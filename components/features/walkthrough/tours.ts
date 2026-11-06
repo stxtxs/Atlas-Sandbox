@@ -1,11 +1,10 @@
-import { exploreTour } from '@/lib/sandbox/tours/explore-tour';
 import { raiseTour } from '@/lib/sandbox/tours/raise-tour';
 import { scoutTour } from '@/lib/sandbox/tours/scout-tour';
 import type { Tour, TourStep } from '@/lib/sandbox/tour-types';
 import type { SandboxProduct } from '@/lib/sandbox/types';
 
-/** One tour per tier (lib/sandbox/tours). */
-export const TOURS: Record<SandboxProduct, Tour> = { explore: exploreTour, raise: raiseTour, scout: scoutTour };
+/** One tour per tier (lib/sandbox/tours). Explore has none: its sample data stays for the shared routes. */
+export const TOURS: Partial<Record<SandboxProduct, Tour>> = { raise: raiseTour, scout: scoutTour };
 
 /** Short tier name for copy. */
 export const PRODUCT_NAME: Record<SandboxProduct, string> = { explore: 'Explore', raise: 'Raise', scout: 'Scout' };

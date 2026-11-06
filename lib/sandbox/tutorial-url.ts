@@ -1,6 +1,6 @@
 /**
  * Tutorial progress in the URL: every tutorial page carries
- * `?tour=<explore|raise|scout>&step=<n>`, so a reload, a bookmark or a shared
+ * `?tour=<raise|scout>&step=<n>`, so a reload, a bookmark or a shared
  * link opens the same step.
  *
  *   step 0      → the welcome screen
@@ -13,7 +13,8 @@ import type { SandboxProduct } from './types';
 
 export const TOUR_PARAM = 'tour';
 export const STEP_PARAM = 'step';
-const TIERS: readonly SandboxProduct[] = ['explore', 'raise', 'scout'];
+// Explore has no tour any more; an old `tour=explore` link reads as no tour.
+const TIERS: readonly SandboxProduct[] = ['raise', 'scout'];
 
 export interface TutorialPosition { tier: SandboxProduct; step: number }
 

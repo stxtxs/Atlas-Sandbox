@@ -61,8 +61,9 @@ function isTyping(el: EventTarget | null): boolean {
  */
 export function WalkthroughCoach() {
 	const { active, step } = usePractice();
-	if (!active) return null;
-	return <Coach product={active} tour={TOURS[active]} step={step} />;
+	const tour = active && TOURS[active];
+	if (!active || !tour) return null;
+	return <Coach product={active} tour={tour} step={step} />;
 }
 
 function Coach({ product, tour, step }: { product: SandboxProduct; tour: Tour; step: number }) {

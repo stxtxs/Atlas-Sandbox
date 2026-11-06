@@ -285,22 +285,18 @@ async function home(ctx: SandboxCtx) {
 			why: 'Companies identified as actively raising since last week.',
 			cta_label: 'Review matches', cta_href: '/recommended',
 		}] : []),
+		// Signals and Deal Flow are "Coming soon" in Atlas, so home points at
+		// the watchlists instead and offers no Deal Flow card.
 		...(watchlistCompanies > 0 ? [{
-			id: 'watchlist-signals', count: 2,
-			title: '2 companies you track have news',
-			why: 'A new round and a fundraising signal on your watchlists this week.',
-			cta_label: 'See signals', cta_href: '/signals',
+			id: 'watchlists', count: watchlistCompanies,
+			title: `${watchlistCompanies} ${watchlistCompanies === 1 ? 'company' : 'companies'} on your watchlists`,
+			why: 'Move them through your pipeline, stage by stage.',
+			cta_label: 'Open watchlists', cta_href: '/watchlists',
 		}] : [{
 			id: 'first-watchlist', title: 'Start a watchlist',
 			why: 'Track the companies you are following and Atlas will tell you when they move.',
 			cta_label: 'Browse companies', cta_href: '/companies',
 		}]),
-		{
-			id: 'deal-flow', count: SAMPLE_DEALS.length,
-			title: `${SAMPLE_DEALS.length} live raises in Deal Flow`,
-			why: 'Verified raises and deals shared by Investor Circle members.',
-			cta_label: 'Open Deal Flow', cta_href: '/deal-flow',
-		},
 	].slice(0, 3);
 	return {
 		needs_setup: !profile.setup_completed_at,

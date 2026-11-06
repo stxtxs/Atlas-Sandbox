@@ -13,7 +13,7 @@ leaves the browser.
 | Product pages | `app/(dashboard)/*`: the client's real pages, plus `data-tour` anchors. |
 | Frame | `components/shell/tutorial-shell.tsx`: AtlasShell with no sidebar and no top bar, plus the tour panel (Get Atlas, theme and Exit in its footer). |
 | Tour panel (coach) | `components/features/walkthrough/*`: guard, highlight, advance, contents menu. |
-| Tours | `lib/sandbox/tours/{explore,raise,scout}-tour.ts`: chapters of steps (`tour-types.ts`). |
+| Tours | `lib/sandbox/tours/{raise,scout}-tour.ts`: chapters of steps (`tour-types.ts`). |
 | State | `lib/sandbox/store.ts`: tier, step and per-tier sample workspace, in this browser only. |
 | "Backend" | `lib/sandbox/mock-api.ts` `mockFetch`, the only thing product code talks to. |
 | Sample data | `fixtures/world.ts` (the one fictional world) plus the route tables below. |

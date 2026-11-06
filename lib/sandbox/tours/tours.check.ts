@@ -1,5 +1,5 @@
 /**
- * Static checks on the three tours — run with `node lib/sandbox/tours/tours.check.ts`
+ * Static checks on the Raise and Scout tours — run with `node lib/sandbox/tours/tours.check.ts`
  * (part of `npm run check`). Catches what tsc can't:
  *   - a chapter whose first step has a `:param` path (Contents can't open it);
  *   - a `target` / `highlights` anchor that no component renders as `data-tour`;
@@ -26,7 +26,7 @@ const exists = (anchor: string) => literal.has(anchor) || prefixes.some((p) => a
 let failures = 0;
 const fail = (msg: string) => { console.error(`FAIL ${msg}`); failures++; };
 
-for (const tier of ['explore', 'raise', 'scout']) {
+for (const tier of ['raise', 'scout']) {
 	const text = fs.readFileSync(path.join('lib/sandbox/tours', `${tier}-tour.ts`), 'utf8');
 	const body = text.slice(text.indexOf('chapters:'));
 	// A chapter opens with `id: '…', title: '…', steps: [`; everything up to the next one is its steps.
