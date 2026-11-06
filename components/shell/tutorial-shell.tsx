@@ -7,6 +7,7 @@ import { AtlasShell } from '@/components/atlas';
 import { EXPLORE_COLOR } from '@/components/explore/shell-config';
 import { SCOUT_COLOR } from '@/components/scout/shell-config';
 import { PRODUCT_NAME } from '@/components/features/walkthrough/tours';
+import { isLeavingPractice } from '@/components/features/walkthrough/practice-actions';
 import { activeSandbox, currentStep, exitPractice, openTour, restoreStepSnapshot, setTourStep, usePractice, useRestoreCount } from '@/lib/sandbox/store';
 import { hasVisitor, reportTour } from '@/lib/sandbox/visitor';
 import { VisitorGate } from '@/components/features/walkthrough/visitor-gate';
@@ -72,7 +73,7 @@ export function TutorialShell({ children }: { children: React.ReactNode }) {
 		setMounted(true);
 	}, []);
 	useEffect(() => {
-		if (!mounted || active) return;
+		if (!mounted || active || isLeavingPractice()) return;
 		// The URL wins: an empty tour state with a tour in the address re-opens it
 		// (only an address with no tour goes back to the chooser).
 		const pos = readTutorialParams(window.location.search);

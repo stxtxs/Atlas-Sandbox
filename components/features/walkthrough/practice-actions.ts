@@ -24,7 +24,13 @@ export function restartPractice() {
 }
 
 /** Leave the tour for the tier chooser. */
+/** True once the visitor chose to leave (Exit / Try another plan): the shell
+ *  must not re-open the tour from the URL while the page unloads. */
+let leaving = false;
+export const isLeavingPractice = () => leaving;
+
 export function leavePractice() {
+	leaving = true;
 	exitPractice();
 	window.location.assign('/');
 }
