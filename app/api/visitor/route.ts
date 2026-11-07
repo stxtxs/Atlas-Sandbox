@@ -8,11 +8,18 @@ import { NextResponse } from 'next/server';
  *
  * This is the only request the sandbox makes beyond its own pages: everything
  * else is answered by lib/sandbox/mock-api.ts in the browser.
+ *
+ * Abuse guards: a browser request from another site is refused (Origin), and
+ * SANDBOX_PROXY_SECRET (server-only env, same value on the API) proves to the
+ * API that the call came from here, so nobody can write to it directly.
  */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '') || undefined;
 
 export async function POST(req: Request) {
+	const origin = req.headers.get('origin');
+	const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+	if (origin && host && origin.replace(/^https?:\/\//, '') !== host) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 	const raw: unknown = await req.json().catch(() => null);
 	const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
 	const email = str(body.email, 320);
@@ -25,7 +32,10 @@ export async function POST(req: Request) {
 
 	const res = await fetch(`${base}/api/public/sandbox-visitors`, {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
+		headers: {
+			'Content-Type': 'application/json',
+			...(process.env.SANDBOX_PROXY_SECRET ? { 'x-sandbox-secret': process.env.SANDBOX_PROXY_SECRET } : {}),
+		},
 		body: JSON.stringify({
 			email,
 			name,
