@@ -10,8 +10,10 @@ import { NextResponse } from 'next/server';
  * else is answered by lib/sandbox/mock-api.ts in the browser.
  *
  * Abuse guards: a browser request from another site is refused (Origin), and
- * SANDBOX_PROXY_SECRET (server-only env, same value on the API) proves to the
- * API that the call came from here, so nobody can write to it directly.
+ * PROXY_SECRET (server-only env, same value on the API) proves to the API that
+ * the call came from here, so nobody can write to it directly. With it we also
+ * pass the visitor's IP (Vercel sets x-real-ip; clients can't forge it), so the
+ * API rate-limits each visitor rather than everyone sharing this server's IP.
  */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '') || undefined;
@@ -34,7 +36,10 @@ export async function POST(req: Request) {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(process.env.SANDBOX_PROXY_SECRET ? { 'x-sandbox-secret': process.env.SANDBOX_PROXY_SECRET } : {}),
+			...(process.env.PROXY_SECRET ? {
+				'x-proxy-secret': process.env.PROXY_SECRET,
+				'x-visitor-ip': req.headers.get('x-real-ip') ?? '',
+			} : {}),
 		},
 		body: JSON.stringify({
 			email,
